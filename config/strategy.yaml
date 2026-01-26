@@ -1,21 +1,35 @@
 Ma:
-  -
-    name: maperiod
-    type: int
-    min: 10
-    max: 31
-    step: 1
+
+- name: maperiod
+  type: int
+  min: 10
+  max: 31
+  step: 1
 
 MaCross:
-  -
-    name: fast_length
-    type: int
-    min: 1
-    max: 11
-    step: 5
-  -
-    name: slow_length
-    type: int
-    min: 25
-    max: 35
-    step: 5
+
+- name: fast_length
+  type: int
+  min: 1
+  max: 11
+  step: 5
+
+- name: slow_length
+  type: int
+  min: 25
+  max: 35
+  step: 5
+
+EtfMomentum:
+
+- name: momentum_window
+  type: int
+  min: 10
+  max: 60
+  step: 5
+
+- name: rebalance_days
+  type: int
+  min: 1
+  max: 10
+  step: 1

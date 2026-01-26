@@ -8,19 +8,19 @@
 
 ### 核心特性
 
-- **数据获取** - 通过AkShare实时获取A股市场数据
-- **策略回测** - 利用Backtrader框架测试交易策略表现
-- **结果可视化** - 使用Pyecharts生成专业图表展示
-- **交互界面** - 基于Streamlit构建友好的Web操作环境
+- **数据获取** - 通过 AkShare 实时获取A股市场数据
+- **策略回测** - 利用 Backtrader 框架测试交易策略表现
+- **结果可视化** - 使用 Pyecharts 生成专业图表展示
+- **交互界面** - 基于 Streamlit 构建友好的 Web 操作环境
 
 ## 技术架构
 
-| 组件 | 功能 | 链接 |
-|------|------|------|
-| **Streamlit** | 构建交互式数据应用界面 | [官方仓库](https://github.com/streamlit/streamlit) |
-| **AkShare** | 获取金融市场数据 | [官方仓库](https://github.com/akfamily/akshare) |
-| **Backtrader** | 执行量化交易策略回测 | [官方仓库](https://github.com/mementum/backtrader) |
-| **Pyecharts** | 生成专业金融数据图表 | [官方仓库](https://github.com/pyecharts/pyecharts) |
+| 组件             | 功能          | 链接                                             |
+|----------------|-------------|------------------------------------------------|
+| **Streamlit**  | 构建交互式数据应用界面 | [官方仓库](https://github.com/streamlit/streamlit) |
+| **AkShare**    | 获取金融市场数据    | [官方仓库](https://github.com/akfamily/akshare)    |
+| **Backtrader** | 执行量化交易策略回测  | [官方仓库](https://github.com/mementum/backtrader) |
+| **Pyecharts**  | 生成专业金融数据图表  | [官方仓库](https://github.com/pyecharts/pyecharts) |
 
 ## 快速开始
 
@@ -29,7 +29,7 @@
 确保已安装所有依赖包：
 
 ```bash
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 ### 启动应用
@@ -37,7 +37,7 @@ pip install -r requirements.txt
 执行以下命令启动Web界面：
 
 ```bash
-streamlit run backtrader_app.py
+uv run streamlit run backtrader_app.py
 ```
 
 ### 策略测试
@@ -45,7 +45,7 @@ streamlit run backtrader_app.py
 运行内置策略的单元测试：
 
 ```bash
-python -m unittest tests.MaStrategyTest
+uv python -m unittest tests.MaStrategyTest
 ```
 
 ## 支持的策略
@@ -59,23 +59,23 @@ python -m unittest tests.MaStrategyTest
 
 ### AkShare数据参数
 
-| 参数 | 说明 |
-|------|------|
-| **symbol** | 股票代码（如：600070） |
-| **period** | 数据周期（日线、周线、月线） |
-| **start date** | 数据起始日期 |
-| **end date** | 数据结束日期 |
-| **adjust** | 复权方式（qfq：前复权，hfq：后复权） |
+| 参数             | 说明                    |
+|----------------|-----------------------|
+| **symbol**     | 股票代码（如：600070）        |
+| **period**     | 数据周期（日线、周线、月线）        |
+| **start date** | 数据起始日期                |
+| **end date**   | 数据结束日期                |
+| **adjust**     | 复权方式（qfq：前复权，hfq：后复权） |
 
 ### Backtrader回测参数
 
-| 参数 | 说明 |
-|------|------|
-| **start date** | 回测开始日期 |
-| **end date** | 回测结束日期 |
-| **start cash** | 初始资金 |
+| 参数                 | 说明     |
+|--------------------|--------|
+| **start date**     | 回测开始日期 |
+| **end date**       | 回测结束日期 |
+| **start cash**     | 初始资金   |
 | **commission fee** | 交易佣金比例 |
-| **stake** | 每次交易股数 |
+| **stake**          | 每次交易股数 |
 
 ## 相关推荐
 
