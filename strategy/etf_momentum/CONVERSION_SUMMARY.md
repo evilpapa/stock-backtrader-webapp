@@ -35,7 +35,7 @@
    - 添加了EtfMomentum策略配置
    - 参数：momentum_window (10-60), rebalance_days (1-10)
 
-2. **[requirements.txt](../../requirements.txt)**
+2. **[pyproject.toml](../../requirements.txt)**
    - 添加了新依赖：yfinance, empyrical, matplotlib
 
 ---

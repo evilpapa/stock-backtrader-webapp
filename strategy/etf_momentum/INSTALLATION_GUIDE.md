@@ -8,7 +8,7 @@
 2. ✅ 创建独立回测脚本 (`strategy/etf_momentum/backtest_etf_momentum.py`)
 3. ✅ 创建单元测试 (`tests/etf_momentum_test.py`)
 4. ✅ 更新策略配置 (`config/strategy.yaml`)
-5. ✅ 更新依赖列表 (`requirements.txt`)
+5. ✅ 更新依赖列表 (`pyproject.toml`)
 6. ✅ 创建详细文档（README_PYTHON.md、PACKAGE_MAPPING.md、CONVERSION_SUMMARY.md）
 
 ## 🚀 快速开始
