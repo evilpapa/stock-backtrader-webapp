@@ -69,6 +69,7 @@ python strategy/etf_momentum/backtest_etf_momentum.py
 ```
 
 **输出：**
+
 - 控制台打印性能指标表格
 - 生成 `momentum_strategy_backtest/` 目录
 - 包含CSV数据文件和PNG图表
@@ -136,18 +137,21 @@ cerebro.run()
 所有R版本的性能指标都已实现：
 
 ### 基础指标
+
 - ✅ 年化收益率 (Annualized Return)
 - ✅ 年化波动率 (Annualized Volatility)
 - ✅ 夏普比率 (Sharpe Ratio)
 - ✅ 最大回撤 (Max Drawdown)
 
 ### 高级指标
+
 - ✅ 卡尔马比率 (Calmar Ratio)
 - ✅ 索提诺比率 (Sortino Ratio)
 - ✅ 胜率 (Win Rate)
 - ✅ 正收益天数/总交易天数
 
 ### 对比基准
+
 - ✅ 沪深300ETF (基准策略)
 - ✅ 等权重组合 (Equal Weight Portfolio)
 - ✅ 各ETF买入持有 (Buy & Hold for each ETF)
@@ -157,6 +161,7 @@ cerebro.run()
 ## 🔧 技术实现亮点
 
 ### 1. 自定义性能计算器
+
 如果empyrical未安装，使用备用的自定义实现：
 
 ```python
@@ -168,6 +173,7 @@ class PerformanceCalculator:
 ```
 
 ### 2. Backtrader集成
+
 策略类完全符合Backtrader接口规范：
 
 ```python
@@ -179,6 +185,7 @@ class EtfMomentumStrategy(bt.Strategy):
 ```
 
 ### 3. 灵活的数据源
+
 支持多个ETF数据源的动态添加：
 
 ```python
@@ -188,6 +195,7 @@ for symbol, name in zip(symbols, names):
 ```
 
 ### 4. 完整的可视化
+
 使用matplotlib的GridSpec实现复杂布局：
 
 ```python
@@ -201,12 +209,14 @@ ax2 = fig.add_subplot(gs[1])  # 回撤
 ## 🧪 测试覆盖
 
 ### 单元测试
+
 - ✅ 策略初始化测试
 - ✅ 参数配置测试
 - ✅ 动量计算逻辑测试
 - ✅ 多数据源测试
 
 ### 运行测试
+
 ```bash
 python -m unittest tests.etf_momentum_test.EtfMomentumTest
 ```

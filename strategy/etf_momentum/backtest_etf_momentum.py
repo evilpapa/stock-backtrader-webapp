@@ -52,7 +52,8 @@ RESET = '\033[0m'  # 重置
 # ==================== 配置参数 ====================
 # 回测时间段
 BACKTEST_START = "2024-01-01"
-BACKTEST_END = datetime.now().strftime("%Y-%m-%d")
+BACKTEST_END = "2026-01-26"
+# BACKTEST_END = datetime.now().strftime("%Y-%m-%d")
 
 # ETF代码 (Yahoo Finance格式)
 ETF_SYMBOLS = ["513100.SS", "510300.SS", "518880.SS"]  # 纳指、沪深300、黄金
@@ -137,67 +138,6 @@ class PerformanceCalculator:
 	def win_rate(returns):
 		"""胜率（正收益天数占比）"""
 		return (returns > 0).sum() / len(returns)
-
-
-# ==================== 数据获取 ====================
-def fetch_etf_data(symbols, start_date, end_date):
-	"""
-	从Yahoo Finance获取ETF数据，支持本地缓存
-
-	优先使用本地缓存文件，如果不存在则从网络下载并保存到本地。
-	缓存文件命名格式: {symbol}_{start_date}_{end_date}.pkl
-
-	Args:
-		symbols: ETF代码列表
-		start_date: 开始日期
-		end_date: 结束日期
-
-	Returns:
-		dict: {symbol: DataFrame}
-	"""
-	print("正在获取ETF数据...")
-
-	# 确保缓存目录存在
-	data_dir = Path(__file__).resolve().parent.parent.parent / DATA_CACHE_DIR
-	os.makedirs(data_dir, exist_ok=True)
-
-	data_dict = {}
-
-	for symbol in symbols:
-		# 生成缓存文件名（去除特殊字符）
-		safe_symbol = symbol.replace(".", "_")
-		cache_filename = f"{safe_symbol}_{start_date}_{end_date}.pkl"
-		cache_filepath = os.path.join(data_dir, cache_filename)
-		print(cache_filepath)
-
-		# 检查缓存文件是否存在
-		if os.path.exists(cache_filepath):
-			try:
-				df = pd.read_pickle(cache_filepath)
-				if not df.empty:
-					data_dict[symbol] = df
-					print(f"  ✓ {symbol}: {len(df)} 条数据 (来自缓存)")
-					continue
-			except Exception as e:
-				print(f"  ⚠ {symbol}: 缓存文件读取失败 ({e})，将重新下载")
-
-		# 从网络下载数据
-		try:
-			df = yf.download(symbol, start=start_date, end=end_date, progress=False)
-			if not df.empty:
-				data_dict[symbol] = df
-				# 保存到缓存
-				try:
-					df.to_pickle(cache_filepath)
-					print(f"  ✓ {symbol}: {len(df)} 条数据 (已下载并缓存)")
-				except Exception as e:
-					print(f"  ✓ {symbol}: {len(df)} 条数据 (已下载，缓存保存失败: {e})")
-			else:
-				print(f"  ✗ {symbol}: 无数据")
-		except Exception as e:
-			print(f"  ✗ {symbol}: 获取失败 - {e}")
-
-	return data_dict
 
 
 # ==================== Backtrader策略 ====================
@@ -301,6 +241,39 @@ class EtfMomentumStrategy(bt.Strategy):
 					self.sell(data=data, size=-size)
 
 
+# ==================== 基准策略: 买入持有 ====================
+class BuyHoldStrategy(bt.Strategy):
+	"""买入持有策略"""
+	def __init__(self):
+		self.bought = False
+
+	def next(self):
+		if not self.bought:
+			# 使用所有资金买入
+			cash = self.broker.getcash()
+			size = int(cash / self.datas[0].close[0])
+			self.buy(size=size)
+			self.bought = True
+
+
+# ==================== 基准策略: 等权持有 ====================
+class EqualWeightStrategy(bt.Strategy):
+	"""等权重组合策略"""
+	def __init__(self):
+		self.rebalance_counter = 0
+		self.bought = False
+
+	def next(self):
+		if not self.bought:
+			# 初始买入：等权重分配
+			total_value = self.broker.getvalue()
+			for data in self.datas:
+				target_value = total_value / len(self.datas)
+				size = int(target_value / data.close[0])
+				self.buy(data=data, size=size)
+			self.bought = True
+
+
 # ==================== 回测分析器 ====================
 class CustomAnalyzer(bt.Analyzer):
 	"""自定义分析器，记录每日收益率"""
@@ -323,6 +296,66 @@ class CustomAnalyzer(bt.Analyzer):
 		self.dates = self.dates[1:]  # 去掉第一个日期
 
 
+# ==================== 数据获取 ====================
+def fetch_etf_data(symbols, start_date, end_date):
+	"""
+	从Yahoo Finance获取ETF数据，支持本地缓存
+
+	优先使用本地缓存文件，如果不存在则从网络下载并保存到本地。
+	缓存文件命名格式: {symbol}_{start_date}_{end_date}.pkl
+
+	Args:
+		symbols: ETF代码列表
+		start_date: 开始日期
+		end_date: 结束日期
+
+	Returns:
+		dict: {symbol: DataFrame}
+	"""
+	print("正在获取ETF数据...")
+
+	# 确保缓存目录存在
+	data_dir = Path(__file__).resolve().parent.parent.parent / DATA_CACHE_DIR
+	os.makedirs(data_dir, exist_ok=True)
+
+	data_dict = {}
+
+	for symbol in symbols:
+		# 生成缓存文件名（去除特殊字符）
+		safe_symbol = symbol.replace(".", "_")
+		cache_filename = f"{safe_symbol}_{start_date}_{end_date}.pkl"
+		cache_filepath = os.path.join(data_dir, cache_filename)
+
+		# 检查缓存文件是否存在
+		if os.path.exists(cache_filepath):
+			try:
+				df = pd.read_pickle(cache_filepath)
+				if not df.empty:
+					data_dict[symbol] = df
+					print(f"  ✓ {symbol}: {len(df)} 条数据 (来自缓存)")
+					continue
+			except Exception as e:
+				print(f"  ⚠ {symbol}: 缓存文件读取失败 ({e})，将重新下载")
+
+		# 从网络下载数据
+		try:
+			df = yf.download(symbol, start=start_date, end=end_date, progress=False)
+			if not df.empty:
+				data_dict[symbol] = df
+				# 保存到缓存
+				try:
+					df.to_pickle(cache_filepath)
+					print(f"  ✓ {symbol}: {len(df)} 条数据 (已下载并缓存)")
+				except Exception as e:
+					print(f"  ✓ {symbol}: {len(df)} 条数据 (已下载，缓存保存失败: {e})")
+			else:
+				print(f"  ✗ {symbol}: 无数据")
+		except Exception as e:
+			print(f"  ✗ {symbol}: 获取失败 - {e}")
+
+	return data_dict
+
+
 # ==================== 主回测函数 ====================
 def run_backtest(data_dict, symbols, names):
 	"""
@@ -331,7 +364,7 @@ def run_backtest(data_dict, symbols, names):
 	Returns:
 		tuple: (cerebro, results, trade_log)
 	"""
-	print("\n正在运行回测...")
+	print(BLUE + "\n正在运行回测..." + RESET)
 
 	# 创建Cerebro引擎
 	cerebro = bt.Cerebro()
@@ -358,10 +391,9 @@ def run_backtest(data_dict, symbols, names):
 	cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
 
 	# 运行回测
-	print(f"初始资金: {cerebro.broker.getvalue():.2f}")
+	print(YELLOW + f"初始资金: {cerebro.broker.getvalue():.2f}" + RESET)
 	results = cerebro.run()
-	print(f"期末资金: {cerebro.broker.getvalue():.2f}")
-
+	print(YELLOW + f"期末资金: {cerebro.broker.getvalue():.2f}" + RESET)
 
 	return cerebro, results[0]
 
@@ -370,39 +402,64 @@ def run_backtest(data_dict, symbols, names):
 def run_benchmark_backtest(data_dict, benchmark_symbol, benchmark_name):
 	"""运行基准策略（买入持有）"""
 
-	class BuyHoldStrategy(bt.Strategy):
-		"""买入持有策略"""
-		def __init__(self):
-			self.bought = False
-
-		def next(self):
-			if not self.bought:
-				# 使用所有资金买入
-				cash = self.broker.getcash()
-				size = int(cash / self.datas[0].close[0])
-				self.buy(size=size)
-				self.bought = True
-
 	cerebro = bt.Cerebro()
 
-	print(RED + "==> 运行基准策略回测..." + RESET)
+	print(RED + "\n==> 运行基准策略回测..." + RESET)
 	if benchmark_symbol in data_dict:
 		data = bt.feeds.PandasData(dataname=data_dict[benchmark_symbol])
 		cerebro.adddata(data, name=benchmark_name)
+		print(f"  ✓ 已添加数据: {benchmark_name}")
+	else:
+		print(f"  ✗ 错误: 找不到 {benchmark_symbol} 的数据")
+		return None
 
 	cerebro.addstrategy(BuyHoldStrategy)
 	cerebro.broker.setcash(INITIAL_CASH)
 	cerebro.broker.setcommission(commission=COMMISSION)
 	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
 
+	print(YELLOW + f"  初始资金: {cerebro.broker.getvalue():.2f}" + RESET)
 	results = cerebro.run()
+	print(YELLOW + f"  期末资金: {cerebro.broker.getvalue():.2f}" + RESET)
+
 	return results[0]
 
 
-# ==================== 性能分析 ====================
+# ==================== 等权重组合回测 ====================
+def run_equal_weight_backtest(data_dict, symbols, names):
+	"""运行等权重组合策略"""
+
+	cerebro = bt.Cerebro()
+
+	print(RED + "\n==> 运行等权重组合回测..." + RESET)
+	data_count = 0
+	for symbol, name in zip(symbols, names):
+		if symbol in data_dict:
+			data = bt.feeds.PandasData(dataname=data_dict[symbol])
+			cerebro.adddata(data, name=name)
+			data_count += 1
+			print(f"  ✓ 已添加数据: {name}")
+
+	if data_count == 0:
+		print("  ✗ 错误: 没有可用的数据")
+		return None
+
+	cerebro.addstrategy(EqualWeightStrategy)
+	cerebro.broker.setcash(INITIAL_CASH)
+	cerebro.broker.setcommission(commission=COMMISSION)
+	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
+
+	print(YELLOW + f"  初始资金: {cerebro.broker.getvalue():.2f}" + RESET)
+	results = cerebro.run()
+	print(YELLOW + f"  期末资金: {cerebro.broker.getvalue():.2f}" + RESET)
+
+	return results[0]
+
+
+# ==================== 效能分析 ====================
 def analyze_performance(strategy_result, benchmark_result, equal_weight_result, names):
-	"""分析性能指标"""
-	print("\n正在计算性能指标...")
+	"""分析效能指标"""
+	print("\n正在计算效能指标...")
 
 	# 提取收益率
 	strategy_returns = pd.Series(strategy_result.analyzers.custom.returns)
@@ -411,7 +468,7 @@ def analyze_performance(strategy_result, benchmark_result, equal_weight_result, 
 
 	calc = PerformanceCalculator()
 
-	# 计算各策略的性能指标
+	# 计算各策略的效能指标
 	metrics = {
 		'策略': ['动量策略', '沪深300ETF', '等权重组合'],
 		'年化收益率': [
@@ -475,45 +532,16 @@ def analyze_performance(strategy_result, benchmark_result, equal_weight_result, 
 	return df, strategy_returns, benchmark_returns, equal_returns
 
 
-# ==================== 等权重组合回测 ====================
-def run_equal_weight_backtest(data_dict, symbols, names):
-	"""运行等权重组合策略"""
-
-	class EqualWeightStrategy(bt.Strategy):
-		"""等权重组合策略"""
-		def __init__(self):
-			self.rebalance_counter = 0
-			self.bought = False
-
-		def next(self):
-			if not self.bought:
-				# 初始买入：等权重分配
-				total_value = self.broker.getvalue()
-				for data in self.datas:
-					target_value = total_value / len(self.datas)
-					size = int(target_value / data.close[0])
-					self.buy(data=data, size=size)
-				self.bought = True
-
-	cerebro = bt.Cerebro()
-
-	for symbol, name in zip(symbols, names):
-		if symbol in data_dict:
-			data = bt.feeds.PandasData(dataname=data_dict[symbol])
-			cerebro.adddata(data, name=name)
-
-	cerebro.addstrategy(EqualWeightStrategy)
-	cerebro.broker.setcash(INITIAL_CASH)
-	cerebro.broker.setcommission(commission=COMMISSION)
-	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
-
-	results = cerebro.run()
-	return results[0]
+# ==================== 计算回撤 ====================
+def calc_drawdown(returns):
+	cum = (1 + returns).cumprod()
+	running_max = cum.expanding().max()
+	drawdown = (cum - running_max) / running_max
+	return drawdown
 
 
 # ==================== 可视化 ====================
-def plot_results(strategy_returns, benchmark_returns, equal_returns, 
-				trade_log, dates, names):
+def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, dates, names):
 	"""绘制回测结果"""
 	print("\n正在生成图表...")
 
@@ -521,13 +549,6 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns,
 	strategy_cum = (1 + strategy_returns).cumprod()
 	benchmark_cum = (1 + benchmark_returns).cumprod()
 	equal_cum = (1 + equal_returns).cumprod()
-
-	# 计算回撤
-	def calc_drawdown(returns):
-		cum = (1 + returns).cumprod()
-		running_max = cum.expanding().max()
-		drawdown = (cum - running_max) / running_max
-		return drawdown
 
 	strategy_dd = calc_drawdown(strategy_returns)
 	benchmark_dd = calc_drawdown(benchmark_returns)
@@ -549,10 +570,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns,
 
 	# 累计收益率
 	ax1 = fig1.add_subplot(gs1[0])
-	ax1.plot(dates_index, strategy_cum, label='动量策略',
-			color=colors['动量策略'], linewidth=2)
-	ax1.plot(dates_index, benchmark_cum, label='沪深300ETF',
-			color=colors['沪深300ETF'], linewidth=2)
+	ax1.plot(dates_index, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
+	ax1.plot(dates_index, benchmark_cum, label='沪深300ETF', color=colors['沪深300ETF'], linewidth=2)
 	ax1.set_ylabel('累计收益率', fontsize=12)
 	ax1.set_title('动量策略 vs 沪深300ETF: 累计收益率', fontsize=14, fontweight='bold')
 	ax1.legend(loc='upper left')
@@ -561,10 +580,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns,
 
 	# 回撤
 	ax2 = fig1.add_subplot(gs1[1])
-	ax2.fill_between(dates_index, strategy_dd, 0,
-					label='动量策略', color=colors['动量策略'], alpha=0.3)
-	ax2.fill_between(dates_index, benchmark_dd, 0,
-					label='沪深300ETF', color=colors['沪深300ETF'], alpha=0.3)
+	ax2.fill_between(dates_index, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
+	ax2.fill_between(dates_index, benchmark_dd, 0, label='沪深300ETF', color=colors['沪深300ETF'], alpha=0.3)
 	ax2.set_xlabel('日期', fontsize=12)
 	ax2.set_ylabel('回撤', fontsize=12)
 	ax2.grid(True, alpha=0.3)
@@ -577,10 +594,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns,
 	gs2 = GridSpec(2, 1, height_ratios=[2, 1], hspace=0.05)
 
 	ax3 = fig2.add_subplot(gs2[0])
-	ax3.plot(dates_index, strategy_cum, label='动量策略',
-			color=colors['动量策略'], linewidth=2)
-	ax3.plot(dates_index, equal_cum, label='等权重组合',
-			color=colors['等权重组合'], linewidth=2)
+	ax3.plot(dates_index, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
+	ax3.plot(dates_index, equal_cum, label='等权重组合', color=colors['等权重组合'], linewidth=2)
 	ax3.set_ylabel('累计收益率', fontsize=12)
 	ax3.set_title('动量策略 vs 等权重组合: 累计收益率', fontsize=14, fontweight='bold')
 	ax3.legend(loc='upper left')
@@ -588,10 +603,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns,
 	ax3.set_xticklabels([])
 
 	ax4 = fig2.add_subplot(gs2[1])
-	ax4.fill_between(dates_index, strategy_dd, 0,
-					label='动量策略', color=colors['动量策略'], alpha=0.3)
-	ax4.fill_between(dates_index, equal_dd, 0,
-					label='等权重组合', color=colors['等权重组合'], alpha=0.3)
+	ax4.fill_between(dates_index, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
+	ax4.fill_between(dates_index, equal_dd, 0, label='等权重组合', color=colors['等权重组合'], alpha=0.3)
 	ax4.set_xlabel('日期', fontsize=12)
 	ax4.set_ylabel('回撤', fontsize=12)
 	ax4.grid(True, alpha=0.3)
@@ -610,13 +623,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns,
 		weight_dates_pd = pd.to_datetime(weight_dates)
 
 		# 堆叠面积图
-		ax5.stackplot(weight_dates_pd,
-					 weights_array[:, 0],
-					 weights_array[:, 1],
-					 weights_array[:, 2],
-					 labels=names,
-					 alpha=0.7,
-					 colors=['#E41A1C', '#377EB8', '#4DAF4A'])
+		ax5.stackplot(weight_dates_pd, weights_array[:, 0], weights_array[:, 1], weights_array[:, 2],
+					  labels=names, alpha=0.7, colors=['#E41A1C', '#377EB8', '#4DAF4A'])
 
 		ax5.set_xlabel('日期', fontsize=12)
 		ax5.set_ylabel('权重', fontsize=12)
@@ -633,9 +641,7 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns,
 
 
 # ==================== 保存结果 ====================
-def save_results(performance_df, trade_log, dates, names, 
-				strategy_returns, benchmark_returns, equal_returns,
-				fig1, fig2, fig3):
+def save_results(performance_df, trade_log, dates, names, strategy_returns, benchmark_returns, equal_returns, fig1, fig2, fig3):
 	"""保存回测结果"""
 	print(f"\n正在保存结果到 {OUTPUT_DIR}...")
 
@@ -643,8 +649,7 @@ def save_results(performance_df, trade_log, dates, names,
 	os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 	# 保存性能指标
-	performance_df.to_csv(f"{OUTPUT_DIR}/performance_metrics.csv",
-						 index=False, encoding='utf-8-sig')
+	performance_df.to_csv(f"{OUTPUT_DIR}/performance_metrics.csv", index=False, encoding='utf-8-sig')
 
 	# 保存权重数据
 	if trade_log:
@@ -668,19 +673,15 @@ def save_results(performance_df, trade_log, dates, names,
 		'沪深300ETF': benchmark_returns,
 		'等权重组合': equal_returns
 	})
-	returns_df.to_csv(f"{OUTPUT_DIR}/daily_returns.csv",
-					 index=False, encoding='utf-8-sig')
+	returns_df.to_csv(f"{OUTPUT_DIR}/daily_returns.csv", index=False, encoding='utf-8-sig')
 
 	# 保存图表
 	if fig1:
-		fig1.savefig(f"{OUTPUT_DIR}/momentum_vs_benchmark.png",
-					dpi=300, bbox_inches='tight')
+		fig1.savefig(f"{OUTPUT_DIR}/momentum_vs_benchmark.png", dpi=300, bbox_inches='tight')
 	if fig2:
-		fig2.savefig(f"{OUTPUT_DIR}/momentum_vs_equal_weight.png",
-					dpi=300, bbox_inches='tight')
+		fig2.savefig(f"{OUTPUT_DIR}/momentum_vs_equal_weight.png", dpi=300, bbox_inches='tight')
 	if fig3:
-		fig3.savefig(f"{OUTPUT_DIR}/daily_weights_plot.png",
-					dpi=300, bbox_inches='tight')
+		fig3.savefig(f"{OUTPUT_DIR}/daily_weights_plot.png", dpi=300, bbox_inches='tight')
 
 	print(f"✓ 结果已保存到 {OUTPUT_DIR}/")
 
@@ -701,12 +702,26 @@ def main():
 	data_dict = fetch_etf_data(ETF_SYMBOLS, BACKTEST_START, BACKTEST_END)
 	data_feeds = {}
 
+	# yfinance 下载的数据稍微进行转换
 	for ticker in ETF_SYMBOLS:
 		if ticker in data_dict:
 			df = data_dict[ticker]
-			df_ticker = df.xs(ticker, level=1, axis=1)
-			df_ticker = df_ticker[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
-			data_feeds[ticker] = df_ticker
+			
+			# 检查是否是多索引（批量下载）还是单索引（单个下载）
+			if isinstance(df.columns, pd.MultiIndex):
+				# 多索引：需要提取对应ticker的数据
+				df_ticker = df.xs(ticker, level=1, axis=1)
+			else:
+				# 单索引：直接使用
+				df_ticker = df
+			
+			# 确保列名正确
+			if 'Open' in df_ticker.columns:
+				df_ticker = df_ticker[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
+				data_feeds[ticker] = df_ticker
+				print(f"  ✓ 数据处理完成: {ticker}, 共 {len(df_ticker)} 行")
+			else:
+				print(f"  ✗ 数据列名不匹配: {ticker}, 列名: {df_ticker.columns.tolist()}")
 
 	if len(data_feeds) < len(ETF_SYMBOLS):
 		print("\n警告: 部分ETF数据获取失败，回测可能不完整")
@@ -724,19 +739,22 @@ def main():
 		data_feeds, ETF_SYMBOLS, ETF_NAMES
 	)
 
-	# 5. 性能分析
-	performance_df, strategy_returns, benchmark_returns, equal_returns = \
-		analyze_performance(strategy_result, benchmark_result,
-						  equal_weight_result, ETF_NAMES)
+	if benchmark_result is None or equal_weight_result is None:
+		print("\n错误: 基准策略或等权重策略回测失败，无法进行性能分析")
+		return
 
-	# 打印性能指标
+	# 5. 效能分析
+	performance_df, strategy_returns, benchmark_returns, equal_returns = \
+		analyze_performance(strategy_result, benchmark_result, equal_weight_result, ETF_NAMES)
+
+	# 打印效能指标
 	print("\n" + "=" * 60)
-	print("性能指标汇总")
+	print("效能指标汇总")
 	print("=" * 60)
 	print(performance_df.to_string(index=False))
 
 	# 6. 可视化
-	trade_log = strategy_result.strategy.trade_log
+	trade_log = strategy_result.trade_log
 	dates = strategy_result.analyzers.custom.dates
 
 	fig1, fig2, fig3 = plot_results(
@@ -745,9 +763,7 @@ def main():
 	)
 
 	# 7. 保存结果
-	save_results(performance_df, trade_log, dates, ETF_NAMES,
-				strategy_returns, benchmark_returns, equal_returns,
-				fig1, fig2, fig3)
+	save_results(performance_df, trade_log, dates, ETF_NAMES, strategy_returns, benchmark_returns, equal_returns, fig1, fig2, fig3)
 
 	print("\n" + "=" * 60)
 	print("回测完成！")

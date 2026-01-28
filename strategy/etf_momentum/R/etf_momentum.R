@@ -10,8 +10,9 @@ library(cowplot) # 图形组合（更精细的控制）
 
 # 1. 数据获取与预处理
 # 设置回测时间段 - 确保使用正确的日期格式
-backtest_start <- "2024-01-01"
-backtest_end <- Sys.Date()
+backtest_start <- "2024-01-02"
+#backtest_end <- Sys.Date()
+backtest_end <- "2026-01-26"
 
 # 转换为日期类型
 start_date <- as.Date(backtest_start)
@@ -25,13 +26,90 @@ etf_symbols <- c("513100.SS", "510300.SS", "518880.SS")
 etf_names <- c("纳指ETF", "沪深300ETF", "黄金ETF")
 
 # 从Yahoo Finance获取数据
-cat("正在从Yahoo Finance获取数据...\n")
-getSymbols(etf_symbols,
-  from = start_date,
-  to = end_date,
-  src = "yahoo",
-  auto.assign = TRUE
-)
+# cat("正在从Yahoo Finance获取数据...\n")
+# getSymbols(etf_symbols,
+#   from = start_date,
+#   to = end_date,
+#   src = "yahoo",
+#   auto.assign = TRUE
+# )
+################ 增加本地缓存文件，不必每次从Yahoo获取 ################
+# 创建origin_data文件夹
+origin_data_dir <- "origin_data"
+if (!dir.exists(origin_data_dir)) {
+  dir.create(origin_data_dir, recursive = TRUE)
+  cat("已创建文件夹:", origin_data_dir, "\n")
+}
+
+
+################ set proxy ########################
+#Sys.setenv(http_proxy  = "http://127.0.0.1:1080/")
+#Sys.setenv(https_proxy = "http://127.0.0.1:1080/")
+################ set proxy ########################
+
+# 从Yahoo Finance获取数据或从本地缓存加载
+# 函数: 加载或下载单个ETF数据
+load_or_download_etf <- function(symbol, from_date, to_date, cache_dir) {
+  # 生成缓存文件名
+  cache_file <- file.path(cache_dir, paste0(gsub("\\.", "_", symbol), ".rds"))
+  
+  # 检查缓存文件是否存在
+  if (file.exists(cache_file)) {
+    cat("从缓存文件加载:", symbol, "\n")
+    etf_data <- readRDS(cache_file)
+
+    # 验证数据完整性和日期范围
+    data_start <- start(etf_data)
+    data_end <- end(etf_data)
+    
+    cat("数据开始时间：", data_start, "\n")
+    cat("数据结束时间：", from_date, "\n")
+    
+    # 如果缓存数据涵盖所需日期范围，直接使用
+    if (data_start <= from_date && data_end >= to_date) {
+      cat("  缓存数据有效，日期范围: ", as.character(data_start), " 至 ", as.character(data_end), "\n")
+      return(etf_data)
+    } else {
+      cat("  缓存数据日期范围不足，重新下载\n")
+    }
+  }
+  
+  # 从Yahoo Finance下载数据
+  cat("从Yahoo Finance下载:", symbol, "\n")
+  tryCatch(
+    {
+      etf_data <- getSymbols(symbol,
+                             from = from_date,
+                             to = to_date,
+                             src = "yahoo",
+                             auto.assign = FALSE
+      )
+      
+      # 保存到缓存文件
+      saveRDS(etf_data, cache_file)
+      cat("  数据已保存到缓存文件:", cache_file, "\n")
+      
+      return(etf_data)
+    },
+    error = function(e) {
+      cat("  下载失败:", conditionMessage(e), "\n")
+      return(NULL)
+    }
+  )
+}
+
+# 批量加载或下载所有ETF数据
+cat("正在加载ETF数据...\n")
+for (symbol in etf_symbols) {
+  etf_data <- load_or_download_etf(symbol, start_date, end_date, origin_data_dir)
+  if (!is.null(etf_data)) {
+    assign(symbol, etf_data, envir = .GlobalEnv)
+  } else {
+    stop("无法获取数据:", symbol)
+  }
+}
+cat("所有ETF数据加载完成\n\n")
+################ 增加本地缓存文件，不必每次从Yahoo获取 ################ end
 
 # 提取调整后收盘价（已考虑分红配股）
 prices <- list()
@@ -51,20 +129,20 @@ calculate_metrics <- function(price_series, window = 20) {
   # 计算日收益率
   returns <- dailyReturn(price_series, type = "arithmetic")
   colnames(returns) <- "Return"
-
+  
   # 计算20日平均收益率（动量）
   momentum <- rollapply(returns, width = window, FUN = mean, align = "right", fill = NA)
   colnames(momentum) <- "Momentum"
-
+  
   # 计算20日收益率方差（波动率）
   volatility <- rollapply(returns, width = window, FUN = var, align = "right", fill = NA)
   colnames(volatility) <- "Volatility"
-
+  
   # 计算调整动量（动量/波动率）
   # 注意：使用标准差进行标准化（方差的平方根）
   adj_momentum <- momentum / sqrt(volatility)
   colnames(adj_momentum) <- "Adj_Momentum"
-
+  
   return(list(
     returns = returns,
     momentum = momentum,
@@ -85,31 +163,31 @@ generate_weights <- function(adj_momentum_df) {
   # 初始化权重数据框
   weights_df <- as.data.frame(adj_momentum_df)
   weights_df[] <- 0 # 所有值初始化为0
-
+  
   # 对每一行（每个交易日）计算权重
   for (i in 1:nrow(adj_momentum_df)) {
     # 获取当日的调整动量值
     current_momentum <- as.numeric(adj_momentum_df[i, ])
-
+    
     # 筛选调整动量大于0的标的
     positive_idx <- which(current_momentum > 0 & !is.na(current_momentum))
-
+    
     if (length(positive_idx) > 0) {
       # 获取正的调整动量值
       positive_momentum <- current_momentum[positive_idx]
-
+      
       # 按调整动量大小归一化计算权重
       normalized_weights <- positive_momentum / sum(positive_momentum)
-
+      
       # 分配权重
       weights_df[i, positive_idx] <- normalized_weights
     }
   }
-
+  
   # 转换为时间序列
   weights_xts <- xts(weights_df, order.by = index(adj_momentum_df))
   colnames(weights_xts) <- colnames(adj_momentum_df)
-
+  
   return(weights_xts)
 }
 
@@ -409,8 +487,8 @@ p1_drawdown <- ggplot(
 
 # 使用cowplot组合图表
 p1_combined <- plot_grid(p1_cumulative, p1_drawdown,
-  ncol = 1, align = "v",
-  rel_heights = c(1, 0.9)
+                         ncol = 1, align = "v",
+                         rel_heights = c(1, 0.9)
 )
 
 # ============================================================
@@ -474,8 +552,8 @@ p2_drawdown <- ggplot(
 
 # 使用cowplot组合图表
 p2_combined <- plot_grid(p2_cumulative, p2_drawdown,
-  ncol = 1, align = "v",
-  rel_heights = c(1, 0.9)
+                         ncol = 1, align = "v",
+                         rel_heights = c(1, 0.9)
 )
 
 # ============================================================
@@ -517,15 +595,15 @@ all_drawdowns_df <- data.frame(
 
 # 转换为长格式
 all_cumulative_long <- pivot_longer(all_cumulative_df,
-  cols = -Date,
-  names_to = "策略",
-  values_to = "累计收益率"
+                                    cols = -Date,
+                                    names_to = "策略",
+                                    values_to = "累计收益率"
 )
 
 all_drawdowns_long <- pivot_longer(all_drawdowns_df,
-  cols = -Date,
-  names_to = "策略",
-  values_to = "回撤"
+                                   cols = -Date,
+                                   names_to = "策略",
+                                   values_to = "回撤"
 )
 
 # 设置颜色方案 - 动量策略和三个ETF（确保每个都有不同颜色）
@@ -538,10 +616,10 @@ colors_buyhold <- c(
 
 # 确保策略名称与颜色方案匹配
 all_cumulative_long$策略 <- factor(all_cumulative_long$策略,
-  levels = names(colors_buyhold)
+                                 levels = names(colors_buyhold)
 )
 all_drawdowns_long$策略 <- factor(all_drawdowns_long$策略,
-  levels = names(colors_buyhold)
+                                levels = names(colors_buyhold)
 )
 
 # 累计收益率图（隐藏X轴，图例放在左上角，上下排列）
@@ -593,8 +671,8 @@ p3_drawdown <- ggplot(
 
 # 使用cowplot组合图表
 p3_combined <- plot_grid(p3_cumulative, p3_drawdown,
-  ncol = 1, align = "v",
-  rel_heights = c(1, 0.9)
+                         ncol = 1, align = "v",
+                         rel_heights = c(1, 0.9)
 )
 
 # ============================================================
@@ -602,9 +680,9 @@ p3_combined <- plot_grid(p3_cumulative, p3_drawdown,
 # ============================================================
 # 准备权重数据
 weights_long <- pivot_longer(daily_weights_df,
-  cols = all_of(etf_names),
-  names_to = "ETF",
-  values_to = "Weight"
+                             cols = all_of(etf_names),
+                             names_to = "ETF",
+                             values_to = "Weight"
 )
 
 # 权重图颜色方案
@@ -646,51 +724,51 @@ if (!dir.exists(output_dir)) {
 
 # 保存绩效指标数据框
 write.csv(performance_metrics_df,
-  file = paste0(output_dir, "/performance_metrics.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8"
+          file = paste0(output_dir, "/performance_metrics.csv"),
+          row.names = FALSE, fileEncoding = "UTF-8"
 )
 
 # 保存权重数据
 write.csv(daily_weights_df,
-  file = paste0(output_dir, "/daily_weights.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8"
+          file = paste0(output_dir, "/daily_weights.csv"),
+          row.names = FALSE, fileEncoding = "UTF-8"
 )
 
 # 保存每个ETF的权重数据
 for (etf in etf_names) {
   write.csv(etf_weight_dfs[[etf]],
-    file = paste0(output_dir, "/", etf, "_weights.csv"),
-    row.names = FALSE, fileEncoding = "UTF-8"
+            file = paste0(output_dir, "/", etf, "_weights.csv"),
+            row.names = FALSE, fileEncoding = "UTF-8"
   )
 }
 
 # 保存合并的ETF权重数据
 write.csv(all_etf_weights_df,
-  file = paste0(output_dir, "/all_etf_weights.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8"
+          file = paste0(output_dir, "/all_etf_weights.csv"),
+          row.names = FALSE, fileEncoding = "UTF-8"
 )
 
 # 保存累计收益率数据
 write.csv(cumulative_df,
-  file = paste0(output_dir, "/cumulative_returns.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8"
+          file = paste0(output_dir, "/cumulative_returns.csv"),
+          row.names = FALSE, fileEncoding = "UTF-8"
 )
 
 # 保存回撤数据
 write.csv(drawdown_df,
-  file = paste0(output_dir, "/drawdowns.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8"
+          file = paste0(output_dir, "/drawdowns.csv"),
+          row.names = FALSE, fileEncoding = "UTF-8"
 )
 
 # 保存Buy&Hold数据
 write.csv(all_cumulative_df,
-  file = paste0(output_dir, "/buyhold_cumulative.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8"
+          file = paste0(output_dir, "/buyhold_cumulative.csv"),
+          row.names = FALSE, fileEncoding = "UTF-8"
 )
 
 write.csv(all_drawdowns_df,
-  file = paste0(output_dir, "/buyhold_drawdowns.csv"),
-  row.names = FALSE, fileEncoding = "UTF-8"
+          file = paste0(output_dir, "/buyhold_drawdowns.csv"),
+          row.names = FALSE, fileEncoding = "UTF-8"
 )
 
 # 保存图表
