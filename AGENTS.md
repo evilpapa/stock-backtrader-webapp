@@ -19,6 +19,27 @@
   - `uv python -m unittest tests.ma_test.MaStrategyTest`
   - `uv python -m unittest tests.macross_test.MaCrossStrategyTest`
 
+### 项目结构
+
+- `backtrader_app.py`: 主入口，Streamlit UI 和协调逻辑。
+- `strategy/`: 策略实现。
+- `config/strategy.yaml`: 策略参数配置。
+- `frames/`: Streamlit UI 组件。
+- `charts/`: 图表渲染。
+- `utils/`: 辅助函数和工具。
+- `tests/`: 测试用例。
+- `logs/`: 日志文件夹。
+- `datas/`: 本地数据缓存（可选），按照 `{策略名}` 目录组织。
+- `examples/`: 示例脚本。
+- `R/`: R 语言策略脚本。
+
+注意：
+
+- 策略的运行示例在 `examples/{策略名}` 目录下有对应的运行文件。
+- R 语言策略脚本在 `R/{策略名}` 目录下。
+- 测试文件在 `tests/` 目录下，按策略分类。
+- 实现调研在 `docs/{策略名}` 目录下，包括 `RESEARCH.md` 实现说明、`README_PYTHON.md` python 说明等。
+
 ### 测试与自动化检查
 
 在提交改动前，确保相关检查通过，并在修改代码时扩展测试覆盖。
@@ -45,9 +66,9 @@
 
 ## 关键文件
 
-- 程序入口: `backtrader_app.py` (Streamlit UI + orchestration)
+- 程序入口: `backtrader.py` (Streamlit UI + orchestration)
 - 策略配置: `config/strategy.yaml`
-- 策略实现: `strategy/ma.py`, `strategy/macross.py`, 共享基类在 `strategy/base.py`
+- 策略实现: `strategy/ma.py`, `strategy/macross.py`, `strategy/just_buy_hold.py`, `strategy/equal_weight.py` 等, 共享基类在 `strategy/base.py`
 - UI 组件: `frames/sidebar.py` (输入), `frames/form.py` (策略参数)
 - 图表: `charts/stock.py` (K线), `charts/results.py` (结果条)
 - 数据与回测运行时: `utils/processing.py`
@@ -58,7 +79,7 @@
 
 1. UI 在 `frames/sidebar.py` 收集 AkShare 和 Backtrader 参数。
 2. `utils/processing.gen_stock_df` 获取 AkShare 数据并返回精简的 DataFrame。
-3. `backtrader_app.py` 在运行前将列重命名为 Backtrader 友好的名称。
+3. `backtrader.py` 在运行前将列重命名为 Backtrader 友好的名称。
 4. 策略参数通过 `frames/form.py` 选择，由 `config/strategy.yaml` 驱动。
 5. `utils/processing.run_backtrader` 运行 Backtrader 和分析器，并返回结果 DataFrame。
 6. `charts/` 中的图表渲染 K 线和回测指标。

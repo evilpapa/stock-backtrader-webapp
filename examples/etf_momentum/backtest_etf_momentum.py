@@ -16,38 +16,31 @@ dplyr/tidyr           → pandas (数据处理)
 ggplot2/cowplot       → matplotlib (可视化)
 
 使用方法:
-	python strategy/etf_momentum/backtest_etf_momentum.py
+	python examples/etf_momentum/backtest_etf_momentum.py
 """
 
+
+
 import os
+import sys
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-import yfinance as yf
 import backtrader as bt
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.gridspec import GridSpec
-from pathlib import Path
 
-# 尝试导入empyrical，如果没有安装则使用自定义计算
-try:
-	import empyrical as ep
-	HAS_EMPYRICAL = True
-except ImportError:
-	HAS_EMPYRICAL = False
-	print("警告: empyrical 未安装，将使用自定义性能计算")
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, project_root)
 
-#===========颜色设置================
-# 常用颜色代码（前景色）
-RED = '\033[91m'
-GREEN = '\033[92m'
-YELLOW = '\033[93m'
-BLUE = '\033[94m'
-MAGENTA = '\033[95m'
-CYAN = '\033[96m'
-WHITE = '\033[97m'
-RESET = '\033[0m'  # 重置
+from utils.fetch_data import fetch_etf_data
+from utils.colors import RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, RESET
+from strategy.performance_calculator import PerformanceCalculator
+from strategy.etf_momentum_backtrader import EtfMomentumSBacktrader
+from strategy.just_buy_hold import JustBuyHoldStrategy
+from strategy.equal_weight import EqualWeightStrategy
+from strategy.analyzer import CustomAnalyzer
 
 # ==================== 配置参数 ====================
 # 回测时间段
@@ -66,294 +59,6 @@ COMMISSION = 0.001  # 手续费率 0.1%
 
 # 输出目录
 OUTPUT_DIR = "momentum_strategy_backtest"
-DATA_CACHE_DIR = "data_cache"  # 数据缓存目录
-
-
-# ==================== 性能指标计算函数 ====================
-class PerformanceCalculator:
-	"""性能指标计算器"""
-
-	@staticmethod
-	def annualized_return(returns):
-		"""年化收益率"""
-		if HAS_EMPYRICAL:
-			return ep.annual_return(returns)
-		else:
-			# 简单年化计算
-			total_return = (1 + returns).prod() - 1
-			days = len(returns)
-			years = days / 252.0
-			return (1 + total_return) ** (1 / years) - 1 if years > 0 else 0
-
-	@staticmethod
-	def annualized_volatility(returns):
-		"""年化波动率"""
-		if HAS_EMPYRICAL:
-			return ep.annual_volatility(returns)
-		else:
-			return returns.std() * np.sqrt(252)
-
-	@staticmethod
-	def sharpe_ratio(returns, risk_free=0.0):
-		"""夏普比率"""
-		if HAS_EMPYRICAL:
-			return ep.sharpe_ratio(returns, risk_free=risk_free)
-		else:
-			excess_returns = returns - risk_free / 252
-			if excess_returns.std() == 0:
-				return 0
-			return np.sqrt(252) * excess_returns.mean() / excess_returns.std()
-
-	@staticmethod
-	def max_drawdown(returns):
-		"""最大回撤"""
-		if HAS_EMPYRICAL:
-			return ep.max_drawdown(returns)
-		else:
-			cum_returns = (1 + returns).cumprod()
-			running_max = cum_returns.expanding().max()
-			drawdown = (cum_returns - running_max) / running_max
-			return drawdown.min()
-
-	@staticmethod
-	def calmar_ratio(returns):
-		"""卡尔马比率 = 年化收益率 / 最大回撤"""
-		annual_return = PerformanceCalculator.annualized_return(returns)
-		max_dd = abs(PerformanceCalculator.max_drawdown(returns))
-		return annual_return / max_dd if max_dd != 0 else 0
-
-	@staticmethod
-	def sortino_ratio(returns, required_return=0.0):
-		"""索提诺比率"""
-		if HAS_EMPYRICAL:
-			return ep.sortino_ratio(returns, required_return=required_return)
-		else:
-			excess_returns = returns - required_return / 252
-			downside_returns = excess_returns[excess_returns < 0]
-			if len(downside_returns) == 0 or downside_returns.std() == 0:
-				return 0
-			return np.sqrt(252) * excess_returns.mean() / downside_returns.std()
-
-	@staticmethod
-	def win_rate(returns):
-		"""胜率（正收益天数占比）"""
-		return (returns > 0).sum() / len(returns)
-
-
-# ==================== Backtrader策略 ====================
-class EtfMomentumStrategy(bt.Strategy):
-	"""ETF动量轮动策略"""
-
-	params = (
-		("momentum_window", 20),
-		("printlog", False),
-	)
-
-	def __init__(self):
-		# 为每个数据源计算收益率和指标
-		self.returns = []
-		self.momentum = []
-		self.volatility = []
-
-		for data in self.datas:
-			ret = bt.indicators.PctChange(data.close, period=1)
-			self.returns.append(ret)
-
-			momentum = bt.indicators.SimpleMovingAverage(
-				ret, period=self.params.momentum_window
-			)
-			self.momentum.append(momentum)
-
-			volatility = bt.indicators.StandardDeviation(
-				ret, period=self.params.momentum_window
-			)
-			self.volatility.append(volatility)
-
-		self.rebalance_counter = 0
-		self.trade_log = []  # 用于记录交易日志
-
-	def next(self):
-		"""每个交易日执行"""
-		# 每日再平衡
-		self.rebalance_counter += 1
-		if self.rebalance_counter < 1:  # 每日
-			return
-
-		self.rebalance_counter = 0
-
-		# 检查数据充足性
-		if len(self.datas[0]) < self.params.momentum_window:
-			return
-
-		# 计算风险调整动量
-		adj_momentum_values = []
-		for i in range(len(self.datas)):
-			if len(self.momentum[i]) > 0 and len(self.volatility[i]) > 0:
-				mom = self.momentum[i][0]
-				vol = self.volatility[i][0]
-				adj_mom = mom / vol if vol > 1e-8 else 0.0
-				adj_momentum_values.append(adj_mom)
-			else:
-				adj_momentum_values.append(0.0)
-
-		# 筛选正动量ETF并计算权重
-		positive_indices = [i for i, v in enumerate(adj_momentum_values) if v > 0]
-		target_weights = np.zeros(len(self.datas))
-
-		if len(positive_indices) > 0:
-			positive_momentum = np.array([adj_momentum_values[i] for i in positive_indices])
-			total_momentum = np.sum(positive_momentum)
-
-			if total_momentum > 0:
-				normalized_weights = positive_momentum / total_momentum
-				for idx, weight in zip(positive_indices, normalized_weights):
-					target_weights[idx] = weight
-
-		# 执行再平衡
-		self._rebalance_portfolio(target_weights)
-
-		# 记录权重
-		self.trade_log.append({
-			'date': self.datas[0].datetime.date(0),
-			'weights': target_weights.copy()
-		})
-
-	def _rebalance_portfolio(self, target_weights):
-		"""根据目标权重调整持仓"""
-		total_value = self.broker.getvalue()
-
-		for i, data in enumerate(self.datas):
-			target_weight = target_weights[i]
-			target_value = total_value * target_weight
-
-			current_position = self.getposition(data).size
-			current_price = data.close[0]
-			current_value = current_position * current_price
-
-			diff_value = target_value - current_value
-			threshold = total_value * 0.01
-
-			if abs(diff_value) > threshold:
-				size = int(diff_value / current_price)
-				if size > 0:
-					self.buy(data=data, size=size)
-				elif size < 0:
-					self.sell(data=data, size=-size)
-
-
-# ==================== 基准策略: 买入持有 ====================
-class BuyHoldStrategy(bt.Strategy):
-	"""买入持有策略"""
-	def __init__(self):
-		self.bought = False
-
-	def next(self):
-		if not self.bought:
-			# 使用所有资金买入
-			cash = self.broker.getcash()
-			size = int(cash / self.datas[0].close[0])
-			self.buy(size=size)
-			self.bought = True
-
-
-# ==================== 基准策略: 等权持有 ====================
-class EqualWeightStrategy(bt.Strategy):
-	"""等权重组合策略"""
-	def __init__(self):
-		self.rebalance_counter = 0
-		self.bought = False
-
-	def next(self):
-		if not self.bought:
-			# 初始买入：等权重分配
-			total_value = self.broker.getvalue()
-			for data in self.datas:
-				target_value = total_value / len(self.datas)
-				size = int(target_value / data.close[0])
-				self.buy(data=data, size=size)
-			self.bought = True
-
-
-# ==================== 回测分析器 ====================
-class CustomAnalyzer(bt.Analyzer):
-	"""自定义分析器，记录每日收益率"""
-
-	def __init__(self):
-		self.returns = []
-		self.dates = []
-		self.values = []
-
-	def next(self):
-		self.dates.append(self.datas[0].datetime.date(0))
-		self.values.append(self.strategy.broker.getvalue())
-
-	def stop(self):
-		# 计算收益率
-		values_array = np.array(self.values)
-		returns_array = np.diff(values_array) / values_array[:-1]
-
-		self.returns = returns_array
-		self.dates = self.dates[1:]  # 去掉第一个日期
-
-
-# ==================== 数据获取 ====================
-def fetch_etf_data(symbols, start_date, end_date):
-	"""
-	从Yahoo Finance获取ETF数据，支持本地缓存
-
-	优先使用本地缓存文件，如果不存在则从网络下载并保存到本地。
-	缓存文件命名格式: {symbol}_{start_date}_{end_date}.pkl
-
-	Args:
-		symbols: ETF代码列表
-		start_date: 开始日期
-		end_date: 结束日期
-
-	Returns:
-		dict: {symbol: DataFrame}
-	"""
-	print("正在获取ETF数据...")
-
-	# 确保缓存目录存在
-	data_dir = Path(__file__).resolve().parent.parent.parent / DATA_CACHE_DIR
-	os.makedirs(data_dir, exist_ok=True)
-
-	data_dict = {}
-
-	for symbol in symbols:
-		# 生成缓存文件名（去除特殊字符）
-		safe_symbol = symbol.replace(".", "_")
-		cache_filename = f"{safe_symbol}_{start_date}_{end_date}.pkl"
-		cache_filepath = os.path.join(data_dir, cache_filename)
-
-		# 检查缓存文件是否存在
-		if os.path.exists(cache_filepath):
-			try:
-				df = pd.read_pickle(cache_filepath)
-				if not df.empty:
-					data_dict[symbol] = df
-					print(f"  ✓ {symbol}: {len(df)} 条数据 (来自缓存)")
-					continue
-			except Exception as e:
-				print(f"  ⚠ {symbol}: 缓存文件读取失败 ({e})，将重新下载")
-
-		# 从网络下载数据
-		try:
-			df = yf.download(symbol, start=start_date, end=end_date, progress=False)
-			if not df.empty:
-				data_dict[symbol] = df
-				# 保存到缓存
-				try:
-					df.to_pickle(cache_filepath)
-					print(f"  ✓ {symbol}: {len(df)} 条数据 (已下载并缓存)")
-				except Exception as e:
-					print(f"  ✓ {symbol}: {len(df)} 条数据 (已下载，缓存保存失败: {e})")
-			else:
-				print(f"  ✗ {symbol}: 无数据")
-		except Exception as e:
-			print(f"  ✗ {symbol}: 获取失败 - {e}")
-
-	return data_dict
 
 
 # ==================== 主回测函数 ====================
@@ -376,7 +81,7 @@ def run_backtest(data_dict, symbols, names):
 			cerebro.adddata(data, name=name)
 
 	# 添加策略
-	cerebro.addstrategy(EtfMomentumStrategy, momentum_window=MOMENTUM_WINDOW)
+	cerebro.addstrategy(EtfMomentumSBacktrader, momentum_window=MOMENTUM_WINDOW)
 
 	# 设置初始资金
 	cerebro.broker.setcash(INITIAL_CASH)
@@ -413,7 +118,7 @@ def run_benchmark_backtest(data_dict, benchmark_symbol, benchmark_name):
 		print(f"  ✗ 错误: 找不到 {benchmark_symbol} 的数据")
 		return None
 
-	cerebro.addstrategy(BuyHoldStrategy)
+	cerebro.addstrategy(JustBuyHoldStrategy)
 	cerebro.broker.setcash(INITIAL_CASH)
 	cerebro.broker.setcommission(commission=COMMISSION)
 	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
@@ -532,14 +237,6 @@ def analyze_performance(strategy_result, benchmark_result, equal_weight_result, 
 	return df, strategy_returns, benchmark_returns, equal_returns
 
 
-# ==================== 计算回撤 ====================
-def calc_drawdown(returns):
-	cum = (1 + returns).cumprod()
-	running_max = cum.expanding().max()
-	drawdown = (cum - running_max) / running_max
-	return drawdown
-
-
 # ==================== 可视化 ====================
 def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, dates, names):
 	"""绘制回测结果"""
@@ -550,9 +247,11 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, 
 	benchmark_cum = (1 + benchmark_returns).cumprod()
 	equal_cum = (1 + equal_returns).cumprod()
 
-	strategy_dd = calc_drawdown(strategy_returns)
-	benchmark_dd = calc_drawdown(benchmark_returns)
-	equal_dd = calc_drawdown(equal_returns)
+	calc = PerformanceCalculator()
+
+	strategy_dd = calc.calc_drawdown(strategy_returns)
+	benchmark_dd = calc.calc_drawdown(benchmark_returns)
+	equal_dd = calc.calc_drawdown(equal_returns)
 
 	# 创建日期索引
 	dates_index = pd.to_datetime(dates)
@@ -699,7 +398,7 @@ def main():
 	print("=" * 60)
 
 	# 1. 获取数据
-	data_dict = fetch_etf_data(ETF_SYMBOLS, BACKTEST_START, BACKTEST_END)
+	data_dict = fetch_etf_data(ETF_SYMBOLS, BACKTEST_START, BACKTEST_END, strategy_name="etf_momentum")
 	data_feeds = {}
 
 	# yfinance 下载的数据稍微进行转换
@@ -714,7 +413,8 @@ def main():
 			else:
 				# 单索引：直接使用
 				df_ticker = df
-			
+			print(df_ticker.columns)
+			print(df_ticker.head())
 			# 确保列名正确
 			if 'Open' in df_ticker.columns:
 				df_ticker = df_ticker[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
@@ -725,6 +425,9 @@ def main():
 
 	if len(data_feeds) < len(ETF_SYMBOLS):
 		print("\n警告: 部分ETF数据获取失败，回测可能不完整")
+
+	# print(data_feeds)
+	return
 
 	# 2. 运行动量策略回测
 	cerebro, strategy_result = run_backtest(data_feeds, ETF_SYMBOLS, ETF_NAMES)
