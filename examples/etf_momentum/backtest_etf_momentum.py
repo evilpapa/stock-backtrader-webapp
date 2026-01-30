@@ -58,7 +58,7 @@ INITIAL_CASH = 100000.0  # 初始资金
 COMMISSION = 0.001  # 手续费率 0.1%
 
 # 输出目录
-OUTPUT_DIR = "momentum_strategy_backtest"
+OUTPUT_DIR = "/datas/etf_momentum/backtest_results"
 
 
 # ==================== 主回测函数 ====================
@@ -238,7 +238,9 @@ def analyze_performance(strategy_result, benchmark_result, equal_weight_result, 
 
 
 # ==================== 可视化 ====================
-def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, dates, names):
+def plot_results(strategy_returns, benchmark_returns, equal_returns,
+				 strategy_dates, benchmark_dates, equal_dates,
+				 trade_log, names):
 	"""绘制回测结果"""
 	print("\n正在生成图表...")
 
@@ -254,7 +256,9 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, 
 	equal_dd = calc.calc_drawdown(equal_returns)
 
 	# 创建日期索引
-	dates_index = pd.to_datetime(dates)
+	strategy_dates_idx = pd.to_datetime(strategy_dates)
+	benchmark_dates_idx = pd.to_datetime(benchmark_dates)
+	equal_dates_idx = pd.to_datetime(equal_dates)
 
 	# 颜色配置
 	colors = {
@@ -269,8 +273,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, 
 
 	# 累计收益率
 	ax1 = fig1.add_subplot(gs1[0])
-	ax1.plot(dates_index, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
-	ax1.plot(dates_index, benchmark_cum, label='沪深300ETF', color=colors['沪深300ETF'], linewidth=2)
+	ax1.plot(strategy_dates_idx, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
+	ax1.plot(benchmark_dates_idx, benchmark_cum, label='沪深300ETF', color=colors['沪深300ETF'], linewidth=2)
 	ax1.set_ylabel('累计收益率', fontsize=12)
 	ax1.set_title('动量策略 vs 沪深300ETF: 累计收益率', fontsize=14, fontweight='bold')
 	ax1.legend(loc='upper left')
@@ -279,8 +283,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, 
 
 	# 回撤
 	ax2 = fig1.add_subplot(gs1[1])
-	ax2.fill_between(dates_index, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
-	ax2.fill_between(dates_index, benchmark_dd, 0, label='沪深300ETF', color=colors['沪深300ETF'], alpha=0.3)
+	ax2.fill_between(strategy_dates_idx, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
+	ax2.fill_between(benchmark_dates_idx, benchmark_dd, 0, label='沪深300ETF', color=colors['沪深300ETF'], alpha=0.3)
 	ax2.set_xlabel('日期', fontsize=12)
 	ax2.set_ylabel('回撤', fontsize=12)
 	ax2.grid(True, alpha=0.3)
@@ -293,8 +297,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, 
 	gs2 = GridSpec(2, 1, height_ratios=[2, 1], hspace=0.05)
 
 	ax3 = fig2.add_subplot(gs2[0])
-	ax3.plot(dates_index, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
-	ax3.plot(dates_index, equal_cum, label='等权重组合', color=colors['等权重组合'], linewidth=2)
+	ax3.plot(strategy_dates_idx, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
+	ax3.plot(equal_dates_idx, equal_cum, label='等权重组合', color=colors['等权重组合'], linewidth=2)
 	ax3.set_ylabel('累计收益率', fontsize=12)
 	ax3.set_title('动量策略 vs 等权重组合: 累计收益率', fontsize=14, fontweight='bold')
 	ax3.legend(loc='upper left')
@@ -302,8 +306,8 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, 
 	ax3.set_xticklabels([])
 
 	ax4 = fig2.add_subplot(gs2[1])
-	ax4.fill_between(dates_index, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
-	ax4.fill_between(dates_index, equal_dd, 0, label='等权重组合', color=colors['等权重组合'], alpha=0.3)
+	ax4.fill_between(strategy_dates_idx, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
+	ax4.fill_between(equal_dates, equal_dd, 0, label='等权重组合', color=colors['等权重组合'], alpha=0.3)
 	ax4.set_xlabel('日期', fontsize=12)
 	ax4.set_ylabel('回撤', fontsize=12)
 	ax4.grid(True, alpha=0.3)
@@ -340,7 +344,9 @@ def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, 
 
 
 # ==================== 保存结果 ====================
-def save_results(performance_df, trade_log, dates, names, strategy_returns, benchmark_returns, equal_returns, fig1, fig2, fig3):
+def save_results(performance_df, trade_log, names,
+				 strategy_dates, benchmark_dates, equal_dates,
+				 strategy_returns, benchmark_returns, equal_returns, fig1, fig2, fig3):
 	"""保存回测结果"""
 	print(f"\n正在保存结果到 {OUTPUT_DIR}...")
 
@@ -367,7 +373,7 @@ def save_results(performance_df, trade_log, dates, names, strategy_returns, benc
 
 	# 保存收益率数据
 	returns_df = pd.DataFrame({
-		'Date': dates,
+		'Date': strategy_dates,
 		'动量策略': strategy_returns,
 		'沪深300ETF': benchmark_returns,
 		'等权重组合': equal_returns
@@ -426,9 +432,6 @@ def main():
 	if len(data_feeds) < len(ETF_SYMBOLS):
 		print("\n警告: 部分ETF数据获取失败，回测可能不完整")
 
-	# print(data_feeds)
-	return
-
 	# 2. 运行动量策略回测
 	cerebro, strategy_result = run_backtest(data_feeds, ETF_SYMBOLS, ETF_NAMES)
 
@@ -458,15 +461,20 @@ def main():
 
 	# 6. 可视化
 	trade_log = strategy_result.trade_log
-	dates = strategy_result.analyzers.custom.dates
+	strategy_dates = strategy_result.analyzers.custom.dates
+	benchmark_dates = benchmark_result.analyzers.custom.dates
+	equal_dates = equal_weight_result.analyzers.custom.dates
 
 	fig1, fig2, fig3 = plot_results(
 		strategy_returns, benchmark_returns, equal_returns,
-		trade_log, dates, ETF_NAMES
+		strategy_dates, benchmark_dates, equal_dates,
+		trade_log, ETF_NAMES
 	)
 
 	# 7. 保存结果
-	save_results(performance_df, trade_log, dates, ETF_NAMES, strategy_returns, benchmark_returns, equal_returns, fig1, fig2, fig3)
+	save_results(performance_df, trade_log, ETF_NAMES,
+				 strategy_dates, benchmark_dates, equal_dates,
+				 strategy_returns, benchmark_returns, equal_returns, fig1, fig2, fig3)
 
 	print("\n" + "=" * 60)
 	print("回测完成！")

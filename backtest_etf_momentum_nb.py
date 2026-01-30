@@ -67,7 +67,7 @@ def _(fetch_etf_data, pd):
     COMMISSION = 0.001  # 手续费率 0.1%
 
     # 输出目录
-    OUTPUT_DIR = "momentum_strategy_backtest"
+    OUTPUT_DIR = "datas/etf_momentum/backtest_results"
 
 
     print("=" * 60)
@@ -208,21 +208,49 @@ def _(
 ):
     # ==================== 基准策略: 买入持有 ====================
     class BuyHoldStrategy(bt.Strategy):
-    	"""买入持有策略"""
-    	def __init__(self):
-    		self.rebalance_counter = 0
-    		self.bought = False
-
-    	def next(self):
-    		if not self.bought:
-    			# 使用所有资金买入
-    			cash = self.broker.getcash()
-    			size = int(cash / self.datas[0].close[0])
-    			print(f"  期初收盘价格: {self.datas[0].close[0]:.2f}")
-    			print(f"  期初收盘价格: {self.datas[0].close[498]:.2f}")
-    			print(f"  头寸: {size}")
-    			self.buy(size=size)
-    			self.bought = True
+        """买入持有策略"""
+    
+        def __init__(self):
+            self.order = None  # 跟踪订单状态
+            self.bought = False
+    
+        def notify_order(self, order):
+            """订单状态通知"""
+            if order.status in [order.Completed]:
+                if order.isbuy():
+                    self.log(f'买入执行, 价格: {order.executed.price:.2f}, '
+                            f'数量: {order.executed.size:.2f}, '
+                            f'手续费: {order.executed.comm:.2f}')
+                    self.bought = True
+            elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+                self.log(f'订单被取消/拒绝: {order.status}')
+        
+            self.order = None
+    
+        def next(self):
+            # 避免重复下单
+            if self.order:
+                return
+        
+            # 只在未买入时执行
+            if not self.bought:
+                # 获取当前可用资金
+                cash = self.broker.getcash()
+                price = self.datas[0].close[0]
+            
+                # 计算可买入数量（预留1%资金用于手续费）
+                size = int((cash * 0.99) / price)
+            
+                if size > 0:
+                    self.order = self.buy(size=size)
+                    self.log(f'提交买单, 价格: {price:.2f}, 数量: {size}')
+                else:
+                    self.log(f'资金不足，无法买入 (现金: {cash:.2f}, 价格: {price:.2f})')
+    
+        def log(self, txt, dt=None):
+            """日志函数"""
+            dt = dt or self.datas[0].datetime.date(0)
+            print(f'{dt.isoformat()} {txt}')
 
 
     # ==================== 基准策略回测 ====================
@@ -403,7 +431,9 @@ def _(PerformanceCalculator, pd):
 def _(GridSpec, PerformanceCalculator, mdates, np, pd, plt):
 
     # ==================== 可视化 ====================
-    def plot_results(strategy_returns, benchmark_returns, equal_returns, trade_log, dates, names):
+    def plot_results(strategy_returns, benchmark_returns, equal_returns,
+    				 strategy_dates, benchmark_dates, equal_dates,
+    				 trade_log, names):
     	"""绘制回测结果"""
     	print("\n正在生成图表...")
 
@@ -419,7 +449,9 @@ def _(GridSpec, PerformanceCalculator, mdates, np, pd, plt):
     	equal_dd = calc.calc_drawdown(equal_returns)
 
     	# 创建日期索引
-    	dates_index = pd.to_datetime(dates)
+    	strategy_dates_idx = pd.to_datetime(strategy_dates)
+    	benchmark_dates_idx = pd.to_datetime(benchmark_dates)
+    	equal_dates_idx = pd.to_datetime(equal_dates)
 
     	# 颜色配置
     	colors = {
@@ -434,8 +466,8 @@ def _(GridSpec, PerformanceCalculator, mdates, np, pd, plt):
 
     	# 累计收益率
     	ax1 = fig1.add_subplot(gs1[0])
-    	ax1.plot(dates_index, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
-    	ax1.plot(dates_index, benchmark_cum, label='沪深300ETF', color=colors['沪深300ETF'], linewidth=2)
+    	ax1.plot(strategy_dates_idx, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
+    	ax1.plot(benchmark_dates_idx, benchmark_cum, label='沪深300ETF', color=colors['沪深300ETF'], linewidth=2)
     	ax1.set_ylabel('累计收益率', fontsize=12)
     	ax1.set_title('动量策略 vs 沪深300ETF: 累计收益率', fontsize=14, fontweight='bold')
     	ax1.legend(loc='upper left')
@@ -444,8 +476,8 @@ def _(GridSpec, PerformanceCalculator, mdates, np, pd, plt):
 
     	# 回撤
     	ax2 = fig1.add_subplot(gs1[1])
-    	ax2.fill_between(dates_index, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
-    	ax2.fill_between(dates_index, benchmark_dd, 0, label='沪深300ETF', color=colors['沪深300ETF'], alpha=0.3)
+    	ax2.fill_between(strategy_dates_idx, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
+    	ax2.fill_between(benchmark_dates_idx, benchmark_dd, 0, label='沪深300ETF', color=colors['沪深300ETF'], alpha=0.3)
     	ax2.set_xlabel('日期', fontsize=12)
     	ax2.set_ylabel('回撤', fontsize=12)
     	ax2.grid(True, alpha=0.3)
@@ -458,8 +490,8 @@ def _(GridSpec, PerformanceCalculator, mdates, np, pd, plt):
     	gs2 = GridSpec(2, 1, height_ratios=[2, 1], hspace=0.05)
 
     	ax3 = fig2.add_subplot(gs2[0])
-    	ax3.plot(dates_index, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
-    	ax3.plot(dates_index, equal_cum, label='等权重组合', color=colors['等权重组合'], linewidth=2)
+    	ax3.plot(strategy_dates_idx, strategy_cum, label='动量策略', color=colors['动量策略'], linewidth=2)
+    	ax3.plot(equal_dates_idx, equal_cum, label='等权重组合', color=colors['等权重组合'], linewidth=2)
     	ax3.set_ylabel('累计收益率', fontsize=12)
     	ax3.set_title('动量策略 vs 等权重组合: 累计收益率', fontsize=14, fontweight='bold')
     	ax3.legend(loc='upper left')
@@ -467,8 +499,8 @@ def _(GridSpec, PerformanceCalculator, mdates, np, pd, plt):
     	ax3.set_xticklabels([])
 
     	ax4 = fig2.add_subplot(gs2[1])
-    	ax4.fill_between(dates_index, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
-    	ax4.fill_between(dates_index, equal_dd, 0, label='等权重组合', color=colors['等权重组合'], alpha=0.3)
+    	ax4.fill_between(strategy_dates_idx, strategy_dd, 0, label='动量策略', color=colors['动量策略'], alpha=0.3)
+    	ax4.fill_between(equal_dates, equal_dd, 0, label='等权重组合', color=colors['等权重组合'], alpha=0.3)
     	ax4.set_xlabel('日期', fontsize=12)
     	ax4.set_ylabel('回撤', fontsize=12)
     	ax4.grid(True, alpha=0.3)
@@ -502,13 +534,17 @@ def _(GridSpec, PerformanceCalculator, mdates, np, pd, plt):
     		fig3 = None
 
     	return fig1, fig2, fig3
+
+
     return (plot_results,)
 
 
 @app.cell
 def _(OUTPUT_DIR, os, pd):
     # ==================== 保存结果 ====================
-    def save_results(performance_df, trade_log, dates, names, strategy_returns, benchmark_returns, equal_returns, fig1, fig2, fig3):
+    def save_results(performance_df, trade_log, names,
+    				 strategy_dates, benchmark_dates, equal_dates,
+    				 strategy_returns, benchmark_returns, equal_returns, fig1, fig2, fig3):
     	"""保存回测结果"""
     	print(f"\n正在保存结果到 {OUTPUT_DIR}...")
 
@@ -535,7 +571,7 @@ def _(OUTPUT_DIR, os, pd):
 
     	# 保存收益率数据
     	returns_df = pd.DataFrame({
-    		'Date': dates,
+    		'Date': strategy_dates,
     		'动量策略': strategy_returns,
     		'沪深300ETF': benchmark_returns,
     		'等权重组合': equal_returns
@@ -551,6 +587,8 @@ def _(OUTPUT_DIR, os, pd):
     		fig3.savefig(f"{OUTPUT_DIR}/daily_weights_plot.png", dpi=300, bbox_inches='tight')
 
     	print(f"✓ 结果已保存到 {OUTPUT_DIR}/")
+
+
     return (save_results,)
 
 
