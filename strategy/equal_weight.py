@@ -1,8 +1,14 @@
-import backtrader as bt
+from .base import BaseStrategy
 
 # ==================== 基准策略: 等权持有 ====================
-class EqualWeightStrategy(bt.Strategy):
+class EqualWeightStrategy(BaseStrategy):
 	"""等权重组合策略"""
+
+	_name = "EqualWeight"
+	params = (
+		("printlog", False),
+	)
+
 	def __init__(self):
 		self.rebalance_counter = 0
 		self.bought = False

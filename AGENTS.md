@@ -14,14 +14,14 @@
 
 - 安装依赖: `uv pip install -r requirements.txt`
 - 若依赖有变更，运行: `uv sync`
-- 运行程序: `uv run streamlit run backtrader_app.py`
+- 运行程序: `uv run streamlit run app.py`
 - 运行测试（AkShare 数据需要网络）:
   - `uv python -m unittest tests.ma_test.MaStrategyTest`
   - `uv python -m unittest tests.macross_test.MaCrossStrategyTest`
 
 ### 项目结构
 
-- `backtrader_app.py`: 主入口，Streamlit UI 和协调逻辑。
+- `app.py`: 主入口，Streamlit UI 和协调逻辑。
 - `strategy/`: 策略实现。
 - `config/strategy.yaml`: 策略参数配置。
 - `frames/`: Streamlit UI 组件。

@@ -1,15 +1,17 @@
-# ETF动量策略 R→Python 转换完成总结
+# ETF动量策略 R→Python 转换
 
-## ✅ 转换完成清单
+将 `R` 语言版本的策略转换为 `Python` 语言版本的完整总结文档。
 
-### 已创建的文件
+## ✅ 转换清单
+
+### 创建的文件
 
 1. **[strategy/etf_momentum.py](../etf_momentum.py)** ⭐ 核心策略类
    - 实现了Backtrader兼容的EtfMomentumStrategy类
    - 支持动态权重分配和再平衡
    - 集成到项目的策略系统中
 
-2. **[strategy/etf_momentum/backtest_etf_momentum.py](backtest_etf_momentum.py)** ⭐⭐⭐ 独立回测脚本
+2. **[examples/etf_momentum/backtest_etf_momentum.py](backtest_etf_momentum.py)** ⭐⭐⭐ 独立回测脚本
    - 完整复制R脚本的所有功能
    - 数据获取 + 回测 + 性能分析 + 可视化
    - 可独立运行，生成完整报告
@@ -19,7 +21,7 @@
    - 测试不同参数配置
    - 测试动量计算逻辑
 
-4. **[strategy/etf_momentum/README_PYTHON.md](README_PYTHON.md)** Python版本使用文档
+4. **[docs/etf_momentum/README_PYTHON.md](README_PYTHON.md)** Python版本使用文档
    - 快速开始指南
    - 参数配置说明
    - 使用示例
@@ -42,15 +44,15 @@
 
 ## 📦 R包到Python包映射总结
 
-| R包 | Python包 | 状态 |
-|-----|---------|------|
-| quantmod | yfinance | ✅ 完全替代 |
-| PerformanceAnalytics | empyrical + 自定义 | ✅ 完全实现 |
-| dplyr/tidyr | pandas | ✅ 完全替代 |
-| ggplot2 | matplotlib | ✅ 完全实现 |
-| patchwork/cowplot | matplotlib.gridspec | ✅ 完全实现 |
-| scales | matplotlib.ticker | ✅ 完全实现 |
-| xts/zoo | pandas | ✅ 完全替代 |
+| R包                   | Python包             | 状态     |
+|----------------------|---------------------|--------|
+| quantmod             | yfinance            | ✅ 完全替代 |
+| PerformanceAnalytics | empyrical + 自定义     | ✅ 完全实现 |
+| dplyr/tidyr          | pandas              | ✅ 完全替代 |
+| ggplot2              | matplotlib          | ✅ 完全实现 |
+| patchwork/cowplot    | matplotlib.gridspec | ✅ 完全实现 |
+| scales               | matplotlib.ticker   | ✅ 完全实现 |
+| xts/zoo              | pandas              | ✅ 完全替代 |
 
 ---
 
@@ -77,7 +79,7 @@ python strategy/etf_momentum/backtest_etf_momentum.py
 ### 方法2：在Streamlit应用中使用
 
 ```bash
-streamlit run backtrader_app.py
+streamlit run app.py
 ```
 
 在UI中选择"EtfMomentum"策略，配置参数后运行。
@@ -100,16 +102,16 @@ cerebro.run()
 
 ## 📊 功能对比
 
-| 功能 | R版本 | Python版本 | 完成度 |
-|-----|------|-----------|-------|
-| 数据获取 | Yahoo Finance | Yahoo Finance | ✅ 100% |
-| 动量计算 | rollapply | bt.indicators.SMA | ✅ 100% |
-| 波动率计算 | rollapply | bt.indicators.StdDev | ✅ 100% |
-| 权重分配 | 自定义 | 自定义 | ✅ 100% |
-| 回测引擎 | 自定义 | Backtrader | ✅ 100% |
-| 性能指标 | PerformanceAnalytics | empyrical + 自定义 | ✅ 100% |
-| 可视化 | ggplot2 | matplotlib | ✅ 100% |
-| 结果导出 | CSV | CSV | ✅ 100% |
+| 功能    | R版本                  | Python版本             | 完成度    |
+|-------|----------------------|----------------------|--------|
+| 数据获取  | Yahoo Finance        | Yahoo Finance        | ✅ 100% |
+| 动量计算  | rollapply            | bt.indicators.SMA    | ✅ 100% |
+| 波动率计算 | rollapply            | bt.indicators.StdDev | ✅ 100% |
+| 权重分配  | 自定义                  | 自定义                  | ✅ 100% |
+| 回测引擎  | 自定义                  | Backtrader           | ✅ 100% |
+| 性能指标  | PerformanceAnalytics | empyrical + 自定义      | ✅ 100% |
+| 可视化   | ggplot2              | matplotlib           | ✅ 100% |
+| 结果导出  | CSV                  | CSV                  | ✅ 100% |
 
 ---
 

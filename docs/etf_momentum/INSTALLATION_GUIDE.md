@@ -1,15 +1,15 @@
 # ETF动量策略 - 安装和使用指南
 
-## 📋 转换完成清单
+## 📋 转换清单
 
 ✅ **已完成的工作：**
 
 1. ✅ 创建Python策略类 (`strategy/etf_momentum.py`)
-2. ✅ 创建独立回测脚本 (`strategy/etf_momentum/backtest_etf_momentum.py`)
+2. ✅ 创建独立回测脚本 (`examples/etf_momentum/backtest_etf_momentum.py`)
 3. ✅ 创建单元测试 (`tests/etf_momentum_test.py`)
 4. ✅ 更新策略配置 (`config/strategy.yaml`)
 5. ✅ 更新依赖列表 (`pyproject.toml`)
-6. ✅ 创建详细文档（README_PYTHON.md、PACKAGE_MAPPING.md、CONVERSION_SUMMARY.md）
+6. ✅ 创建详细文档（docs/etf_momentum/README_PYTHON.md、docs/etf_momentum/PACKAGE_MAPPING.md、docs/etf_momentum/CONVERSION_SUMMARY.md）
 
 ## 🚀 快速开始
 
@@ -28,24 +28,17 @@ pip install yfinance empyrical matplotlib
 - `empyrical` - 替代R的PerformanceAnalytics，计算性能指标
 - `matplotlib` - 替代R的ggplot2，绘制图表
 
-### 步骤2：验证安装
-
-```bash
-# 验证代码语法
-python verify_etf_momentum.py
-```
-
-### 步骤3：运行回测（三种方式）
+### 步骤2：运行回测（三种方式）
 
 #### 方式1：独立回测脚本（推荐，最接近原R脚本）
 
 ```bash
-python strategy/etf_momentum/backtest_etf_momentum.py
+python examples/etf_momentum/backtest_etf_momentum.py
 ```
 
 **输出：**
 - 控制台打印完整的性能指标表格
-- 自动生成 `momentum_strategy_backtest/` 目录
+- 自动生成 `datas/etf_momentum/backtest_results/` 目录
 - 包含以下文件：
   - `performance_metrics.csv` - 性能指标汇总
   - `daily_weights.csv` - 每日权重分配
@@ -57,7 +50,7 @@ python strategy/etf_momentum/backtest_etf_momentum.py
 #### 方式2：Streamlit Web应用
 
 ```bash
-streamlit run backtrader_app.py
+streamlit run app.py
 ```
 
 在浏览器中：
@@ -89,7 +82,7 @@ cerebro.addstrategy(EtfMomentumStrategy,
 cerebro.run()
 ```
 
-### 步骤4：运行测试
+### 步骤3：运行测试
 
 ```bash
 # 运行单元测试
@@ -101,12 +94,12 @@ python -m unittest tests.etf_momentum_test.EtfMomentumTest.test_strategy_initial
 
 ## 📊 R包到Python包映射
 
-| R包 | Python替代 | 状态 |
-|-----|-----------|------|
-| `quantmod` | `yfinance` | ✅ 完全替代 |
-| `PerformanceAnalytics` | `empyrical` | ✅ 完全替代 |
-| `dplyr` / `tidyr` | `pandas` | ✅ 已有 |
-| `ggplot2` | `matplotlib` | ✅ 完全替代 |
+| R包                      | Python替代     | 状态     |
+|-------------------------|--------------|--------|
+| `quantmod`              | `yfinance`   | ✅ 完全替代 |
+| `PerformanceAnalytics`  | `empyrical`  | ✅ 完全替代 |
+| `dplyr` / `tidyr`       | `pandas`     | ✅ 已有   |
+| `ggplot2`               | `matplotlib` | ✅ 完全替代 |
 | `patchwork` / `cowplot` | `matplotlib` | ✅ 完全替代 |
 
 ## 📁 新增文件概览
@@ -114,35 +107,36 @@ python -m unittest tests.etf_momentum_test.EtfMomentumTest.test_strategy_initial
 ```
 stock-backtrader-web-app/
 ├── strategy/
-│   ├── etf_momentum.py                          # ⭐ 核心策略类
+│   └── etf_momentum.py                          # ⭐ 核心策略类
+├── examples/
 │   └── etf_momentum/
-│       ├── backtest_etf_momentum.py             # ⭐⭐⭐ 独立回测脚本
+│       └── backtest_etf_momentum.py             # ⭐⭐⭐ 独立回测脚本
+├── docs/
 │       ├── README_PYTHON.md                     # Python版本使用文档
 │       ├── PACKAGE_MAPPING.md                   # R→Python包映射
+│       ├── INSTALLATION_GUIDE.md                # 本文档
 │       └── CONVERSION_SUMMARY.md                # 转换完成总结
 ├── tests/
 │   └── etf_momentum_test.py                     # 单元测试
-├── verify_etf_momentum.py                       # 验证脚本
-├── INSTALLATION_GUIDE.md                        # 本文档
-└── requirements.txt                             # 已更新依赖
+└── pyproject.toml                               # 已更新依赖
 ```
 
 ## 🎯 功能对比
 
-| 功能 | R版本 | Python版本 |
-|-----|------|-----------|
-| 数据获取 | ✅ Yahoo Finance | ✅ Yahoo Finance |
-| 动量计算 | ✅ rollapply | ✅ bt.indicators |
-| 回测引擎 | ✅ 自定义 | ✅ Backtrader |
-| 性能分析 | ✅ 11项指标 | ✅ 11项指标 |
-| 可视化 | ✅ 4张图表 | ✅ 4张图表 |
-| CSV导出 | ✅ 8个文件 | ✅ 8个文件 |
+| 功能    | R版本             | Python版本        |
+|-------|-----------------|-----------------|
+| 数据获取  | ✅ Yahoo Finance | ✅ Yahoo Finance |
+| 动量计算  | ✅ rollapply     | ✅ bt.indicators |
+| 回测引擎  | ✅ 自定义           | ✅ Backtrader    |
+| 性能分析  | ✅ 11项指标         | ✅ 11项指标         |
+| 可视化   | ✅ 4张图表          | ✅ 4张图表          |
+| CSV导出 | ✅ 8个文件          | ✅ 8个文件          |
 
 **完成度：** 100% ✅
 
 ## 🔧 配置说明
 
-### 回测参数（在 `backtest_etf_momentum.py` 中修改）
+### 回测参数（在 `examples/etf_momentum/backtest_etf_momentum.py` 中修改）
 
 ```python
 # 回测时间段
@@ -185,7 +179,7 @@ EtfMomentumStrategy(
    - 功能对比
    - 技术亮点
 
-4. **[原始README.md](strategy/etf_momentum/README.md)** - 策略设计思路（中文）
+4. **[RESEARCH.md](strategy/etf_momentum/README.md)** - 策略设计思路（中文）
 
 ## ⚠️ 注意事项
 
@@ -243,8 +237,8 @@ matplotlib.use('Agg')  # 在导入pyplot之前
 # 检查是否在正确的目录
 cd /path/to/stock-backtrader-web-app
 
-# 确保pyenv环境已激活
-pyenv shell 3.12.10
+# 确保 python 环境已激活
+.venv/Scripts/acitivate.ps1
 
 # 重新运行测试
 python -m unittest tests.etf_momentum_test.EtfMomentumTest
@@ -272,8 +266,8 @@ python -m unittest tests.etf_momentum_test.EtfMomentumTest
 ## 📞 获取帮助
 
 如遇到问题：
-1. 查看文档：`strategy/etf_momentum/README_PYTHON.md`
-2. 查看示例：`strategy/etf_momentum/backtest_etf_momentum.py`
+1. 查看文档：`docs/etf_momentum/README_PYTHON.md`
+2. 查看示例：`examples/etf_momentum/backtest_etf_momentum.py`
 3. 运行测试：`python -m unittest tests.etf_momentum_test.EtfMomentumTest`
 4. 提交Issue或Pull Request
 
@@ -283,5 +277,3 @@ python -m unittest tests.etf_momentum_test.EtfMomentumTest
 **测试状态：** ✅ 已创建测试用例
 **文档状态：** ✅ 完整
 **可用性：** ✅ 立即可用
-
-恭喜！R语言ETF动量策略已成功转换为Python版本，所有功能完整实现，可以立即开始使用。

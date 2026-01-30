@@ -1,8 +1,13 @@
-import backtrader as bt
+from .base import BaseStrategy
 
 # ==================== 基准策略: 买入持有 ====================
-class JustBuyHoldStrategy(bt.Strategy):
+class JustBuyHoldStrategy(BaseStrategy):
 	"""买入持有策略"""
+
+	_name = "JustBuyHold"
+	params = (
+		("printlog", False),
+	)
 
 	def __init__(self):
 		self.order = None  # 跟踪订单状态

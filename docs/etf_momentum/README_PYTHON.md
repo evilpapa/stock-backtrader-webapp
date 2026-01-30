@@ -1,6 +1,6 @@
 # ETF动量轮动策略 - Python版本
 
-这是原始R语言策略（`strategy.r`）的Python完整实现。
+这是原始R语言策略（`R/etf_memountum/etf_momentum.r`）的Python完整实现。
 
 ## 📋 R包到Python包的映射
 
@@ -33,7 +33,7 @@ python strategy/etf_momentum/backtest_etf_momentum.py
 ```
 
 **输出结果：**
-- `momentum_strategy_backtest/` 目录包含：
+- `datas/etf_momentum/backtest_results/` 目录包含：
   - `performance_metrics.csv` - 性能指标汇总
   - `daily_weights.csv` - 每日权重分配
   - `daily_returns.csv` - 每日收益率
@@ -46,7 +46,7 @@ python strategy/etf_momentum/backtest_etf_momentum.py
 该策略已集成到主应用中，可以通过Streamlit界面使用：
 
 ```bash
-streamlit run backtrader_app.py
+streamlit run app.py
 ```
 
 然后在界面中选择 "EtfMomentum" 策略。
@@ -86,7 +86,7 @@ python -m unittest tests.etf_momentum_test.EtfMomentumTest
 
 ## 📈 回测配置
 
-在 `backtest_etf_momentum.py` 中可以修改以下配置：
+在 `examples/etf_momentum/backtest_etf_momentum.py` 中可以修改以下配置：
 
 ```python
 # 回测时间段
@@ -122,11 +122,14 @@ COMMISSION = 0.001  # 0.1%手续费
 ## 📝 代码结构
 
 ```
-strategy/etf_momentum/
+docs/etf_momentum/
 ├── README_PYTHON.md              # 本文档
-├── strategy.r                    # 原始R语言版本
-├── backtest_etf_momentum.py      # 独立回测脚本（完整功能）
+├── RESEARCH.md                   # 策略实现详细说明文档
 └── README.md                     # 原始策略说明
+examples/etf_momentum/
+└── backtest_etf_momentum.py      # 独立回测脚本（完整功能）
+R/etf_momentum/
+└── etf_momentum.r                 # 原始R语言策略
 strategy/
 ├── etf_momentum.py              # 策略类（用于Backtrader集成）
 tests/

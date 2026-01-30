@@ -37,7 +37,7 @@ uv pip install -r requirements.txt
 执行以下命令启动Web界面：
 
 ```bash
-uv run streamlit run backtrader_app.py
+uv run streamlit run app.py
 ```
 
 ### 策略测试
