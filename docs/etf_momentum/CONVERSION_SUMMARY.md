@@ -47,7 +47,7 @@
 | R包                   | Python包             | 状态     |
 |----------------------|---------------------|--------|
 | quantmod             | yfinance            | ✅ 完全替代 |
-| PerformanceAnalytics | empyrical + 自定义     | ✅ 完全实现 |
+| PerformanceAnalytics | empyrical-reloaded + 自定义     | ✅ 完全实现 |
 | dplyr/tidyr          | pandas              | ✅ 完全替代 |
 | ggplot2              | matplotlib          | ✅ 完全实现 |
 | patchwork/cowplot    | matplotlib.gridspec | ✅ 完全实现 |
@@ -64,7 +64,7 @@
 
 ```bash
 # 安装依赖
-pip install yfinance empyrical matplotlib
+pip install yfinance empyrical-reloaded matplotlib
 
 # 运行回测
 python strategy/etf_momentum/backtest_etf_momentum.py
@@ -164,7 +164,7 @@ cerebro.run()
 
 ### 1. 自定义性能计算器
 
-如果empyrical未安装，使用备用的自定义实现：
+如果empyrical-reloaded未安装，使用备用的自定义实现：
 
 ```python
 class PerformanceCalculator:
@@ -289,7 +289,7 @@ data = yf.download(...)
 df[df['col'] > 0][['col1', 'col2']]
 
 # R: PerformanceAnalytics::table.AnnualizedReturns()
-import empyrical as ep
+import empyrical-reloaded as ep
 ep.annual_return(returns)
 
 # R: ggplot2 + geom_line()
@@ -304,7 +304,7 @@ plt.plot(x, y)
 - 原始R策略设计和实现
 - Backtrader框架提供回测引擎
 - yfinance提供数据获取功能
-- empyrical提供性能分析工具
+- empyrical-reloaded提供性能分析工具
 - matplotlib提供可视化能力
 
 ---

@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "akshare==1.16.81",
     "backtrader==1.9.78.123",
-    "empyrical>=0.5.5",
+    "empyrical-reloaded>=0.5.12",
     "jupyterlab>=4.5.3",
     "loguru==0.7.3",
     "marimo>=0.19.6",

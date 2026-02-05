@@ -7,7 +7,7 @@
 | #  | R包                   | R版本   | Python包             | Python版本 | 功能说明   | 迁移难度    |
 |----|----------------------|-------|---------------------|----------|--------|---------|
 | 1  | quantmod             | ~0.4  | yfinance            | >=0.2.0  | 金融数据获取 | ⭐⭐ 简单   |
-| 2  | PerformanceAnalytics | ~2.0  | empyrical           | >=0.5.5  | 绩效分析   | ⭐⭐⭐ 中等  |
+| 2  | PerformanceAnalytics | ~2.0  | empyrical-reloaded           | >=0.5.5  | 绩效分析   | ⭐⭐⭐ 中等  |
 | 3  | ggplot2              | ~3.4  | matplotlib          | >=3.8.0  | 基础绘图   | ⭐⭐⭐⭐ 较难 |
 | 4  | dplyr                | ~1.1  | pandas              | >=2.0.0  | 数据处理   | ⭐⭐ 简单   |
 | 5  | tidyr                | ~1.3  | pandas              | >=2.0.0  | 数据整理   | ⭐⭐ 简单   |
@@ -42,7 +42,7 @@ prices = data['Adj Close']  # 获取调整后收盘价
 
 ---
 
-### 2. 绩效分析：PerformanceAnalytics → empyrical
+### 2. 绩效分析：PerformanceAnalytics → empyrical-reloaded
 
 #### R (PerformanceAnalytics)
 ```r
@@ -61,9 +61,9 @@ max_dd <- maxDrawdown(returns)
 table.AnnualizedReturns(returns)
 ```
 
-#### Python (empyrical)
+#### Python (empyrical-reloaded)
 ```python
-import empyrical as ep
+import empyrical-reloaded as ep
 
 # 计算年化收益率
 ann_return = ep.annual_return(returns)
@@ -84,9 +84,9 @@ metrics = {
 ```
 
 **迁移要点：**
-- empyrical函数更独立，没有综合表格函数
+- empyrical-reloaded 函数更独立，没有综合表格函数
 - 需要手动计算和组织结果
-- 如果empyrical未安装，可以手动实现（见 `examples/etf_momentum/backtest_etf_momentum.py` 中的 `PerformanceCalculator` 类）
+- 如果 empyrical-reloaded 未安装，可以手动实现（见 `examples/etf_momentum/backtest_etf_momentum.py` 中的 `PerformanceCalculator` 类）
 
 **自定义实现示例：**
 ```python
@@ -296,10 +296,10 @@ ts_data.loc['2024-01-01':'2024-12-31']
 1. ✅ 数据获取（yfinance）
 2. ✅ 数据处理（pandas）
 3. ✅ 回测引擎（backtrader）
-4. ✅ 基本性能指标（自定义或empyrical）
+4. ✅ 基本性能指标（自定义或empyrical-reloaded）
 
 ### 优先级2：增强功能（建议实现）
-1. ✅ 完整性能分析（empyrical）
+1. ✅ 完整性能分析（empyrical-reloaded）
 2. ✅ 基础可视化（matplotlib）
 3. ✅ 结果导出（pandas.to_csv）
 
@@ -363,7 +363,7 @@ count = np.sum(x > 0)
 
 ### 包文档
 - [yfinance GitHub](https://github.com/ranaroussi/yfinance)
-- [empyrical GitHub](https://github.com/quantopian/empyrical)
+- [empyrical-reloaded GitHub](https://github.com/stefan-jansen/empyrical-reloaded)
 - [matplotlib Gallery](https://matplotlib.org/stable/gallery/index.html)
 
 ---
@@ -403,7 +403,7 @@ count = np.sum(x > 0)
 | 转换难度    | R包                           | Python替代                     | 建议    |
 |---------|------------------------------|------------------------------|-------|
 | 简单 ⭐⭐   | quantmod, dplyr, tidyr, xts  | yfinance, pandas             | 直接替换  |
-| 中等 ⭐⭐⭐  | PerformanceAnalytics, scales | empyrical, matplotlib.ticker | 需要适配  |
+| 中等 ⭐⭐⭐  | PerformanceAnalytics, scales | empyrical-reloaded, matplotlib.ticker | 需要适配  |
 | 较难 ⭐⭐⭐⭐ | ggplot2, patchwork           | matplotlib                   | 重写可视化 |
 
 **总体评估：** 本项目的R到Python迁移难度为 **中等**，主要挑战在于可视化部分的重写。核心业务逻辑迁移相对简单。

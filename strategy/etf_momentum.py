@@ -5,7 +5,7 @@ ETF动量轮动策略 (Python版本)
 原始策略来源: strategy/etf_momentum/strategy.r
 R包到Python包的映射:
 - quantmod → yfinance/akshare (金融数据获取)
-- PerformanceAnalytics → empyrical + 自定义计算 (绩效分析)
+- PerformanceAnalytics → empyrical-reloaded + 自定义计算 (绩效分析)
 - dplyr/tidyr → pandas (数据处理)
 - ggplot2/patchwork → matplotlib (绘图)
 

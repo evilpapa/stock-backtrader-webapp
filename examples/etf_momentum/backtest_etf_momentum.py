@@ -4,14 +4,14 @@ ETF动量轮动策略完整回测脚本 (Python版本)
 这是R语言 strategy.r 的Python完整实现，包含:
 1. 数据获取 (使用 yfinance)
 2. 策略回测 (使用 backtrader)
-3. 性能分析 (使用 empyrical)
+3. 性能分析 (使用 empyrical-reloaded)
 4. 可视化 (使用 matplotlib)
 
 依赖包映射:
 R包                    → Python包
 -------------------------------------------------
 quantmod              → yfinance (数据获取)
-PerformanceAnalytics  → empyrical (性能分析)
+PerformanceAnalytics  → empyrical-reloaded (性能分析)
 dplyr/tidyr           → pandas (数据处理)
 ggplot2/cowplot       → matplotlib (可视化)
 

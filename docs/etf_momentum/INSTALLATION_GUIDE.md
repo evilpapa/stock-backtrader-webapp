@@ -20,12 +20,12 @@
 pyenv shell 3.12.10
 
 # 安装新增的包
-pip install yfinance empyrical matplotlib
+pip install yfinance empyrical-reloaded matplotlib
 ```
 
 **新增依赖说明：**
 - `yfinance` - 替代R的quantmod，从Yahoo Finance获取数据
-- `empyrical` - 替代R的PerformanceAnalytics，计算性能指标
+- `empyrical-reloaded` - 替代R的PerformanceAnalytics，计算性能指标
 - `matplotlib` - 替代R的ggplot2，绘制图表
 
 ### 步骤2：运行回测（三种方式）
@@ -97,7 +97,7 @@ python -m unittest tests.etf_momentum_test.EtfMomentumTest.test_strategy_initial
 | R包                      | Python替代     | 状态     |
 |-------------------------|--------------|--------|
 | `quantmod`              | `yfinance`   | ✅ 完全替代 |
-| `PerformanceAnalytics`  | `empyrical`  | ✅ 完全替代 |
+| `PerformanceAnalytics`  | `empyrical-reloaded`  | ✅ 完全替代 |
 | `dplyr` / `tidyr`       | `pandas`     | ✅ 已有   |
 | `ggplot2`               | `matplotlib` | ✅ 完全替代 |
 | `patchwork` / `cowplot` | `matplotlib` | ✅ 完全替代 |
@@ -189,8 +189,8 @@ EtfMomentumStrategy(
 - 如遇数据获取失败，请检查网络连接和Yahoo Finance服务状态
 
 ### 性能指标
-- 如果 `empyrical` 未安装，会自动使用自定义计算函数
-- 建议安装 `empyrical` 以获得更准确的性能指标
+- 如果 `empyrical-reloaded` 未安装，会自动使用自定义计算函数
+- 建议安装 `empyrical-reloaded` 以获得更准确的性能指标
 
 ### 回测假设
 - 默认手续费0.1%，实际交易请根据券商费率调整
@@ -207,7 +207,7 @@ ModuleNotFoundError: No module named 'yfinance'
 
 **解决：** 安装缺失的包
 ```bash
-pip install yfinance empyrical matplotlib
+pip install yfinance empyrical-reloaded matplotlib
 ```
 
 ### 问题2：数据获取失败

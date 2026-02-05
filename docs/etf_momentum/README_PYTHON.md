@@ -7,7 +7,7 @@
 | R包 | Python包 | 用途 |
 |-----|---------|------|
 | `quantmod` | `yfinance` | 金融数据获取 |
-| `PerformanceAnalytics` | `empyrical` + 自定义计算 | 投资组合绩效分析 |
+| `PerformanceAnalytics` | `empyrical-reloaded` + 自定义计算 | 投资组合绩效分析 |
 | `dplyr`, `tidyr` | `pandas` | 数据处理和整理 |
 | `ggplot2`, `cowplot`, `patchwork` | `matplotlib` | 数据可视化和图形组合 |
 | `scales` | `matplotlib.ticker` | 图形标度调整 |
@@ -18,7 +18,7 @@
 
 ```bash
 # 安装新增的Python包
-pip install yfinance empyrical matplotlib
+pip install yfinance empyrical-reloaded matplotlib
 
 # 或者安装所有依赖
 pip install -r requirements.txt
@@ -147,7 +147,7 @@ config/
 | 数据获取 | `getSymbols()` from quantmod | `yf.download()` from yfinance |
 | 动量计算 | `rollapply()` | `bt.indicators.SimpleMovingAverage()` |
 | 波动率计算 | `rollapply(FUN=var)` | `bt.indicators.StandardDeviation()` |
-| 性能指标 | `table.AnnualizedReturns()` | `empyrical` 或自定义函数 |
+| 性能指标 | `table.AnnualizedReturns()` | `empyrical-reloaded` 或自定义函数 |
 | 可视化 | `ggplot2` + `cowplot` | `matplotlib` |
 | 回测引擎 | 自定义实现 | `backtrader` |
 
@@ -167,7 +167,7 @@ Python版本使用Backtrader框架，需要以下数据列：
 
 - [Backtrader文档](https://www.backtrader.com/docu/)
 - [yfinance文档](https://pypi.org/project/yfinance/)
-- [empyrical文档](https://github.com/quantopian/empyrical)
+- [empyrical-reloaded文档](https://github.com/stefan-jansen/empyrical-reloaded)
 - [动量策略研究](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=299107)
 
 ## 🤝 贡献

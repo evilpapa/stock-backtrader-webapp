@@ -2,11 +2,11 @@ import numpy as np
 
 # 尝试导入empyrical，如果没有安装则使用自定义计算
 try:
-	import empyrical as ep
+	import empyrical-reloaded as ep
 	HAS_EMPYRICAL = True
 except ImportError:
 	HAS_EMPYRICAL = False
-	print("警告: empyrical 未安装，将使用自定义性能计算")
+	print("警告: empyrical-reloaded 未安装，将使用自定义性能计算")
 
 
 # ==================== 性能指标计算函数 ====================
