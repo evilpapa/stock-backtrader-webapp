@@ -8,12 +8,12 @@
 
 - 环境要求 Python 3.12+。
 - 安装 `uv` 用于依赖管理（`uv sync`）以及通过 `uv run` 运行 Python 命令。
-- 在终端使用 `./.venv/Scripts/activate.ps1` 激活虚拟环境。
+- 在 windows 终端使用 `./.venv/Scripts/activate.ps1`，或 macOS 终端使用 `source .venv/bin/activate` 激活虚拟环境。
 
 ### 开发流程
 
-- 安装依赖: `uv pip install -r requirements.txt`
-- 若依赖有变更，运行: `uv sync`
+- 同步依赖: `uv sync`
+- 若需添加依赖，运行: `uv sync`
 - 运行程序: `uv run streamlit run app.py`
 - 运行测试（AkShare 数据需要网络）:
   - `uv python -m unittest tests.ma_test.MaStrategyTest`
@@ -46,27 +46,15 @@
 
 #### 单元测试与类型检查
 
-- 运行完整测试套件：
-
-  ```bash
-  make tests
-  ```
-
 - 运行聚焦测试：
 
   ```bash
   uv run pytest -s -k <pattern>
   ```
 
-- 类型检查：
-
-  ```bash
-  make mypy
-  ```
-
 ## 关键文件
 
-- 程序入口: `backtrader.py` (Streamlit UI + orchestration)
+- 程序入口: `app.py` (Streamlit UI + orchestration)
 - 策略配置: `config/strategy.yaml`
 - 策略实现: `strategy/ma.py`, `strategy/macross.py`, `strategy/just_buy_hold.py`, `strategy/equal_weight.py` 等, 共享基类在 `strategy/base.py`
 - UI 组件: `frames/sidebar.py` (输入), `frames/form.py` (策略参数)
@@ -86,7 +74,7 @@
 
 ## 约定与注意事项
 
-- 策略类在 `strategy` 包中动态发现，命名格式为 `{Name}Strategy`，如果文件过多，需要创建同名的文件夹作为包名来整理文件。
+- 策略类在 `strategy` 包中动态发现，类命名格式为 `{Name}Strategy`，文件名格式为小写下划线方式 `name.py`，如果文件过多，需要创建小写下划线方式的同名文件夹作为包名来整理文件。
 - `config/strategy.yaml` 控制参数 UI；保持名称与策略参数同步。
 - 测试从 AkShare 拉取数据，需要网络访问；失败可能与数据源相关。
 - Streamlit 缓存用于数据和回测；如果模式更改，需谨慎更新缓存键。
