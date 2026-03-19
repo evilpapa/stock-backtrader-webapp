@@ -1,4 +1,4 @@
-# [全天候动量轮动ETF策略设计思路](https://mp.weixin.qq.com/s/aDVZfjGU4HwszkjGba583g)
+# 全天候动量轮动ETF策略设计思路
 
 ## 1. 标的资产选择逻辑：构建跨市场、跨资产类别的配置组合
 
