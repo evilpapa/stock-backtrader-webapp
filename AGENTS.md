@@ -22,7 +22,7 @@
 ### 项目结构
 
 - `app.py`: 主入口，Streamlit UI 和协调逻辑。
-- `strategy/`: 策略实现。
+- `strategy/`: 策略实现 python 代码。
 - `config/strategy.yaml`: 策略参数配置。
 - `frames/`: Streamlit UI 组件。
 - `charts/`: 图表渲染。
@@ -38,7 +38,7 @@
 - 策略的运行示例在 `examples/{策略名}` 目录下有对应的运行文件。
 - R 语言策略脚本在 `R/{策略名}` 目录下。
 - 测试文件在 `tests/` 目录下，按策略分类。
-- 实现调研在 `docs/{策略名}` 目录下，包括 `RESEARCH.md` 实现说明、`README_PYTHON.md` python 说明等。
+- 实现调研在 `docs/{策略名}` 目录下，包括 `中文策略名.txt`（包含策略参考网页地址）、`RESEARCH.md` 实现说明、`README_PYTHON.md` python 说明等。
 
 ### 测试与自动化检查
 
