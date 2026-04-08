@@ -1,8 +1,9 @@
 import numpy as np
+import importlib
 
 # 尝试导入empyrical，如果没有安装则使用自定义计算
 try:
-	import empyrical-reloaded as ep
+	ep = importlib.import_module("empyrical")
 	HAS_EMPYRICAL = True
 except ImportError:
 	HAS_EMPYRICAL = False
@@ -86,4 +87,3 @@ class PerformanceCalculator:
 		running_max = cum.expanding().max()
 		drawdown = (cum - running_max) / running_max
 		return drawdown
-

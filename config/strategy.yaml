@@ -34,6 +34,46 @@ EtfMomentum:
   max: 10
   step: 1
 
+LeadingRotation:
+
+- name: momentum_window
+  type: int
+  min: 10
+  max: 60
+  step: 5
+
+- name: rebalance_days
+  type: int
+  min: 1
+  max: 10
+  step: 1
+
+- name: top_l
+  type: int
+  min: 1
+  max: 10
+  step: 1
+
+SectorRotation:
+
+- name: momentum_window
+  type: int
+  min: 10
+  max: 60
+  step: 5
+
+- name: rebalance_days
+  type: int
+  min: 1
+  max: 10
+  step: 1
+
+- name: top_l
+  type: int
+  min: 1
+  max: 10
+  step: 1
+
 TurtleTrading:
 
 - name: entry_period
