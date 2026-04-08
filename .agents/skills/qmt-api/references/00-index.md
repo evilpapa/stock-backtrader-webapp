@@ -1,0 +1,157 @@
+# qmt-api 二次整理索引
+
+来源：https://qmt.ptradeapi.com/QMT_Python_API_Doc.html
+
+## 参考文件
+
+- 全量抓取原稿：`qmt-python-api.md`
+- 精修合并版：`qmt-python-api.refined.md`
+- 分卷（推荐检索）：
+  - `1-创建策略.md`
+  - `2-创建一个-python-策略.md`
+  - `3-python-api-手册.md`
+  - `4-财务数据接口使用方法.md`
+  - `5-多因子数据接口使用方法.md`
+  - `qmt-python-api-接口文档.md`
+  - `概述.md`
+
+## 函数索引（自动抽取）
+
+- `ContextInfo.bsm_iv`
+- `ContextInfo.bsm_price`
+- `ContextInfo.draw_icon`
+- `ContextInfo.draw_number`
+- `ContextInfo.draw_text`
+- `ContextInfo.draw_vertline`
+- `ContextInfo.get_all_subscription`
+- `ContextInfo.get_bar_timetag`
+- `ContextInfo.get_bvol`
+- `ContextInfo.get_close_price`
+- `ContextInfo.get_commission`
+- `ContextInfo.get_contract_expire_date`
+- `ContextInfo.get_contract_multiplier`
+- `ContextInfo.get_date_location`
+- `ContextInfo.get_divid_factors`
+- `ContextInfo.get_ext_all_data`
+- `ContextInfo.get_factor_data`
+- `ContextInfo.get_financial_data`
+- `ContextInfo.get_full_tick`
+- `ContextInfo.get_his_contract_list`
+- `ContextInfo.get_his_index_data`
+- `ContextInfo.get_his_st_data`
+- `ContextInfo.get_history_data`
+- `ContextInfo.get_industry`
+- `ContextInfo.get_instrumentdetail`
+- `ContextInfo.get_last_volume`
+- `ContextInfo.get_local_data`
+- `ContextInfo.get_longhubang`
+- `ContextInfo.get_main_contract`
+- `ContextInfo.get_market_data`
+- `ContextInfo.get_market_data_ex`
+- `ContextInfo.get_net_value`
+- `ContextInfo.get_open_date`
+- `ContextInfo.get_option_detail_data`
+- `ContextInfo.get_option_iv`
+- `ContextInfo.get_option_list`
+- `ContextInfo.get_option_undl_data`
+- `ContextInfo.get_risk_free_rate`
+- `ContextInfo.get_sector`
+- `ContextInfo.get_slippage`
+- `ContextInfo.get_stock_list_in_sector`
+- `ContextInfo.get_stock_name`
+- `ContextInfo.get_svol`
+- `ContextInfo.get_tick_timetag`
+- `ContextInfo.get_top10_share_holder`
+- `ContextInfo.get_total_share`
+- `ContextInfo.get_trading_dates`
+- `ContextInfo.get_turnover_rate`
+- `ContextInfo.get_universe`
+- `ContextInfo.get_weight_in_index`
+- `ContextInfo.is_last_bar`
+- `ContextInfo.is_new_bar`
+- `ContextInfo.is_suspended_stock`
+- `ContextInfo.load_stk_list`
+- `ContextInfo.load_stk_vol_list`
+- `ContextInfo.paint`
+- `ContextInfo.run_time`
+- `ContextInfo.set_account`
+- `ContextInfo.set_commission`
+- `ContextInfo.set_slippage`
+- `ContextInfo.set_universe`
+- `ContextInfo.subscribe_quote`
+- `ContextInfo.unsubscribe_quote`
+- `SH`
+- `SH200`
+- `account_callback`
+- `algo_passorder`
+- `arange`
+- `buy_close_tdayfirst`
+- `buy_close_ydayfirst`
+- `buy_open`
+- `can_cancel_order`
+- `cancel`
+- `cancel_task`
+- `credit_opvolume_callback`
+- `deal_callback`
+- `decimal`
+- `df`
+- `dir`
+- `do_order`
+- `ext_data`
+- `ext_data_range`
+- `ext_data_rank`
+- `ext_data_rank_range`
+- `get_assure_contract`
+- `get_debt_contract`
+- `get_enable_short_contract`
+- `get_etf_info`
+- `get_etf_iopv`
+- `get_factor_rank`
+- `get_factor_value`
+- `get_history_data`
+- `get_industry_name_of_stock`
+- `get_ipo_data`
+- `get_last_order_id`
+- `get_market_data`
+- `get_new_purchase_limit`
+- `get_open_date`
+- `get_result_records `
+- `get_result_records`
+- `get_top10_share_holder`
+- `get_trade_detail_data`
+- `get_value_by_order_id`
+- `handlebar`
+- `init`
+- `int`
+- `is_sector_stock`
+- `is_typed_stock`
+- `items`
+- `learn`
+- `len`
+- `list`
+- `load_stk_vol_list`
+- `myHandlebar`
+- `on_quote`
+- `orderError_callback`
+- `order_callback`
+- `order_lots`
+- `order_percent`
+- `order_shares`
+- `order_target_percent`
+- `order_target_value`
+- `order_value`
+- `passorder`
+- `pause_task`
+- `position_callback`
+- `print`
+- `query_credit_opvolume`
+- `resume_task`
+- `run_time`
+- `sell_close_tdayfirst`
+- `sell_close_ydayfirst`
+- `sell_open`
+- `smart_algo_passorder`
+- `stop`
+- `time`
+- `timetag_to_datetime`
+
