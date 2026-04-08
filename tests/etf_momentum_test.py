@@ -5,9 +5,9 @@ ETF动量策略单元测试
 """
 
 import unittest
-from datetime import datetime
 import pandas as pd
 import backtrader as bt
+import numpy as np
 
 from strategy.etf_momentum import EtfMomentumStrategy
 
@@ -19,29 +19,32 @@ class EtfMomentumTest(unittest.TestCase):
 		"""测试前准备"""
 		# 创建简单的测试数据
 		dates = pd.date_range(start='2024-01-01', end='2024-06-30', freq='D')
+		up = 100 + np.arange(len(dates)) * 0.1
+		flat = np.full(len(dates), 100.0)
+		down = 100 - np.arange(len(dates)) * 0.05
 
 		# 创建三个模拟ETF数据（上涨、震荡、下跌）
 		self.data1 = pd.DataFrame({
-			'Open': 100 + pd.Series(range(len(dates))) * 0.1,
-			'High': 101 + pd.Series(range(len(dates))) * 0.1,
-			'Low': 99 + pd.Series(range(len(dates))) * 0.1,
-			'Close': 100 + pd.Series(range(len(dates))) * 0.1,
+			'Open': up,
+			'High': up + 1,
+			'Low': up - 1,
+			'Close': up,
 			'Volume': 1000000,
 		}, index=dates)
 
 		self.data2 = pd.DataFrame({
-			'Open': 100,
-			'High': 102,
-			'Low': 98,
-			'Close': 100,
+			'Open': flat,
+			'High': flat + 2,
+			'Low': flat - 2,
+			'Close': flat,
 			'Volume': 1000000,
 		}, index=dates)
 
 		self.data3 = pd.DataFrame({
-			'Open': 100 - pd.Series(range(len(dates))) * 0.05,
-			'High': 101 - pd.Series(range(len(dates))) * 0.05,
-			'Low': 99 - pd.Series(range(len(dates))) * 0.05,
-			'Close': 100 - pd.Series(range(len(dates))) * 0.05,
+			'Open': down,
+			'High': down + 1,
+			'Low': down - 1,
+			'Close': down,
 			'Volume': 1000000,
 		}, index=dates)
 

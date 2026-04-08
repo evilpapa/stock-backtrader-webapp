@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=82"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "stock-backtrader-web-app"
 version = "0.1.0"
@@ -24,3 +28,6 @@ dependencies = [
     "streamlit-echarts==0.4.0",
     "yfinance>=0.2.0",
 ]
+
+[tool.setuptools]
+packages = ["strategy", "frames", "charts", "utils"]

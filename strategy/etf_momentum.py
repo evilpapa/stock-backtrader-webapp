@@ -52,6 +52,7 @@ class EtfMomentumStrategy(BaseStrategy):
 		# 订单追踪
 		self.order = None
 		self.rebalance_counter = 0
+		self.rebalance_history = []
 
 		# 为每个数据源计算收益率
 		self.returns = []
@@ -104,6 +105,10 @@ class EtfMomentumStrategy(BaseStrategy):
 				mom = self.momentum[i][0]
 				vol = self.volatility[i][0]
 
+				if np.isnan(mom) or np.isnan(vol):
+					adj_momentum_values.append(0.0)
+					continue
+
 				# 计算风险调整动量 = 动量 / 波动率
 				# 避免除以零
 				if vol > 1e-8:
@@ -136,6 +141,12 @@ class EtfMomentumStrategy(BaseStrategy):
 
 		# 执行再平衡
 		self._rebalance_portfolio(target_weights)
+		self.rebalance_history.append(
+			{
+				"date": self.datas[0].datetime.date(0),
+				"target_weights": target_weights.copy(),
+			}
+		)
 
 		# 记录权重信息
 		if self.params.printlog:
@@ -150,6 +161,8 @@ class EtfMomentumStrategy(BaseStrategy):
 			target_weights: 每个ETF的目标权重数组
 		"""
 		total_value = self.broker.getvalue()
+		if not np.isfinite(total_value) or total_value <= 0:
+			return
 
 		for i, data in enumerate(self.datas):
 			target_weight = target_weights[i]
@@ -158,6 +171,8 @@ class EtfMomentumStrategy(BaseStrategy):
 			# 计算当前持仓价值
 			current_position = self.getposition(data).size
 			current_price = data.close[0]
+			if not np.isfinite(current_price) or current_price <= 0:
+				continue
 			current_value = current_position * current_price
 
 			# 计算需要调整的价值
