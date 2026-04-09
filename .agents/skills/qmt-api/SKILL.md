@@ -19,8 +19,7 @@ Read in this order:
    - `references/3-python-api-手册.md`
    - `references/4-财务数据接口使用方法.md`
    - `references/5-多因子数据接口使用方法.md`
-3. If you need a single-file view: `references/qmt-python-api.refined.md`
-4. If you need the raw capture (noisier): `references/qmt-python-api.md`
+   - `references/6-附录.md`
 
 Source:
 

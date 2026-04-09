@@ -1,6 +1,6 @@
 # qmt-api 二次整理索引
 
-来源：https://qmt.ptradeapi.com/QMT_Python_API_Doc.html
+来源：[QMT Python API 文档](https://qmt.ptradeapi.com/QMT_Python_API_Doc.html)
 
 ## 参考文件
 
@@ -12,7 +12,7 @@
   - `3-python-api-手册.md`
   - `4-财务数据接口使用方法.md`
   - `5-多因子数据接口使用方法.md`
-  - `qmt-python-api-接口文档.md`
+  - `6-附录.md`
   - `概述.md`
 
 ## 函数索引（自动抽取）
@@ -154,4 +154,3 @@
 - `stop`
 - `time`
 - `timetag_to_datetime`
-
