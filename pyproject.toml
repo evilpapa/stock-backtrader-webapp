@@ -9,7 +9,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "akshare==1.16.81",
     "backtrader==1.9.78.123",
     "empyrical-reloaded>=0.5.12",
     "graphifyy>=0.3.11",
@@ -27,8 +26,7 @@ dependencies = [
     "pyyaml==6.0.2",
     "streamlit==1.44.1",
     "streamlit-echarts==0.4.0",
-    "yfinance>=0.2.0",
 ]
 
 [tool.setuptools]
-packages = ["strategy", "frames", "charts", "utils"]
+packages = ["strategy", "frames", "charts", "utils", "qmt"]

@@ -32,6 +32,11 @@
 - `datas/`: 本地数据缓存（可选），按照 `{策略名}` 目录组织。
 - `examples/`: 示例脚本。
 - `R/`: R 语言策略脚本。
+- `qmt/`: 基于国金证券 qmt 量化框架的 python 策略脚本。
+- `qmt/data_adapter.py`: QMT `ContextInfo` 数据接口白名单适配器，只包装只读行情方法。
+- `qmt/data_gateway.py`: 本地 HTTP 数据网关，用于在 QMT 策略进程内暴露只读行情数据服务。
+- `qmt/data_service_strategy.py`: QMT 生命周期示例脚本，在 `init(ContextInfo)` 启动数据服务，在 `stop(ContextInfo)` 停止服务。
+- `utils/qmt_data_client.py`: 普通 Python 策略/回测代码访问 QMT 本地数据服务的客户端。
 
 注意：
 
@@ -39,6 +44,8 @@
 - R 语言策略脚本在 `R/{策略名}` 目录下。
 - 测试文件在 `tests/` 目录下，按策略分类。
 - 实现调研在 `docs/{策略名}` 目录下，包括 `中文策略名.txt`（包含策略参考网页地址）、`RESEARCH.md` 实现说明、`README_PYTHON.md` python 说明等。
+- qmt 策略脚本，严格依赖 `qmt-api` skill。
+- QMT 数据服务说明在 `docs/qmt_data_service.md`。
 
 ### 测试与自动化检查
 
@@ -52,6 +59,12 @@
   uv run pytest -s -k <pattern>
   ```
 
+- QMT 数据服务聚焦测试（不需要真实 QMT 终端，使用 fake `ContextInfo`）：
+
+  ```bash
+  python -m unittest tests.qmt_data_gateway_test
+  ```
+
 ## 关键文件
 
 - 程序入口: `app.py` (Streamlit UI + orchestration)
@@ -60,6 +73,9 @@
 - UI 组件: `frames/sidebar.py` (输入), `frames/form.py` (策略参数)
 - 图表: `charts/stock.py` (K线), `charts/results.py` (结果条)
 - 数据与回测运行时: `utils/processing.py`
+- QMT 数据服务: `qmt/data_gateway.py`, `qmt/data_adapter.py`, `qmt/data_service_strategy.py`
+- QMT 数据客户端: `utils/qmt_data_client.py`
+- QMT 数据服务文档: `docs/qmt_data_service.md`
 - Schemas: `utils/schemas.py`
 - 日志: `utils/logs.py` (每天写入日志到 `./logs/`)
 
@@ -72,9 +88,39 @@
 5. `utils/processing.run_backtrader` 运行 Backtrader 和分析器，并返回结果 DataFrame。
 6. `charts/` 中的图表渲染 K 线和回测指标。
 
+## QMT 数据服务
+
+QMT 的 `ContextInfo` 只能在 QMT 策略生命周期内可靠访问。需要把 QMT 行情数据提供给普通策略/回测代码时，使用本项目的本地只读 HTTP 网关，而不是在 Streamlit 或普通 Python 进程里直接调用 `ContextInfo`。
+
+### 服务边界
+
+- 在 QMT 策略进程内运行 `qmt/data_service_strategy.py`，由 `init(ContextInfo)` 调用 `start_qmt_data_service()`，由 `stop(ContextInfo)` 调用 `stop_qmt_data_service()`。
+- 默认绑定 `127.0.0.1:8765`，可通过 `QMT_DATA_SERVICE_HOST`、`QMT_DATA_SERVICE_PORT`、`QMT_DATA_SERVICE_TOKEN` 配置。
+- 只暴露只读行情接口，不暴露交易、账户、下单、撤单、回调等接口。
+- 对外 HTTP 输入必须经过 `qmt/data_adapter.py` 白名单校验，不允许动态调用任意 `ContextInfo` 属性。
+- 若加入新的 QMT API，必须先查 `qmt-api` skill，复制官方签名和参数名，补测试后再开放端点。
+
+### 已支持的 QMT 方法
+
+- `ContextInfo.get_history_data(len, period, field, dividend_type=0, skip_paused=True)`
+- `ContextInfo.get_market_data(fields, stock_code=[], start_time='', end_time='', skip_paused=True, period='1d', dividend_type='none', count=-1)`
+- `ContextInfo.get_market_data_ex(fields=[], stock_code=[], period='follow', start_time='', end_time='', count=-1, dividend_type='follow', fill_data=True, subscribe=True)`
+- `ContextInfo.get_full_tick(stock_code=[])`
+- `ContextInfo.get_local_data(stock_code, start_time='', end_time='', period='1d', divid_type='none', count=-1)`
+
+### 客户端约定
+
+- 普通 Python 代码使用 `utils.qmt_data_client.QmtDataClient` 请求本地服务。
+- OHLCV 类数据优先使用 `/v1/market-data-ex`，再用 `get_market_data_ex_df()` 还原为 `pd.DataFrame`。
+- 需要接入 Backtrader 时，使用 `to_backtrader_ohlcv()` 输出 `date/open/high/low/close/volume` 列。
+- `get_market_data()` 的返回形态会随 QMT 参数变化，网关会对 pandas 结构加 `type` 标签；消费端不要假设它总是 DataFrame。
+- `subscribe_quote()` 暂不开放；实时订阅需要单独设计推送或轮询机制。
+
 ## 约定与注意事项
 
 - 策略类在 `strategy` 包中动态发现，类命名格式为 `{Name}Strategy`，文件名格式为小写下划线方式 `name.py`，如果文件过多，需要创建小写下划线方式的同名文件夹作为包名来整理文件。
 - `config/strategy.yaml` 控制参数 UI；保持名称与策略参数同步。
 - 测试从 AkShare 拉取数据，需要网络访问；失败可能与数据源相关。
 - Streamlit 缓存用于数据和回测；如果模式更改，需谨慎更新缓存键。
+- QMT 数据服务应保持本机只读访问；默认使用 token 时不要在日志中打印 token。
+- QMT `ContextInfo` 线程安全需要在真实 QMT 环境手动验证；如果发现线程调用不稳定，应改为队列化请求并在 QMT 安全的生命周期内处理。

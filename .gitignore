@@ -144,6 +144,8 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 .Rproj.user
+.Rhistory
 
 
 __marimo__
+.positai

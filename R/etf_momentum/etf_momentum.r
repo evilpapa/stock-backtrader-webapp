@@ -12,7 +12,7 @@ library(cowplot) # 图形组合（更精细的控制）
 # 设置回测时间段 - 确保使用正确的日期格式
 backtest_start <- "2024-01-02"
 #backtest_end <- Sys.Date()
-backtest_end <- "2026-01-26"
+backtest_end <- "2026-05-12"
 
 # 转换为日期类型
 start_date <- as.Date(backtest_start)
