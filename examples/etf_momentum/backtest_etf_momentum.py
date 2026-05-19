@@ -16,7 +16,7 @@ dplyr/tidyr           → pandas (数据处理)
 ggplot2/cowplot       → matplotlib (可视化)
 
 使用方法:
-	python examples/etf_momentum/backtest_etf_momentum.py
+
 """
 
 

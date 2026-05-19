@@ -15,12 +15,12 @@
 
 ## 技术架构
 
-| 组件             | 功能          | 链接                                             |
-|----------------|-------------|------------------------------------------------|
+| 组件           | 功能                   | 链接                                               |
+|----------------|------------------------|----------------------------------------------------|
 | **Streamlit**  | 构建交互式数据应用界面 | [官方仓库](https://github.com/streamlit/streamlit) |
-| **AkShare**    | 获取金融市场数据    | [官方仓库](https://github.com/akfamily/akshare)    |
-| **Backtrader** | 执行量化交易策略回测  | [官方仓库](https://github.com/mementum/backtrader) |
-| **Pyecharts**  | 生成专业金融数据图表  | [官方仓库](https://github.com/pyecharts/pyecharts) |
+| **AkShare**    | 获取金融市场数据       | [官方仓库](https://github.com/akfamily/akshare)    |
+| **Backtrader** | 执行量化交易策略回测   | [官方仓库](https://github.com/mementum/backtrader) |
+| **Pyecharts**  | 生成专业金融数据图表   | [官方仓库](https://github.com/pyecharts/pyecharts) |
 
 ## 快速开始
 
@@ -59,21 +59,21 @@ uv python -m unittest tests.MaStrategyTest
 
 ### AkShare数据参数
 
-| 参数             | 说明                    |
-|----------------|-----------------------|
-| **symbol**     | 股票代码（如：600070）        |
+| 参数           | 说明                                |
+|----------------|-------------------------------------|
+| **symbol**     | 股票代码（如：600070）              |
 | **period**     | 数据周期（日线、周线、月线）        |
-| **start date** | 数据起始日期                |
-| **end date**   | 数据结束日期                |
-| **adjust**     | 复权方式（qfq：前复权，hfq：后复权） |
+| **start date** | 数据起始日期                        |
+| **end date**   | 数据结束日期                        |
+| **adjust**     | 复权方式（qfq：前复权，hfq：后复权）|
 
 ### Backtrader回测参数
 
-| 参数                 | 说明     |
-|--------------------|--------|
+| 参数               | 说明         |
+|--------------------|--------------|
 | **start date**     | 回测开始日期 |
 | **end date**       | 回测结束日期 |
-| **start cash**     | 初始资金   |
+| **start cash**     | 初始资金     |
 | **commission fee** | 交易佣金比例 |
 | **stake**          | 每次交易股数 |
 
