@@ -6,7 +6,7 @@
 
 ### 前置条件
 
-- 环境要求 Python 3.12+。
+- 环境要求 Python 3.13+。
 - 安装 `uv` 用于依赖管理（`uv sync`）以及通过 `uv run` 运行 Python 命令。
 - 在 windows 终端使用 `./.venv/Scripts/activate.ps1`，或 macOS 终端使用 `source .venv/bin/activate` 激活虚拟环境。
 
