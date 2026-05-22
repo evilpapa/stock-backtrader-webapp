@@ -4,8 +4,6 @@
 
 ## 参考文件
 
-- 全量抓取原稿：`qmt-python-api.md`
-- 精修合并版：`qmt-python-api.refined.md`
 - 分卷（推荐检索）：
   - `1-创建策略.md`
   - `2-创建一个-python-策略.md`
