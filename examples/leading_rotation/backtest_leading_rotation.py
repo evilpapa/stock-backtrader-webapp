@@ -1,5 +1,5 @@
 """
-龙头动量轮动策略完整回测脚本 (Python版本)
+龙头动量轮动策略完整回测脚本
 
 使用:
     uv run python examples/leading_rotation/backtest_leading_rotation.py

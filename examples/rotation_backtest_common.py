@@ -14,17 +14,19 @@ from strategy.analyzer import CustomAnalyzer
 from strategy.equal_weight import EqualWeightStrategy
 from strategy.just_buy_hold import JustBuyHoldStrategy
 from strategy.performance_calculator import PerformanceCalculator
-from utils.fetch_data import fetch_etf_data
+from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 
 
 def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strategy_name: str) -> dict[str, pd.DataFrame]:
-	raw = fetch_etf_data(symbols, start_date, end_date, strategy_name=strategy_name)
+	print(f"正在从 xtdata 获取{strategy_name}历史数据...")
 	prepared: dict[str, pd.DataFrame] = {}
 
-	for symbol, frame in raw.items():
-		df = frame.copy()
-		if isinstance(df.columns, pd.MultiIndex):
-			df = df.xs(symbol, level=1, axis=1)
+	for symbol in symbols:
+		try:
+			df = to_title_case_ohlcv(fetch_history_ohlcv(symbol, start_date, end_date))
+		except Exception as exc:
+			print(f"  ✗ 跳过 {symbol}: 获取失败 - {exc}")
+			continue
 
 		required = ["Open", "High", "Low", "Close", "Volume"]
 		if not all(column in df.columns for column in required):

@@ -149,3 +149,6 @@ $RECYCLE.BIN/
 
 __marimo__
 .positai
+
+# IDEs
+.idea/

@@ -2,7 +2,7 @@ import streamlit as st
 from streamlit_echarts import st_pyecharts
 
 from charts import draw_pro_kline, draw_result_bar
-from frames import akshare_selector_ui, backtrader_selector_ui, params_selector_ui
+from frames import backtrader_selector_ui, params_selector_ui, xtdata_selector_ui
 from utils.load import load_strategy
 from utils.logs import logger
 from utils.processing import gen_stock_df, run_backtrader
@@ -12,10 +12,10 @@ st.set_page_config(page_title="backtrader", page_icon=":chart_with_upwards_trend
 
 
 def main():
-	ak_params = akshare_selector_ui()
+	xtdata_params = xtdata_selector_ui()
 	bt_params = backtrader_selector_ui()
-	if ak_params.symbol:
-		stock_df = gen_stock_df(ak_params)
+	if xtdata_params.symbol:
+		stock_df = gen_stock_df(xtdata_params)
 		if stock_df.empty:
 			st.error("Get stock data failed!")
 			return
@@ -28,7 +28,7 @@ def main():
 		name = st.selectbox("strategy", list(strategy_dict.keys()))
 		submitted, params = params_selector_ui(strategy_dict[name])
 		if submitted:
-			logger.info(f"akshare: {ak_params}")
+			logger.info(f"xtdata: {xtdata_params}")
 			logger.info(f"backtrader: {bt_params}")
 			stock_df = stock_df.rename(
 				columns={

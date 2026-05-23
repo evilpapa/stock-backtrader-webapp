@@ -1,21 +1,11 @@
 """
 ETF动量轮动策略完整回测脚本 (Python版本)
 
-这是R语言 strategy.r 的Python完整实现，包含:
-1. 数据获取 (使用 yfinance)
+包含:
+1. 数据获取 (使用 xtdata)
 2. 策略回测 (使用 backtrader)
 3. 性能分析 (使用 empyrical-reloaded)
 4. 可视化 (使用 matplotlib)
-
-依赖包映射:
-R包                    → Python包
--------------------------------------------------
-quantmod              → yfinance (数据获取)
-PerformanceAnalytics  → empyrical-reloaded (性能分析)
-dplyr/tidyr           → pandas (数据处理)
-ggplot2/cowplot       → matplotlib (可视化)
-
-使用方法:
 
 """
 
@@ -23,7 +13,8 @@ ggplot2/cowplot       → matplotlib (可视化)
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import backtrader as bt
@@ -34,7 +25,7 @@ from matplotlib.gridspec import GridSpec
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
-from utils.fetch_data import fetch_etf_data
+from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 from utils.colors import RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, RESET
 from strategy.performance_calculator import PerformanceCalculator
 from strategy.just_buy_hold import JustBuyHoldStrategy
@@ -44,10 +35,9 @@ from strategy.analyzer import CustomAnalyzer
 # ==================== 配置参数 ====================
 # 回测时间段
 BACKTEST_START = "2024-01-01"
-BACKTEST_END = "2026-01-26"
-# BACKTEST_END = datetime.now().strftime("%Y-%m-%d")
+BACKTEST_END = datetime.now().strftime("%Y-%m-%d")
 
-# ETF代码 (Yahoo Finance格式)
+# ETF代码
 ETF_SYMBOLS = ["513100.SS", "510300.SS", "518880.SS"]  # 纳指、沪深300、黄金
 ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
 
@@ -60,9 +50,11 @@ COMMISSION = 0.001  # 手续费率 0.1%
 OUTPUT_DIR = "/datas/etf_momentum/backtest_results"
 
 
-# ==================== Backtrader策略 ====================
+# ==================== Backtrader 策略 ====================
 class EtfMomentumStrategy(bt.Strategy):
-	"""ETF动量轮动策略"""
+	"""
+	ETF动量轮动策略
+	"""
 
 	params = (
 		("momentum_window", 20),
@@ -504,30 +496,22 @@ def main():
 	print("=" * 60)
 
 	# 1. 获取数据
-	data_dict = fetch_etf_data(ETF_SYMBOLS, BACKTEST_START, BACKTEST_END, strategy_name="etf_momentum")
+	print("正在从 xtdata 获取 ETF 历史数据...")
 	data_feeds = {}
 
-	# yfinance 下载的数据稍微进行转换
 	for ticker in ETF_SYMBOLS:
-		if ticker in data_dict:
-			df = data_dict[ticker]
-			
-			# 检查是否是多索引（批量下载）还是单索引（单个下载）
-			if isinstance(df.columns, pd.MultiIndex):
-				# 多索引：需要提取对应ticker的数据
-				df_ticker = df.xs(ticker, level=1, axis=1)
-			else:
-				# 单索引：直接使用
-				df_ticker = df
-			print(df_ticker.columns)
-			print(df_ticker.head())
-			# 确保列名正确
-			if 'Open' in df_ticker.columns:
-				df_ticker = df_ticker[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
-				data_feeds[ticker] = df_ticker
-				print(f"  ✓ 数据处理完成: {ticker}, 共 {len(df_ticker)} 行")
-			else:
-				print(f"  ✗ 数据列名不匹配: {ticker}, 列名: {df_ticker.columns.tolist()}")
+		try:
+			df_ticker = to_title_case_ohlcv(fetch_history_ohlcv(ticker, BACKTEST_START, BACKTEST_END))
+		except Exception as exc:
+			print(f"  ✗ 数据获取失败: {ticker} - {exc}")
+			continue
+
+		df_ticker = df_ticker[['Open', 'High', 'Low', 'Close', 'Volume']].dropna()
+		if df_ticker.empty:
+			print(f"  ✗ 数据清洗后为空: {ticker}")
+			continue
+		data_feeds[ticker] = df_ticker
+		print(f"  ✓ 数据处理完成: {ticker}, 共 {len(df_ticker)} 行")
 
 	if len(data_feeds) < len(ETF_SYMBOLS):
 		print("\n警告: 部分ETF数据获取失败，回测可能不完整")

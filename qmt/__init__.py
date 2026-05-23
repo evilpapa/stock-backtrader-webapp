@@ -1,2 +1,0 @@
-"""QMT strategy helpers."""
-

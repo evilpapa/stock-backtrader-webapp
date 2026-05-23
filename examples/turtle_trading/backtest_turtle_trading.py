@@ -5,23 +5,21 @@ import os
 import sys
 from pathlib import Path
 
-import akshare as ak
 import backtrader as bt
 import matplotlib.pyplot as plt
 import pandas as pd
-import yfinance as yf
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
 from strategy.turtle_trading import TurtleTradingStrategy
+from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 
 OUTPUT_DIR = Path(project_root) / "datas" / "turtle_trading" / "backtest_results"
 
 
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="海龟交易策略回测")
-	parser.add_argument("--data-source", choices=["yfinance", "akshare"], default="yfinance")
 	parser.add_argument("--symbol", default="SPY")
 	parser.add_argument("--start", default="2015-01-01")
 	parser.add_argument("--end", default="2025-12-31")
@@ -38,30 +36,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def fetch_data(args: argparse.Namespace) -> pd.DataFrame:
-	if args.data_source == "yfinance":
-		df = yf.download(args.symbol, start=args.start, end=args.end, progress=False)
-		if isinstance(df.columns, pd.MultiIndex):
-			df = df.xs(args.symbol, level=1, axis=1)
-		df = df.rename(columns=str.title)
-		df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
-		return df
-
-	start_date = args.start.replace("-", "")
-	end_date = args.end.replace("-", "")
-	df = ak.stock_zh_a_hist(
-		symbol=args.symbol,
-		period="daily",
-		start_date=start_date,
-		end_date=end_date,
-		adjust="hfq",
-	)
+	df = to_title_case_ohlcv(fetch_history_ohlcv(args.symbol, args.start, args.end))
 	if df.empty:
 		return pd.DataFrame()
-	df = df[["日期", "开盘", "最高", "最低", "收盘", "成交量"]].copy()
-	df.columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
-	df["Date"] = pd.to_datetime(df["Date"])
-	df = df.set_index("Date")
-	return df
+	return df[["Open", "High", "Low", "Close", "Volume"]].dropna()
 
 
 def run_backtest(df: pd.DataFrame, args: argparse.Namespace) -> TurtleTradingStrategy:

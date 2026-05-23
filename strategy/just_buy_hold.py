@@ -1,6 +1,9 @@
+"""
+基准策略: 买入持有 (Just Buy and Hold)
+------------------------------
+"""
 from .base import BaseStrategy
 
-# ==================== 基准策略: 买入持有 ====================
 class JustBuyHoldStrategy(BaseStrategy):
 	"""买入持有策略"""
 

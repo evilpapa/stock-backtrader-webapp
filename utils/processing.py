@@ -1,13 +1,13 @@
 import logging
 
-import akshare as ak
 import backtrader as bt
 import backtrader.analyzers as btanalyzers
 import pandas as pd
 import streamlit as st
 
 from .logs import logger
-from .schemas import AkshareParams, BacktraderParams, StrategyBase
+from .schemas import BacktraderParams, StrategyBase, XtDataParams
+from .xtdata_client import fetch_history_ohlcv, to_chinese_ohlcv
 
 logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR)
 
@@ -15,19 +15,25 @@ logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR
 model_hash_func = lambda x: x.model_dump()
 
 
-@st.cache_data(hash_funcs={AkshareParams: model_hash_func})
-def gen_stock_df(ak_params: AkshareParams) -> pd.DataFrame:
+@st.cache_data(hash_funcs={XtDataParams: model_hash_func})
+def gen_stock_df(xtdata_params: XtDataParams) -> pd.DataFrame:
     """生成股票数据
 
     Args:
-        ak_params (AkshareParams): akshare 参数
+        xtdata_params (XtDataParams): xtdata 参数
 
     Returns:
         pd.DataFrame: 股票历史数据
     """
-    df = ak.stock_zh_a_hist(**ak_params.model_dump())
+    df = fetch_history_ohlcv(
+        symbol=xtdata_params.symbol,
+        period=xtdata_params.period,
+        start_date=xtdata_params.start_date,
+        end_date=xtdata_params.end_date,
+        dividend_type=xtdata_params.dividend_type,
+    )
     if not df.empty:
-        return df[["日期", "开盘", "收盘", "最高", "最低", "成交量"]]
+        return to_chinese_ohlcv(df)
     return pd.DataFrame()
 
 

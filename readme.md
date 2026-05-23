@@ -2,25 +2,25 @@
 
 ## 项目概述
 
-这是一个基于Python的股票回测Web应用，集成了多个强大的开源库，为量化交易研究提供了一站式解决方案。通过直观的界面，用户可以获取市场数据、执行策略回测并可视化分析结果。
+这是一个基于 Python 的股票回测 Web 应用，集成了多个强大的开源库，为量化交易研究提供了一站式解决方案。通过直观的界面，用户可以获取市场数据、执行策略回测并可视化分析结果。
 
 ![demo](demo.gif)
 
 ### 核心特性
 
-- **数据获取** - 通过 AkShare 实时获取A股市场数据
+- **数据获取** - 通过基于国金证券 QMT 交易端的 miniqmt 结合迅投 xtquant.xtdata 模块实时获取A股市场数据
 - **策略回测** - 利用 Backtrader 框架测试交易策略表现
 - **结果可视化** - 使用 Pyecharts 生成专业图表展示
 - **交互界面** - 基于 Streamlit 构建友好的 Web 操作环境
 
 ## 技术架构
 
-| 组件           | 功能                   | 链接                                               |
-|----------------|------------------------|----------------------------------------------------|
-| **Streamlit**  | 构建交互式数据应用界面 | [官方仓库](https://github.com/streamlit/streamlit) |
-| **AkShare**    | 获取金融市场数据       | [官方仓库](https://github.com/akfamily/akshare)    |
-| **Backtrader** | 执行量化交易策略回测   | [官方仓库](https://github.com/mementum/backtrader) |
-| **Pyecharts**  | 生成专业金融数据图表   | [官方仓库](https://github.com/pyecharts/pyecharts) |
+| 组件           | 功能                   | 链接                                                                       |
+|----------------|------------------------|----------------------------------------------------------------------------|
+| **Streamlit**  | 构建交互式数据应用界面 | [官方仓库](https://github.com/streamlit/streamlit)                         |
+| **xtquant**    | 获取金融市场数据       | [官方仓库](https://dict.thinktrader.net/nativeApi/xtdata.html?id=x16fBN)   |
+| **Backtrader** | 执行量化交易策略回测   | [官方仓库](https://github.com/mementum/backtrader)                         |
+| **Pyecharts**  | 生成专业金融数据图表   | [官方仓库](https://github.com/pyecharts/pyecharts)                         |
 
 ## 快速开始
 
@@ -29,7 +29,7 @@
 确保已安装所有依赖包：
 
 ```bash
-uv pip install -r requirements.txt
+uv sync
 ```
 
 ### 启动应用
@@ -52,12 +52,12 @@ uv python -m unittest tests.MaStrategyTest
 
 本项目实现了以下量化交易策略：
 
-- **MA策略** - 基于单一移动平均线的趋势跟踪策略
+- **MA策略**      - 基于单一移动平均线的趋势跟踪策略
 - **MACross策略** - 基于快慢双均线交叉的信号策略
 
 ## 参数配置指南
 
-### AkShare数据参数
+### xtquant 数据参数
 
 | 参数           | 说明                                |
 |----------------|-------------------------------------|
@@ -80,4 +80,3 @@ uv python -m unittest tests.MaStrategyTest
 ## 相关推荐
 
 - [**FinVizAI**](https://github.com/chenwr727/FinVizAI.git) - 一键生成股票与期货分析视频
-- [**akshare-gpt**](https://github.com/chenwr727/akshare-gpt.git) - 将AkShare集成到GPT中实现自然语言金融数据查询

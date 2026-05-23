@@ -2,28 +2,28 @@ import datetime
 
 import streamlit as st
 
-from utils.schemas import AkshareParams, BacktraderParams
+from utils.schemas import BacktraderParams, XtDataParams
 
 
-def akshare_selector_ui() -> AkshareParams:
-	"""akshare params
+def xtdata_selector_ui() -> XtDataParams:
+	"""xtdata params
 
-	:return: AkshareParams
+	:return: XtDataParams
 	"""
-	st.sidebar.markdown("# Akshare Config")
-	symbol = st.sidebar.text_input("symbol")
-	period = st.sidebar.selectbox("period", ("daily", "weekly", "monthly"))
+	st.sidebar.markdown("# XtData Config")
+	symbol = st.sidebar.text_input("symbol", value="000001.SZ")
+	period = st.sidebar.selectbox("period", ("1d", "1w", "1mon"))
 	start_date = st.sidebar.date_input("start date", datetime.date(1970, 1, 1))
 	start_date = start_date.strftime("%Y%m%d")
 	end_date = st.sidebar.date_input("end date", datetime.datetime.today())
 	end_date = end_date.strftime("%Y%m%d")
-	adjust = st.sidebar.selectbox("adjust", ("qfq", "hfq", ""))
-	return AkshareParams(
+	dividend_type = st.sidebar.selectbox("dividend type", ("front", "back", "none", "front_ratio", "back_ratio"))
+	return XtDataParams(
 		symbol=symbol,
 		period=period,
 		start_date=start_date,
 		end_date=end_date,
-		adjust=adjust,
+		dividend_type=dividend_type,
 	)
 
 
