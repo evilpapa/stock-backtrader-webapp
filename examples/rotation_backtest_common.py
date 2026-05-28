@@ -18,6 +18,7 @@ from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 
 
 def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strategy_name: str) -> dict[str, pd.DataFrame]:
+	# 从 xtdata 拉取行情，并整理为 Backtrader 可直接使用的 OHLCV 数据。
 	print(f"正在从 xtdata 获取{strategy_name}历史数据...")
 	prepared: dict[str, pd.DataFrame] = {}
 
@@ -33,6 +34,7 @@ def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strat
 			print(f"  ✗ 跳过 {symbol}: 缺少必要列")
 			continue
 
+		# 仅保留必要行情列，并删除不完整记录，避免回测阶段读到无效价格。
 		df = df[required].dropna().sort_index()
 		if df.empty:
 			print(f"  ✗ 跳过 {symbol}: 清洗后无可用数据")
@@ -43,6 +45,7 @@ def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strat
 
 
 def build_cerebro(initial_cash: float, commission: float) -> bt.Cerebro:
+	# 统一初始化回测引擎，保证策略、基准和等权组合使用相同资金与手续费。
 	cerebro = bt.Cerebro()
 	cerebro.broker.setcash(initial_cash)
 	cerebro.broker.setcommission(commission=commission)
@@ -66,6 +69,7 @@ def run_rotation_strategy_backtest(
 	print(f"\n==> 运行{strategy_display_name}回测...")
 	cerebro = build_cerebro(initial_cash, commission)
 
+	# 将可用标的数据逐个注册到 Backtrader，缺失数据的标的自动跳过。
 	for symbol, name in zip(symbols, names):
 		data = price_data.get(symbol)
 		if data is None:
@@ -73,6 +77,7 @@ def run_rotation_strategy_backtest(
 		cerebro.adddata(bt.feeds.PandasData(dataname=data), name=name)
 		print(f"  ✓ 已添加数据: {name}")
 
+	# 策略内部需要知道基准数据在 cerebro.datas 中的位置，用于相对动量等计算。
 	benchmark_index = next(
 		(index for index, data in enumerate(cerebro.datas) if data._name == benchmark_name),
 		None,
@@ -101,6 +106,7 @@ def run_benchmark_backtest(
 	cerebro = build_cerebro(initial_cash, commission)
 	data = price_data[benchmark_symbol]
 	cerebro.adddata(bt.feeds.PandasData(dataname=data), name=benchmark_name)
+	# 基准使用买入并持有，便于和轮动策略的主动择时效果对比。
 	cerebro.addstrategy(JustBuyHoldStrategy)
 	print(f"  初始资金: {cerebro.broker.getvalue():.2f}")
 	result = cerebro.run()[0]
@@ -120,6 +126,7 @@ def run_equal_weight_backtest(
 	print(f"\n==> 运行{equal_weight_name}回测")
 	cerebro = build_cerebro(initial_cash, commission)
 	data_count = 0
+	# 可排除基准或不参与等权配置的标的，只保留组合资产池。
 	exclude_names = exclude_names or set()
 
 	for symbol, name in zip(symbols, names):
@@ -141,12 +148,14 @@ def run_equal_weight_backtest(
 
 
 def build_return_series(result) -> pd.Series:
+	# 从自定义分析器中提取日收益率，并清理无穷值和缺失值。
 	dates = pd.to_datetime(result.analyzers.custom.dates)
 	returns = pd.Series(result.analyzers.custom.returns, index=dates, dtype=float)
 	return returns.replace([np.inf, -np.inf], np.nan).dropna()
 
 
 def align_series(*series: pd.Series) -> list[pd.Series]:
+	# 多个策略收益序列按共同交易日对齐，确保后续绩效指标可横向比较。
 	common_index = series[0].index
 	for current in series[1:]:
 		common_index = common_index.intersection(current.index)
@@ -161,6 +170,7 @@ def build_metrics(
 	benchmark_name: str,
 	equal_weight_name: str,
 ) -> pd.DataFrame:
+	# 汇总三组收益序列的核心绩效指标，输出为便于保存和打印的表格。
 	calc = PerformanceCalculator()
 	rows = []
 	for name, returns in [
@@ -187,6 +197,7 @@ def build_metrics(
 
 
 def format_metrics_for_console(metrics_df: pd.DataFrame) -> pd.DataFrame:
+	# 控制台展示时将比例和倍数指标格式化为更易读的字符串。
 	formatted = metrics_df.copy()
 	for column in ["年化收益率", "年化波动率", "最大回撤", "胜率"]:
 		formatted[column] = formatted[column].map(lambda value: f"{value * 100:.2f}%")
@@ -196,6 +207,7 @@ def format_metrics_for_console(metrics_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_weight_frame(strategy_result) -> pd.DataFrame:
+	# 将每次调仓后的目标权重展开为宽表，便于查看每日组合配置。
 	rows = []
 	for snapshot in strategy_result.rebalance_history:
 		row = {"Date": snapshot["date"]}
@@ -206,6 +218,7 @@ def build_weight_frame(strategy_result) -> pd.DataFrame:
 
 
 def build_rebalance_detail_frame(strategy_result, asset_label: str) -> pd.DataFrame:
+	# 输出每次调仓时各标的是否入选、目标权重以及动量得分。
 	rows = []
 	for snapshot in strategy_result.rebalance_history:
 		selected_set = set(snapshot["selected_names"])
@@ -225,6 +238,7 @@ def build_rebalance_detail_frame(strategy_result, asset_label: str) -> pd.DataFr
 
 
 def build_selection_frequency_frame(strategy_result, asset_label: str) -> pd.DataFrame:
+	# 统计每个标的在调仓历史中被选中的次数，用于观察轮动偏好。
 	counts: dict[str, int] = {}
 	for snapshot in strategy_result.rebalance_history:
 		for name in snapshot["selected_names"]:
@@ -244,6 +258,7 @@ def build_returns_frame(
 	benchmark_name: str,
 	equal_weight_name: str,
 ) -> pd.DataFrame:
+	# 合并每日收益率，作为后续分析和 CSV 导出的基础明细表。
 	return pd.DataFrame(
 		{
 			"Date": strategy_returns.index,
@@ -262,6 +277,7 @@ def build_cumulative_frame(
 	benchmark_name: str,
 	equal_weight_name: str,
 ) -> pd.DataFrame:
+	# 将每日收益率累乘为累计净值曲线。
 	return pd.DataFrame(
 		{
 			"Date": strategy_returns.index,
@@ -280,6 +296,7 @@ def build_drawdown_frame(
 	benchmark_name: str,
 	equal_weight_name: str,
 ) -> pd.DataFrame:
+	# 计算各策略回撤序列，用于绘制净值下方的风险区间。
 	calc = PerformanceCalculator()
 	return pd.DataFrame(
 		{
@@ -300,6 +317,7 @@ def plot_compare(
 	output_dir: Path,
 	filename: str,
 ) -> None:
+	# 绘制两条累计净值曲线及对应回撤，便于策略和基准/等权组合对比。
 	fig = plt.figure(figsize=(12, 8))
 	grid = GridSpec(2, 1, height_ratios=[2, 1], hspace=0.05)
 
@@ -326,6 +344,7 @@ def plot_compare(
 
 
 def plot_weights(weights_df: pd.DataFrame, strategy_name: str, output_dir: Path) -> None:
+	# 将调仓权重画成堆叠面积图，展示组合仓位随时间的变化。
 	if weights_df.empty:
 		return
 	plot_df = weights_df.copy()
@@ -357,6 +376,7 @@ def save_results(
 	selection_frequency_df: pd.DataFrame,
 	rebalance_detail_df: pd.DataFrame,
 ) -> None:
+	# 将绩效、收益、回撤、权重和调仓明细统一导出为 UTF-8 BOM CSV，方便 Excel 打开。
 	os.makedirs(output_dir, exist_ok=True)
 	metrics_df.to_csv(output_dir / "performance_metrics.csv", index=False, encoding="utf-8-sig")
 	returns_df.to_csv(output_dir / "daily_returns.csv", index=False, encoding="utf-8-sig")

@@ -6,10 +6,7 @@ ETF动量轮动策略完整回测脚本 (Python版本)
 2. 策略回测 (使用 backtrader)
 3. 性能分析 (使用 empyrical-reloaded)
 4. 可视化 (使用 matplotlib)
-
 """
-
-
 
 import os
 import sys
