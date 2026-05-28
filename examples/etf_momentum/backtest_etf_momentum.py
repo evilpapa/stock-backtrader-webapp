@@ -22,6 +22,7 @@ from matplotlib.gridspec import GridSpec
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
+from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
 from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 from utils.colors import RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, RESET
 from strategy.performance_calculator import PerformanceCalculator
@@ -37,11 +38,6 @@ BACKTEST_END = datetime.now().strftime("%Y-%m-%d")
 # ETF代码
 ETF_SYMBOLS = ["513100.SS", "510300.SS", "518880.SS"]  # 纳指、沪深300、黄金
 ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
-
-# 策略参数
-MOMENTUM_WINDOW = 20  # 动量计算窗口
-INITIAL_CASH = 100000.0  # 初始资金
-COMMISSION = 0.001  # 手续费率 0.1%
 
 # 输出目录
 OUTPUT_DIR = "/datas/etf_momentum/backtest_results"

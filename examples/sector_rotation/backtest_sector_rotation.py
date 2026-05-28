@@ -13,6 +13,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
 from examples.rotation_backtest_common import (
 	align_series,
 	build_cumulative_frame,
@@ -37,9 +38,6 @@ from strategy.sector_rotation import SectorRotationStrategy
 
 BACKTEST_START = "2024-01-01"
 BACKTEST_END = "2026-03-28"
-INITIAL_CASH = 100000.0
-COMMISSION = 0.001
-MOMENTUM_WINDOW = 20
 REBALANCE_DAYS = 5
 TOP_L = 5
 BENCHMARK_SYMBOL = "588000.SS"
