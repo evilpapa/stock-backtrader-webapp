@@ -6,7 +6,6 @@ ETF动量轮动策略完整回测脚本 (Python版本)
 2. 策略回测 (使用 backtrader)
 3. 性能分析 (使用 empyrical-reloaded)
 4. 可视化 (使用 matplotlib)
-
 """
 
 import os
@@ -31,6 +30,16 @@ from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
+<<<<<<< HEAD
+=======
+from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
+from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
+from utils.colors import RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, RESET
+from strategy.performance_calculator import PerformanceCalculator
+from strategy.just_buy_hold import JustBuyHoldStrategy
+from strategy.equal_weight import EqualWeightStrategy
+from strategy.analyzer import CustomAnalyzer
+>>>>>>> c4b4ccbdf6b24477864409d23607b415f7f046ab
 
 # ==================== 配置参数 ====================
 # 回测时间段
@@ -40,11 +49,6 @@ BACKTEST_END = datetime.now().strftime("%Y-%m-%d")
 # ETF代码
 ETF_SYMBOLS = ["513100.SS", "510300.SS", "518880.SS"]  # 纳指、沪深300、黄金
 ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
-
-# 策略参数
-MOMENTUM_WINDOW = 20  # 动量计算窗口
-INITIAL_CASH = 100000.0  # 初始资金
-COMMISSION = 0.001  # 手续费率 0.1%
 
 # 输出目录
 OUTPUT_DIR = "/datas/etf_momentum/backtest_results"

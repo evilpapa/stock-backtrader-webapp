@@ -21,6 +21,7 @@ dependencies = [
     "pandas==2.2.3",
     "pandas-datareader>=0.10.0",
     "pandas-stubs~=2.2.3",
+    "pip>=26.1.1",
     "pre-commit==4.2.0",
     "pydantic==2.11.3",
     "pyecharts==2.0.8",
