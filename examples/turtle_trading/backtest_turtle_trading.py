@@ -20,7 +20,7 @@ OUTPUT_DIR = Path(project_root) / "datas" / "turtle_trading" / "backtest_results
 
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="海龟交易策略回测")
-	parser.add_argument("--symbol", default="SPY")
+	parser.add_argument("--symbol", default="600519")
 	parser.add_argument("--start", default="2015-01-01")
 	parser.add_argument("--end", default="2025-12-31")
 	parser.add_argument("--entry-period", type=int, default=20)
@@ -144,10 +144,7 @@ def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame, args: argpars
 
 def main() -> None:
 	args = parse_args()
-	if args.data_source == "akshare" and args.symbol == "SPY":
-		args.symbol = "600519"
-	if args.data_source == "akshare" and args.lot_size == 1:
-		args.lot_size = 100
+	args.lot_size = 100
 
 	df = fetch_data(args)
 	if df.empty:
