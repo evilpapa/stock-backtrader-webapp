@@ -22,7 +22,7 @@ from charts import configure_matplotlib_chinese_font
 from strategy.turtle_trading import TurtleTradingStrategy
 from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 
-OUTPUT_DIR = Path(project_root) / "datas" / "turtle_trading" / "backtest_results"
+OUTPUT_DIR = f'{project_root}/examples/turtle_trading/backtest_results'
 
 configure_matplotlib_chinese_font()
 

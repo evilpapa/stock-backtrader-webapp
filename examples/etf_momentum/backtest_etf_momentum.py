@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.gridspec import GridSpec
+from tabulate import tabulate
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
@@ -45,7 +46,7 @@ ETF_SYMBOLS = ["513100", "510300", "159915", "515000", "588080"]  # 纳指、沪
 ETF_NAMES = ["纳指ETF", "沪深300ETF", "创业板ETF", "科技ETF", "科创50ETF"]
 
 # 输出目录
-OUTPUT_DIR = f'{project_root}/datas/etf_momentum/backtest_results'
+OUTPUT_DIR = f'{project_root}/examples/etf_momentum/backtest_results'
 
 configure_matplotlib_chinese_font()
 
@@ -631,7 +632,8 @@ def main():
 	print("\n" + "=" * 60)
 	print("效能指标汇总")
 	print("=" * 60)
-	print(performance_df.to_string(index=False))
+	# print(performance_df.to_string(index=False))
+	print(tabulate(performance_df, headers='keys', tablefmt='grid', showindex=False))
 
 	# 6. 可视化
 	trade_log = strategy_result.trade_log

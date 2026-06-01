@@ -46,7 +46,7 @@ BENCHMARK_SYMBOL = "588000"
 BENCHMARK_NAME = "科创50ETF"
 STRATEGY_NAME = "行业动量轮动策略"
 EQUAL_WEIGHT_NAME = "行业等权重组合"
-OUTPUT_DIR = PROJECT_ROOT / "datas" / "sector_rotation" / "backtest_results"
+OUTPUT_DIR = f'{PROJECT_ROOT}/examples/sector_rotation/backtest_results'
 DATA_CACHE_NAME = "sector_rotation"
 ASSET_LABEL = "ETF"
 

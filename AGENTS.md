@@ -29,7 +29,6 @@
 - `utils/`: 辅助函数和工具。
 - `tests/`: 测试用例。
 - `logs/`: 日志文件夹。
-- `datas/`: 本地数据缓存（可选），按照 `{策略名}` 目录组织。
 - `examples/`: 示例脚本。
 - `R/`: R 语言策略脚本。
 - `utils/xtdata_client.py`: 普通 Python 策略/回测代码访问 miniQMT 本地数据服务的客户端。
