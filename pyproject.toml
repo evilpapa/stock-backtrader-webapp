@@ -3,7 +3,7 @@ requires = ["setuptools>=82"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "stock-backtrader-web-app"
+name = "stock-backtrader-webapp"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -31,10 +31,13 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["strategy", "frames", "charts", "utils"]
+packages = ["strategy", "frames", "charts", "utils", "examples"]
 
 [tool.setuptools.package-data]
 charts = ["*.ttf"]
+
+[tool.uv]
+package = false
 
 [dependency-groups]
 dev = [

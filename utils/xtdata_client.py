@@ -26,8 +26,6 @@ def import_xtdata() -> Any:
 def normalize_xt_symbol(symbol: str) -> str:
     """转换常见的 Akshare/Yahoo 股票代码为 xtdata code.market 格式。"""
     symbol = symbol.strip().upper()
-    if symbol.endswith(".SS"):
-        return symbol[:-3] + ".SH"
     if symbol.endswith((".SH", ".SZ", ".BJ")):
         return symbol
     if len(symbol) == 6 and symbol.startswith(("5", "6", "9")):

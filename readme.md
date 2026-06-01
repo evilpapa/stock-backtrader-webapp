@@ -37,7 +37,7 @@ uv sync
 执行以下命令启动Web界面：
 
 ```bash
-uv run streamlit run app.py
+.venv/Scripts/python.exe -m streamlit run app.py
 ```
 
 ### 策略测试
@@ -45,7 +45,7 @@ uv run streamlit run app.py
 运行内置策略的单元测试：
 
 ```bash
-uv python -m unittest tests.MaStrategyTest
+.venv/Scripts/python.exe -m unittest tests.MaStrategyTest
 ```
 
 ## 支持的策略

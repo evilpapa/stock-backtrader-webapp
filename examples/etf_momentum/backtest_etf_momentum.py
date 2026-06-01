@@ -1,16 +1,19 @@
 """
-ETF动量轮动策略完整回测脚本 (Python版本)
+ETF动量轮动策略回测脚本
 
 包含:
 1. 数据获取 (使用 xtdata)
 2. 策略回测 (使用 backtrader)
 3. 性能分析 (使用 empyrical-reloaded)
 4. 可视化 (使用 matplotlib)
+
+使用：
+	uv run python examples/etf_momentum/backtest_etf_momentum.py
 """
 
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import backtrader as bt
 import matplotlib.dates as mdates
@@ -19,7 +22,11 @@ import numpy as np
 import pandas as pd
 from matplotlib.gridspec import GridSpec
 
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, project_root)
+
 from charts import configure_matplotlib_chinese_font
+from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
 from strategy.analyzer import CustomAnalyzer
 from strategy.equal_weight import EqualWeightStrategy
 from strategy.just_buy_hold import JustBuyHoldStrategy
@@ -27,31 +34,18 @@ from strategy.performance_calculator import PerformanceCalculator
 from utils.colors import BLUE, CYAN, GREEN, MAGENTA, RED, RESET, YELLOW
 from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, project_root)
-
-<<<<<<< HEAD
-=======
-from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
-from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
-from utils.colors import RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, RESET
-from strategy.performance_calculator import PerformanceCalculator
-from strategy.just_buy_hold import JustBuyHoldStrategy
-from strategy.equal_weight import EqualWeightStrategy
-from strategy.analyzer import CustomAnalyzer
->>>>>>> c4b4ccbdf6b24477864409d23607b415f7f046ab
 
 # ==================== 配置参数 ====================
 # 回测时间段
-BACKTEST_START = "2024-01-01"
-BACKTEST_END = datetime.now().strftime("%Y-%m-%d")
+BACKTEST_START = "2026-01-01"
+BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 # ETF代码
-ETF_SYMBOLS = ["513100.SS", "510300.SS", "518880.SS"]  # 纳指、沪深300、黄金
-ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
+ETF_SYMBOLS = ["513100", "510300", "159915", "515000", "588080"]  # 纳指、沪深300、创业板、科技ETF、科创50
+ETF_NAMES = ["纳指ETF", "沪深300ETF", "创业板ETF", "科技ETF", "科创50ETF"]
 
 # 输出目录
-OUTPUT_DIR = "/datas/etf_momentum/backtest_results"
+OUTPUT_DIR = f'{project_root}/datas/etf_momentum/backtest_results'
 
 configure_matplotlib_chinese_font()
 
@@ -617,7 +611,7 @@ def main():
 	cerebro, strategy_result = run_backtest(data_feeds, ETF_SYMBOLS, ETF_NAMES)
 
 	# 3. 运行基准策略回测（沪深300）
-	benchmark_result = run_benchmark_backtest(data_feeds, "510300.SS", "沪深300ETF")
+	benchmark_result = run_benchmark_backtest(data_feeds, "510300", "沪深300ETF")
 
 	# 4. 运行等权重组合回测
 	equal_weight_result = run_equal_weight_backtest(data_feeds, ETF_SYMBOLS, ETF_NAMES)

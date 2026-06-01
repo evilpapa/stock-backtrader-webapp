@@ -1,18 +1,20 @@
 """
-龙头动量轮动策略完整回测脚本
+龙头动量轮动策略回测脚本
 
 使用:
     uv run python examples/leading_rotation/backtest_leading_rotation.py
 """
 
 from __future__ import annotations
+from datetime import datetime, timedelta
 
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
+project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(project_root))
 
+from charts import configure_matplotlib_chinese_font
 from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
 from examples.rotation_backtest_common import (
 	align_series,
@@ -35,25 +37,27 @@ from examples.rotation_backtest_common import (
 )
 from strategy.leading_rotation import LeadingRotationStrategy
 
+configure_matplotlib_chinese_font()
 
-BACKTEST_START = "2024-01-01"
-BACKTEST_END = "2026-03-28"
+
+BACKTEST_START = "2026-01-01"
+BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 REBALANCE_DAYS = 5
 TOP_L = 5
-BENCHMARK_SYMBOL = "588000.SS"
+BENCHMARK_SYMBOL = "588000"
 BENCHMARK_NAME = "科创50ETF"
 STRATEGY_NAME = "龙头动量轮动策略"
 EQUAL_WEIGHT_NAME = "等权重组合"
-OUTPUT_DIR = PROJECT_ROOT / "datas" / "leading_rotation" / "backtest_results"
+OUTPUT_DIR = project_root / "datas" / "leading_rotation" / "backtest_results"
 DATA_CACHE_NAME = "leading_rotation"
 ASSET_LABEL = "Stock"
 
 STOCK_SYMBOLS = [
-	"600111.SS", "002460.SZ", "601899.SS", "600988.SS", "002230.SZ",
-	"300750.SZ", "002594.SZ", "603259.SS", "601939.SS", "688256.SS",
-	"601606.SS", "688981.SS", "300502.SZ", "601138.SS", "300308.SZ",
-	"300476.SZ", "300394.SZ", "688041.SS", "601336.SS", "600519.SS",
-	"601288.SS", "601319.SS",
+	"600111", "002460", "601899", "600988", "002230",
+	"300750", "002594", "603259", "601939", "688256",
+	"601606", "688981", "300502", "601138", "300308",
+	"300476", "300394", "688041", "601336", "600519",
+	"601288", "601319",
 ]
 STOCK_NAMES = [
 	"北方稀土", "赣锋锂业", "紫金矿业", "赤峰黄金", "科大讯飞",

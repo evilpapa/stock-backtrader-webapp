@@ -1,10 +1,16 @@
+"""
+海龟交易策略回测脚本
+使用:
+	uv run python examples/turtle_trading/backtest_turtle_trading.py
+"""
+
 from __future__ import annotations
 
 import argparse
 import os
 import sys
 from pathlib import Path
-
+from datetime import datetime, timedelta
 import backtrader as bt
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -12,17 +18,20 @@ import pandas as pd
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
+from charts import configure_matplotlib_chinese_font
 from strategy.turtle_trading import TurtleTradingStrategy
 from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 
 OUTPUT_DIR = Path(project_root) / "datas" / "turtle_trading" / "backtest_results"
 
+configure_matplotlib_chinese_font()
+
 
 def parse_args() -> argparse.Namespace:
 	parser = argparse.ArgumentParser(description="海龟交易策略回测")
 	parser.add_argument("--symbol", default="600519")
-	parser.add_argument("--start", default="2015-01-01")
-	parser.add_argument("--end", default="2025-12-31")
+	parser.add_argument("--start", default="2021-01-01")
+	parser.add_argument("--end", default=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"))
 	parser.add_argument("--entry-period", type=int, default=20)
 	parser.add_argument("--exit-period", type=int, default=10)
 	parser.add_argument("--atr-period", type=int, default=20)

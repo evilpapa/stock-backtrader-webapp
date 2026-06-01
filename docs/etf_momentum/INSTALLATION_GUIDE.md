@@ -105,7 +105,7 @@ python -m unittest tests.etf_momentum_test.EtfMomentumTest.test_strategy_initial
 ## 📁 新增文件概览
 
 ```
-stock-backtrader-web-app/
+stock-backtrader-webapp/
 ├── strategy/
 │   └── etf_momentum.py                          # ⭐ 核心策略类
 ├── examples/
@@ -235,7 +235,7 @@ matplotlib.use('Agg')  # 在导入pyplot之前
 
 ```bash
 # 检查是否在正确的目录
-cd /path/to/stock-backtrader-web-app
+cd /path/to/stock-backtrader-webapp
 
 # 确保 python 环境已激活
 .venv/Scripts/acitivate.ps1

@@ -1,5 +1,5 @@
 """
-行业动量轮动策略完整回测脚本 (Python版本)
+行业动量轮动策略回测脚本
 
 使用:
     uv run python examples/sector_rotation/backtest_sector_rotation.py
@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from datetime import datetime, timedelta
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from charts import configure_matplotlib_chinese_font
 from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
 from examples.rotation_backtest_common import (
 	align_series,
@@ -34,13 +36,13 @@ from examples.rotation_backtest_common import (
 	save_results,
 )
 from strategy.sector_rotation import SectorRotationStrategy
+configure_matplotlib_chinese_font()
 
-
-BACKTEST_START = "2024-01-01"
-BACKTEST_END = "2026-03-28"
+BACKTEST_START = "2026-01-01"
+BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 REBALANCE_DAYS = 5
 TOP_L = 5
-BENCHMARK_SYMBOL = "588000.SS"
+BENCHMARK_SYMBOL = "588000"
 BENCHMARK_NAME = "科创50ETF"
 STRATEGY_NAME = "行业动量轮动策略"
 EQUAL_WEIGHT_NAME = "行业等权重组合"
@@ -49,10 +51,10 @@ DATA_CACHE_NAME = "sector_rotation"
 ASSET_LABEL = "ETF"
 
 ETF_SYMBOLS = [
-	"159819.SZ", "588000.SS", "512690.SS", "159813.SZ",
-	"159526.SZ", "515650.SS", "159869.SZ", "159740.SZ",
-	"159992.SZ", "159755.SZ", "515290.SS", "512200.SS",
-	"159766.SZ",
+	"159819", "588000", "512690", "159813",
+	"159526", "515650", "159869", "159740",
+	"159992", "159755", "515290", "512200",
+	"159766",
 ]
 ETF_NAMES = [
 	"人工智能ETF", "科创50ETF", "军工ETF", "半导体ETF",

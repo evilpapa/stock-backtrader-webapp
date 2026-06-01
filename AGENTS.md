@@ -7,17 +7,17 @@
 ### 前置条件
 
 - 环境要求 Python 3.13+。
-- 安装 `uv` 用于依赖管理（`uv sync`）以及通过 `uv run` 运行 Python 命令。
+- 安装 `uv` 用于依赖管理（`uv sync`）。
 - 在 windows 终端使用 `./.venv/Scripts/activate.ps1`，或 macOS 终端使用 `source .venv/bin/activate` 激活虚拟环境。
 
 ### 开发流程
 
 - 同步依赖: `uv sync`
 - 若需添加依赖，运行: `uv sync`
-- 运行程序: `uv run streamlit run app.py`
+- 运行程序: `.venv/Scripts/python.exe -m streamlit run app.py`
 - 运行测试:
-  - `uv python -m unittest tests.ma_test.MaStrategyTest`
-  - `uv python -m unittest tests.macross_test.MaCrossStrategyTest`
+  - `.venv/Scripts/python.exe -m unittest tests.ma_test.MaStrategyTest`
+  - `.venv/Scripts/python.exe -m unittest tests.macross_test.MaCrossStrategyTest`
 
 ### 项目结构
 
@@ -52,7 +52,7 @@
 - 运行聚焦测试：
 
   ```bash
-  uv run pytest -s -k <pattern>
+  .venv/Scripts/python.exe -m pytest -s -k <pattern>
   ```
 
 - QMT 数据服务聚焦测试（不需要真实 QMT 终端，使用 fake `ContextInfo`）：

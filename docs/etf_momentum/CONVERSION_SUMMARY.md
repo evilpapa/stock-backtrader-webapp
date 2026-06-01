@@ -228,7 +228,7 @@ python -m unittest tests.etf_momentum_test.EtfMomentumTest
 ## 📁 项目结构
 
 ```
-stock-backtrader-web-app/
+stock-backtrader-webapp/
 ├── strategy/
 │   ├── etf_momentum.py           # ⭐ 策略类（新）
 │   └── etf_momentum/
