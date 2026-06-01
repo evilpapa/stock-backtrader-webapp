@@ -31,8 +31,8 @@ EtfMomentum:
 - name: rebalance_days
   type: int
   min: 1
-  max: 10
-  step: 1
+  max: 60
+  step: 5
 
 LeadingRotation:
 

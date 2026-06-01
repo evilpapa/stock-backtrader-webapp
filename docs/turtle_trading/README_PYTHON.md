@@ -20,7 +20,7 @@
 - R 版是简化海龟脚本，Python 版补齐了经典海龟核心规则。
 - Python 版保留双向交易。
 - Streamlit 集成版只暴露整数参数；`risk_pct`、`lot_size` 等由类默认值控制。
-- 独立脚本支持 `yfinance` 和 `AkShare` 双数据源。
+- 独立脚本支持 `xtdata` 数据源。
 
 ## 在应用中使用
 
@@ -41,16 +41,8 @@ uv run streamlit run app.py
 
 ## 运行独立脚本
 
-`yfinance` 示例：
-
 ```bash
-uv run python examples/turtle_trading/backtest_turtle_trading.py --symbol SPY --data-source yfinance --lot-size 1
-```
-
-`AkShare` 示例：
-
-```bash
-uv run python examples/turtle_trading/backtest_turtle_trading.py --symbol 600519 --data-source akshare --lot-size 100
+uv run python examples/turtle_trading/backtest_turtle_trading.py --symbol 600519 --lot-size 1
 ```
 
 输出目录：

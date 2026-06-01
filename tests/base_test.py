@@ -2,13 +2,13 @@ import unittest
 from datetime import datetime
 from typing import Type
 
-import akshare as ak
 import backtrader as bt
 import backtrader.analyzers as btanalyzers
 import pandas as pd
 
 from strategy.base import BaseStrategy
 from utils.load import load_strategy
+from utils.xtdata_client import fetch_history_ohlcv
 
 
 class StrategyTest(unittest.TestCase):
@@ -18,12 +18,16 @@ class StrategyTest(unittest.TestCase):
 		"""测试前准备工作，加载数据和设置回测环境"""
 
 		# 加载股票历史数据
-		stock_hfq_df = ak.stock_zh_a_hist(symbol="600070", adjust="hfq", start_date="20230101", end_date="20250101")
-		stock_hfq_df = stock_hfq_df[["日期", "开盘", "收盘", "最高", "最低", "成交量"]]
-		stock_hfq_df.columns = ["date", "open", "close", "high", "low", "volume"]
-		stock_hfq_df.index = pd.to_datetime(stock_hfq_df["date"])
 		start_date = datetime(2024, 1, 1)
 		end_date = datetime(2025, 1, 1)
+		stock_hfq_df = fetch_history_ohlcv(
+			"600070",
+			start_date,
+			end_date,
+			dividend_type="back",
+		)
+		stock_hfq_df = stock_hfq_df[["date", "open", "high", "low", "close", "volume"]]
+		stock_hfq_df.index = pd.to_datetime(stock_hfq_df["date"])
 		data = bt.feeds.PandasData(dataname=stock_hfq_df, fromdate=start_date, todate=end_date)
 
 		# 设置回测引擎

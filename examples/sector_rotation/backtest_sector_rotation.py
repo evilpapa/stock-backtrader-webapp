@@ -11,11 +11,10 @@ import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT))
+project_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(project_root))
 
 from charts import configure_matplotlib_chinese_font
-from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
 from examples.rotation_backtest_common import (
 	align_series,
 	build_cumulative_frame,
@@ -38,6 +37,9 @@ from examples.rotation_backtest_common import (
 from strategy.sector_rotation import SectorRotationStrategy
 configure_matplotlib_chinese_font()
 
+INITIAL_CASH = 100000.0
+COMMISSION = 0.001
+MOMENTUM_WINDOW = 20
 BACKTEST_START = "2026-01-01"
 BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 REBALANCE_DAYS = 5
@@ -46,7 +48,7 @@ BENCHMARK_SYMBOL = "588000"
 BENCHMARK_NAME = "科创50ETF"
 STRATEGY_NAME = "行业动量轮动策略"
 EQUAL_WEIGHT_NAME = "行业等权重组合"
-OUTPUT_DIR = f'{PROJECT_ROOT}/examples/sector_rotation/backtest_results'
+OUTPUT_DIR = f'{project_root}/examples/sector_rotation/backtest_results'
 DATA_CACHE_NAME = "sector_rotation"
 ASSET_LABEL = "ETF"
 

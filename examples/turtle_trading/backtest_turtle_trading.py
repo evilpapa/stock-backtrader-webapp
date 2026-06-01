@@ -1,7 +1,7 @@
 """
 海龟交易策略回测脚本
 使用:
-	uv run python examples/turtle_trading/backtest_turtle_trading.py
+	uv run python examples/turtle_trading/backtest_turtle_trading.py --symbol 600519 --lot-size 1
 """
 
 from __future__ import annotations

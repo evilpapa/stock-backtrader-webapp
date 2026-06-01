@@ -7,7 +7,7 @@
 
 ## 策略规则
 
-- 标的池：22 只龙头股票，另加 `588000.SS` 作为科创 50ETF 基准。
+- 标的池：22 只龙头股票，另加 `588000` 作为科创 50ETF 基准。
 - 动量：使用过去 `momentum_window` 日平均收益率。
 - 风险调整：用 `动量 / 波动率` 作为排序分数。
 - 选股：只保留原始动量大于 0 的股票，再取前 `top_l` 只。
@@ -36,7 +36,7 @@ uv run streamlit run app.py
 uv run python examples/leading_rotation/backtest_leading_rotation.py
 ```
 
-脚本默认使用 `yfinance` 下载数据，并在 `datas/leading_rotation/backtest_results` 输出：
+脚本默认使用 `xtdata` 下载数据，并在 `examples/leading_rotation/backtest_results` 输出：
 
 - `performance_metrics.csv`
 - `daily_weights.csv`

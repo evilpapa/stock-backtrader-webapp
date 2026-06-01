@@ -102,6 +102,33 @@ class EtfMomentumTest(unittest.TestCase):
 
 			self.assertIsNotNone(results)
 
+	def test_rebalance_days_controls_frequency(self):
+		"""测试再平衡频率参数控制调仓次数"""
+		fast_cerebro = bt.Cerebro()
+		fast_cerebro.adddata(bt.feeds.PandasData(dataname=self.data1), name='ETF1')
+		fast_cerebro.addstrategy(
+			EtfMomentumStrategy,
+			momentum_window=20,
+			rebalance_days=1,
+		)
+		fast_cerebro.broker.setcash(100000.0)
+		fast_result = fast_cerebro.run()[0]
+
+		slow_cerebro = bt.Cerebro()
+		slow_cerebro.adddata(bt.feeds.PandasData(dataname=self.data1), name='ETF1')
+		slow_cerebro.addstrategy(
+			EtfMomentumStrategy,
+			momentum_window=20,
+			rebalance_days=20,
+		)
+		slow_cerebro.broker.setcash(100000.0)
+		slow_result = slow_cerebro.run()[0]
+
+		self.assertGreater(
+			len(fast_result.rebalance_history),
+			len(slow_result.rebalance_history),
+		)
+
 	def test_momentum_calculation(self):
 		"""测试动量计算逻辑"""
 		# 这是一个简化的测试，验证动量指标的计算

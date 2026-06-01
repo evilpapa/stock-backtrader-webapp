@@ -1,4 +1,4 @@
-# 行业动量轮动策略 - Python版本
+# 行业动量轮动策略 - Python 版本
 
 `SectorRotation` 是 `R/sector_rotation/sector_rotation.r` 的 Python 落地版本，分为两部分：
 
@@ -7,7 +7,7 @@
 
 ## 策略规则
 
-- 标的池：13 只行业 ETF，其中 `588000.SS` 作为科创 50ETF 基准。
+- 标的池：13 只行业 ETF，其中 `588000` 作为科创 50ETF 基准。
 - 动量：使用过去 `momentum_window` 日平均收益率。
 - 风险调整：用 `动量 / 波动率` 作为排序分数。
 - 选股：只保留原始动量大于 0 的行业 ETF，再取前 `top_l` 只。

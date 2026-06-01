@@ -8,3 +8,6 @@ MAGENTA = '\033[95m'
 CYAN = '\033[96m'
 WHITE = '\033[97m'
 RESET = '\033[0m'  # 重置
+
+def colorize(text, color):
+    print(color + text + RESET)

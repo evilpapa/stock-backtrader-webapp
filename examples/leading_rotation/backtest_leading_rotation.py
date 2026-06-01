@@ -15,7 +15,6 @@ project_root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(project_root))
 
 from charts import configure_matplotlib_chinese_font
-from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
 from examples.rotation_backtest_common import (
 	align_series,
 	build_cumulative_frame,
@@ -39,7 +38,9 @@ from strategy.leading_rotation import LeadingRotationStrategy
 
 configure_matplotlib_chinese_font()
 
-
+INITIAL_CASH = 100000.0
+COMMISSION = 0.025
+MOMENTUM_WINDOW = 20
 BACKTEST_START = "2026-01-01"
 BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 REBALANCE_DAYS = 5

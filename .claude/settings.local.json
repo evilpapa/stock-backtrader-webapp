@@ -8,7 +8,10 @@
       "Bash(command -v mypy)",
       "Bash(mypy \"E:/fin-quant/stock-backtrader-webapp\")",
       "Bash(command -v black)",
-      "Bash(python -m py_compile \"E:/fin-quant/stock-backtrader-webapp/examples/rotation_backtest_common.py\" \"E:/fin-quant/stock-backtrader-webapp/examples/etf_momentum/backtest_etf_momentum.py\" \"E:/fin-quant/stock-backtrader-webapp/utils/fetch_data.py\")"
+      "Bash(python -m py_compile \"E:/fin-quant/stock-backtrader-webapp/examples/rotation_backtest_common.py\" \"E:/fin-quant/stock-backtrader-webapp/examples/etf_momentum/backtest_etf_momentum.py\" \"E:/fin-quant/stock-backtrader-webapp/utils/fetch_data.py\")",
+      "PowerShell(.venv/Scripts/python.exe -m unittest tests.etf_momentum_test.EtfMomentumTest)",
+      "PowerShell(.venv/Scripts/python.exe tests/etf_momentum_test.py)",
+      "PowerShell($env:PYTHONPATH = \\(Get-Location\\).Path; .venv/Scripts/python.exe tests/etf_momentum_test.py)"
     ]
   }
 }

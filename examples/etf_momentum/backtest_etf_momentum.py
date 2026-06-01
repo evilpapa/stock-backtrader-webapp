@@ -13,6 +13,7 @@ ETF动量轮动策略回测脚本
 
 import os
 import sys
+import logging
 from datetime import datetime, timedelta
 
 import backtrader as bt
@@ -27,28 +28,43 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 sys.path.insert(0, project_root)
 
 from charts import configure_matplotlib_chinese_font
-from examples.backtest_constants import COMMISSION, INITIAL_CASH, MOMENTUM_WINDOW
 from strategy.analyzer import CustomAnalyzer
 from strategy.equal_weight import EqualWeightStrategy
 from strategy.just_buy_hold import JustBuyHoldStrategy
 from strategy.performance_calculator import PerformanceCalculator
-from utils.colors import BLUE, CYAN, GREEN, MAGENTA, RED, RESET, YELLOW
+from utils.colors import BLUE, YELLOW, colorize
 from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 
 
 # ==================== 配置参数 ====================
+INITIAL_CASH = 100000.0
+COMMISSION = 0.025
+MOMENTUM_WINDOW = 10
+REBALANCE_DAYS = 20
+
 # 回测时间段
-BACKTEST_START = "2026-01-01"
+BACKTEST_START = "2025-01-01"
 BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 # ETF代码
-ETF_SYMBOLS = ["513100", "510300", "159915", "515000", "588080"]  # 纳指、沪深300、创业板、科技ETF、科创50
-ETF_NAMES = ["纳指ETF", "沪深300ETF", "创业板ETF", "科技ETF", "科创50ETF"]
+ETF_SYMBOLS = ["513100", "510300", "518880"]  # 纳指、沪深300、黄金
+ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
 
 # 输出目录
 OUTPUT_DIR = f'{project_root}/examples/etf_momentum/backtest_results'
 
 configure_matplotlib_chinese_font()
+
+logger = logging.getLogger(__name__)
+
+
+def configure_logging(level=logging.INFO):
+	"""配置脚本日志输出。"""
+	logging.basicConfig(
+		level=level,
+		format="%(asctime)s [%(levelname)s] %(message)s",
+		datefmt="%Y-%m-%d %H:%M:%S",
+	)
 
 
 # ==================== Backtrader 策略 ====================
@@ -59,6 +75,7 @@ class EtfMomentumStrategy(bt.Strategy):
 
 	params = (
 		("momentum_window", 20),
+		("rebalance_days", 1),
 		("printlog", False),
 	)
 
@@ -87,9 +104,8 @@ class EtfMomentumStrategy(bt.Strategy):
 
 	def next(self):
 		"""每个交易日执行"""
-		# 每日再平衡
 		self.rebalance_counter += 1
-		if self.rebalance_counter < 1:  # 每日
+		if self.rebalance_counter < self.params.rebalance_days:
 			return
 
 		self.rebalance_counter = 0
@@ -163,7 +179,7 @@ def run_backtest(data_dict, symbols, names):
 	Returns:
 		tuple: (cerebro, results, trade_log)
 	"""
-	print(BLUE + "\n正在运行回测..." + RESET)
+	colorize("\n正在运行回测...", BLUE)
 
 	# 创建Cerebro引擎
 	cerebro = bt.Cerebro()
@@ -175,7 +191,11 @@ def run_backtest(data_dict, symbols, names):
 			cerebro.adddata(data, name=name)
 
 	# 添加策略
-	cerebro.addstrategy(EtfMomentumStrategy, momentum_window=MOMENTUM_WINDOW)
+	cerebro.addstrategy(
+		EtfMomentumStrategy,
+		momentum_window=MOMENTUM_WINDOW,
+		rebalance_days=REBALANCE_DAYS,
+	)
 
 	# 设置初始资金
 	cerebro.broker.setcash(INITIAL_CASH)
@@ -190,9 +210,9 @@ def run_backtest(data_dict, symbols, names):
 	cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
 
 	# 运行回测
-	print(YELLOW + f"初始资金: {cerebro.broker.getvalue():.2f}" + RESET)
+	colorize(f"初始资金: {cerebro.broker.getvalue():.2f}", YELLOW)
 	results = cerebro.run()
-	print(YELLOW + f"期末资金: {cerebro.broker.getvalue():.2f}" + RESET)
+	colorize(f"期末资金: {cerebro.broker.getvalue():.2f}", YELLOW)
 
 	return cerebro, results[0]
 
@@ -203,13 +223,13 @@ def run_benchmark_backtest(data_dict, benchmark_symbol, benchmark_name):
 
 	cerebro = bt.Cerebro()
 
-	print(RED + "\n==> 运行基准策略回测..." + RESET)
+	logger.info("运行基准策略回测...")
 	if benchmark_symbol in data_dict:
 		data = bt.feeds.PandasData(dataname=data_dict[benchmark_symbol])
 		cerebro.adddata(data, name=benchmark_name)
-		print(f"  ✓ 已添加数据: {benchmark_name}")
+		logger.info("已添加数据: %s", benchmark_name)
 	else:
-		print(f"  ✗ 错误: 找不到 {benchmark_symbol} 的数据")
+		logger.error("找不到 %s 的数据", benchmark_symbol)
 		return None
 
 	cerebro.addstrategy(JustBuyHoldStrategy)
@@ -217,9 +237,9 @@ def run_benchmark_backtest(data_dict, benchmark_symbol, benchmark_name):
 	cerebro.broker.setcommission(commission=COMMISSION)
 	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
 
-	print(YELLOW + f"  初始资金: {cerebro.broker.getvalue():.2f}" + RESET)
+	logger.info("初始资金: %.2f", cerebro.broker.getvalue())
 	results = cerebro.run()
-	print(YELLOW + f"  期末资金: {cerebro.broker.getvalue():.2f}" + RESET)
+	logger.info("期末资金: %.2f", cerebro.broker.getvalue())
 
 	return results[0]
 
@@ -230,17 +250,17 @@ def run_equal_weight_backtest(data_dict, symbols, names):
 
 	cerebro = bt.Cerebro()
 
-	print(RED + "\n==> 运行等权重组合回测..." + RESET)
+	logger.info("运行等权重组合回测...")
 	data_count = 0
 	for symbol, name in zip(symbols, names):
 		if symbol in data_dict:
 			data = bt.feeds.PandasData(dataname=data_dict[symbol])
 			cerebro.adddata(data, name=name)
 			data_count += 1
-			print(f"  ✓ 已添加数据: {name}")
+			logger.info("已添加数据: %s", name)
 
 	if data_count == 0:
-		print("  ✗ 错误: 没有可用的数据")
+		logger.error("没有可用的数据")
 		return None
 
 	cerebro.addstrategy(EqualWeightStrategy)
@@ -248,9 +268,9 @@ def run_equal_weight_backtest(data_dict, symbols, names):
 	cerebro.broker.setcommission(commission=COMMISSION)
 	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
 
-	print(YELLOW + f"  初始资金: {cerebro.broker.getvalue():.2f}" + RESET)
+	logger.info("初始资金: %.2f", cerebro.broker.getvalue())
 	results = cerebro.run()
-	print(YELLOW + f"  期末资金: {cerebro.broker.getvalue():.2f}" + RESET)
+	logger.info("期末资金: %.2f", cerebro.broker.getvalue())
 
 	return results[0]
 
@@ -258,7 +278,7 @@ def run_equal_weight_backtest(data_dict, symbols, names):
 # ==================== 效能分析 ====================
 def analyze_performance(strategy_result, benchmark_result, equal_weight_result, names):
 	"""分析效能指标"""
-	print("\n正在计算效能指标...")
+	logger.info("正在计算效能指标...")
 
 	# 提取收益率
 	strategy_returns = pd.Series(strategy_result.analyzers.custom.returns)
@@ -343,7 +363,7 @@ def plot_results(
 	names,
 ):
 	"""绘制回测结果"""
-	print("\n正在生成图表...")
+	logger.info("正在生成图表...")
 
 	# 计算累计收益率
 	strategy_cum = (1 + strategy_returns).cumprod()
@@ -515,7 +535,7 @@ def save_results(
 	fig3,
 ):
 	"""保存回测结果"""
-	print(f"\n正在保存结果到 {OUTPUT_DIR}...")
+	logger.info("正在保存结果到 %s...", OUTPUT_DIR)
 
 	# 创建输出目录
 	os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -570,23 +590,25 @@ def save_results(
 			f"{OUTPUT_DIR}/daily_weights_plot.png", dpi=300, bbox_inches="tight"
 		)
 
-	print(f"✓ 结果已保存到 {OUTPUT_DIR}/")
+	logger.info("结果已保存到 %s/", OUTPUT_DIR)
 
 
 # ==================== 主程序 ====================
 def main():
 	"""主程序"""
-	print("=" * 60)
-	print("ETF动量轮动策略回测 (Python版本)")
-	print("=" * 60)
-	print(f"回测期间: {BACKTEST_START} 至 {BACKTEST_END}")
-	print(f"ETF标的: {', '.join(ETF_NAMES)}")
-	print(f"动量窗口: {MOMENTUM_WINDOW}天")
-	print(f"初始资金: {INITIAL_CASH:,.0f}元")
-	print("=" * 60)
+	configure_logging()
+	logger.info("%s", "=" * 60)
+	logger.info("ETF动量轮动策略回测 (Python版本)")
+	logger.info("%s", "=" * 60)
+	logger.info("回测期间: %s 至 %s", BACKTEST_START, BACKTEST_END)
+	logger.info("ETF标的: %s", ", ".join(ETF_NAMES))
+	logger.info("动量窗口: %s天", MOMENTUM_WINDOW)
+	logger.info("再平衡频率: %s天", REBALANCE_DAYS)
+	logger.info("初始资金: %s元", INITIAL_CASH)
+	logger.info("%s", "=" * 60)
 
 	# 1. 获取数据
-	print("正在从 xtdata 获取 ETF 历史数据...")
+	logger.info("正在从 xtdata 获取 ETF 历史数据...")
 	data_feeds = {}
 
 	for ticker in ETF_SYMBOLS:
@@ -595,18 +617,18 @@ def main():
 				fetch_history_ohlcv(ticker, BACKTEST_START, BACKTEST_END)
 			)
 		except Exception as exc:
-			print(f"  ✗ 数据获取失败: {ticker} - {exc}")
+			logger.exception("数据获取失败: %s - %s", ticker, exc)
 			continue
 
 		df_ticker = df_ticker[["Open", "High", "Low", "Close", "Volume"]].dropna()
 		if df_ticker.empty:
-			print(f"  ✗ 数据清洗后为空: {ticker}")
+			logger.warning("数据清洗后为空: %s", ticker)
 			continue
 		data_feeds[ticker] = df_ticker
-		print(f"  ✓ 数据处理完成: {ticker}, 共 {len(df_ticker)} 行")
+		logger.info("数据处理完成: %s, 共 %d 行", ticker, len(df_ticker))
 
 	if len(data_feeds) < len(ETF_SYMBOLS):
-		print("\n警告: 部分ETF数据获取失败，回测可能不完整")
+		logger.warning("部分ETF数据获取失败，回测可能不完整")
 
 	# 2. 运行动量策略回测
 	cerebro, strategy_result = run_backtest(data_feeds, ETF_SYMBOLS, ETF_NAMES)
@@ -618,7 +640,7 @@ def main():
 	equal_weight_result = run_equal_weight_backtest(data_feeds, ETF_SYMBOLS, ETF_NAMES)
 
 	if benchmark_result is None or equal_weight_result is None:
-		print("\n错误: 基准策略或等权重策略回测失败，无法进行性能分析")
+		logger.error("基准策略或等权重策略回测失败，无法进行性能分析")
 		return
 
 	# 5. 效能分析
@@ -629,11 +651,10 @@ def main():
 	)
 
 	# 打印效能指标
-	print("\n" + "=" * 60)
-	print("效能指标汇总")
-	print("=" * 60)
-	# print(performance_df.to_string(index=False))
-	print(tabulate(performance_df, headers='keys', tablefmt='grid', showindex=False))
+	logger.info("%s", "=" * 60)
+	logger.info("效能指标汇总")
+	logger.info("%s", "=" * 60)
+	logger.info("\n%s", tabulate(performance_df, headers='keys', tablefmt='grid', showindex=False))
 
 	# 6. 可视化
 	trade_log = strategy_result.trade_log
@@ -668,11 +689,11 @@ def main():
 		fig3,
 	)
 
-	print("\n" + "=" * 60)
-	print("回测完成！")
-	print("=" * 60)
+	logger.info("%s", "=" * 60)
+	logger.info("回测完成！")
+	logger.info("%s", "=" * 60)
 
-	if os.getenv("SHOW_PLOTS") == "1":
+	if os.getenv("SHOW_PLOTS") == "1":  # 弹窗图片
 		plt.show()
 	else:
 		plt.close("all")

@@ -1,337 +1,102 @@
-# ETF动量策略 R→Python 转换
+# ETF 动量策略 `R/etf_momentum/etf_momentum.r` 到 Python 转换总结
 
-将 `R` 语言版本的策略转换为 `Python` 语言版本的完整总结文档。
+ETF 动量策略的 Python 版本已完成，并已将行情数据源切换为本项目的 xtdata/miniQMT 本地数据服务。
 
-## ✅ 转换清单
+## 当前状态
 
-### 创建的文件
+- ✅ Python 策略类：`strategy/etf_momentum.py`
+- ✅ 独立回测脚本：`examples/etf_momentum/backtest_etf_momentum.py`
+- ✅ 单元测试：`tests/etf_momentum_test.py`
+- ✅ 策略配置：`config/strategy.yaml`
+- ✅ xtdata 数据接入：`utils.xtdata_client.fetch_history_ohlcv`
+- ✅ 回测结果输出：`examples/etf_momentum/backtest_results/`
 
-1. **[strategy/etf_momentum.py](../etf_momentum.py)** ⭐ 核心策略类
-   - 实现了Backtrader兼容的EtfMomentumStrategy类
-   - 支持动态权重分配和再平衡
-   - 集成到项目的策略系统中
+## 主要变化
 
-2. **[examples/etf_momentum/backtest_etf_momentum.py](backtest_etf_momentum.py)** ⭐⭐⭐ 独立回测脚本
-   - 完整复制R脚本的所有功能
-   - 数据获取 + 回测 + 性能分析 + 可视化
-   - 可独立运行，生成完整报告
+### 数据源
 
-3. **[tests/etf_momentum_test.py](../../tests/etf_momentum_test.py)** 单元测试
-   - 测试策略初始化
-   - 测试不同参数配置
-   - 测试动量计算逻辑
+数据链路为：
 
-4. **[docs/etf_momentum/README_PYTHON.md](README_PYTHON.md)** Python版本使用文档
-   - 快速开始指南
-   - 参数配置说明
-   - 使用示例
+```text
+miniQMT / xtdata 本地数据服务
+  -> utils.xtdata_client.fetch_history_ohlcv()
+  -> to_title_case_ohlcv()
+  -> Backtrader PandasData
+```
 
-5. **[strategy/etf_momentum/PACKAGE_MAPPING.md](PACKAGE_MAPPING.md)** ⭐⭐ 包映射详细文档
-   - R包到Python包的完整映射
-   - 详细的代码对比示例
-   - 迁移策略和建议
+默认标的代码也改为 xtdata/miniQMT 代码格式：
 
-### 已更新的文件
+```python
+ETF_SYMBOLS = ["513100", "510300", "518880"]
+ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
+```
 
-1. **[config/strategy.yaml](../../config/strategy.yaml)**
-   - 添加了EtfMomentum策略配置
-   - 参数：momentum_window (10-60), rebalance_days (1-10)
+### 回测框架
 
-2. **[pyproject.toml](../../requirements.txt)**
-   - 添加了新依赖：yfinance, empyrical, matplotlib
+Python 版本使用 Backtrader 运行策略、基准和等权组合：
 
----
+- 动量策略：风险调整动量择优配置。
+- 基准策略：沪深 300 ETF 买入持有。
+- 等权组合：三只 ETF 等权配置。
 
-## 📦 R包到Python包映射总结
+### 绩效与输出
 
-| R包                   | Python包             | 状态     |
-|----------------------|---------------------|--------|
-| quantmod             | yfinance            | ✅ 完全替代 |
-| PerformanceAnalytics | empyrical-reloaded + 自定义     | ✅ 完全实现 |
-| dplyr/tidyr          | pandas              | ✅ 完全替代 |
-| ggplot2              | matplotlib          | ✅ 完全实现 |
-| patchwork/cowplot    | matplotlib.gridspec | ✅ 完全实现 |
-| scales               | matplotlib.ticker   | ✅ 完全实现 |
-| xts/zoo              | pandas              | ✅ 完全替代 |
+保留原 R 版本关注的核心指标，并输出为 CSV 和图片：
 
----
+- 年化收益率
+- 年化波动率
+- 夏普比率
+- 最大回撤
+- 卡尔马比率
+- 索提诺比率
+- 胜率
+- 每日权重
+- 每日收益
 
-## 🚀 使用方法
+## R 到 Python 功能映射
 
-### 方法1：运行独立回测脚本（推荐）
+| 功能 | R 版本 | 当前 Python 版本 |
+| --- | --- | --- |
+| 行情数据 | `quantmod` / Yahoo | `utils.xtdata_client` / miniQMT |
+| 时间序列处理 | `xts` / `zoo` | `pandas` |
+| 数据整理 | `dplyr` / `tidyr` | `pandas` |
+| 回测逻辑 | R 自定义 | `backtrader` |
+| 绩效分析 | `PerformanceAnalytics` | `PerformanceCalculator` / `empyrical-reloaded` |
+| 图表 | `ggplot2` / `cowplot` | `matplotlib` |
 
-这是最接近原始R脚本的使用方式：
+## 运行方式
 
 ```bash
-# 安装依赖
-pip install yfinance empyrical-reloaded matplotlib
-
-# 运行回测
-python strategy/etf_momentum/backtest_etf_momentum.py
+uv sync
+uv run python examples/etf_momentum/backtest_etf_momentum.py
 ```
 
-**输出：**
-
-- 控制台打印性能指标表格
-- 生成 `momentum_strategy_backtest/` 目录
-- 包含CSV数据文件和PNG图表
-
-### 方法2：在Streamlit应用中使用
+Web 应用：
 
 ```bash
-streamlit run app.py
+.venv/Scripts/python.exe -m streamlit run app.py
 ```
 
-在UI中选择"EtfMomentum"策略，配置参数后运行。
-
-### 方法3：作为Python模块使用
-
-```python
-import backtrader as bt
-from strategy.etf_momentum import EtfMomentumStrategy
-
-cerebro = bt.Cerebro()
-# 添加数据...
-cerebro.addstrategy(EtfMomentumStrategy, 
-                   momentum_window=20, 
-                   rebalance_days=1)
-cerebro.run()
-```
-
----
-
-## 📊 功能对比
-
-| 功能    | R版本                  | Python版本             | 完成度    |
-|-------|----------------------|----------------------|--------|
-| 数据获取  | Yahoo Finance        | Yahoo Finance        | ✅ 100% |
-| 动量计算  | rollapply            | bt.indicators.SMA    | ✅ 100% |
-| 波动率计算 | rollapply            | bt.indicators.StdDev | ✅ 100% |
-| 权重分配  | 自定义                  | 自定义                  | ✅ 100% |
-| 回测引擎  | 自定义                  | Backtrader           | ✅ 100% |
-| 性能指标  | PerformanceAnalytics | empyrical + 自定义      | ✅ 100% |
-| 可视化   | ggplot2              | matplotlib           | ✅ 100% |
-| 结果导出  | CSV                  | CSV                  | ✅ 100% |
-
----
-
-## 🎯 核心改进
-
-### 相比R版本的优势
-
-1. **更快的数据获取** - yfinance比quantmod更稳定快速
-2. **专业回测引擎** - Backtrader提供更可靠的回测框架
-3. **更好的集成** - 无缝集成到现有Python项目
-4. **灵活的部署** - 可以作为Web应用、API或定时任务运行
-5. **更丰富的生态** - Python金融生态系统更庞大
-
-### 保持的优点
-
-1. **相同的策略逻辑** - 完全保留原始策略思路
-2. **一致的性能指标** - 计算方法相同
-3. **类似的可视化效果** - 图表风格接近
-4. **完整的文档** - 保留并扩展了原有文档
-
----
-
-## 📈 性能指标实现
-
-所有R版本的性能指标都已实现：
-
-### 基础指标
-
-- ✅ 年化收益率 (Annualized Return)
-- ✅ 年化波动率 (Annualized Volatility)
-- ✅ 夏普比率 (Sharpe Ratio)
-- ✅ 最大回撤 (Max Drawdown)
-
-### 高级指标
-
-- ✅ 卡尔马比率 (Calmar Ratio)
-- ✅ 索提诺比率 (Sortino Ratio)
-- ✅ 胜率 (Win Rate)
-- ✅ 正收益天数/总交易天数
-
-### 对比基准
-
-- ✅ 沪深300ETF (基准策略)
-- ✅ 等权重组合 (Equal Weight Portfolio)
-- ✅ 各ETF买入持有 (Buy & Hold for each ETF)
-
----
-
-## 🔧 技术实现亮点
-
-### 1. 自定义性能计算器
-
-如果empyrical-reloaded未安装，使用备用的自定义实现：
-
-```python
-class PerformanceCalculator:
-    @staticmethod
-    def annualized_return(returns):
-        # 手动实现年化收益率
-        ...
-```
-
-### 2. Backtrader集成
-
-策略类完全符合Backtrader接口规范：
-
-```python
-class EtfMomentumStrategy(bt.Strategy):
-    params = (
-        ("momentum_window", 20),
-        ("rebalance_days", 1),
-    )
-```
-
-### 3. 灵活的数据源
-
-支持多个ETF数据源的动态添加：
-
-```python
-for symbol, name in zip(symbols, names):
-    data = bt.feeds.PandasData(dataname=data_dict[symbol])
-    cerebro.adddata(data, name=name)
-```
-
-### 4. 完整的可视化
-
-使用matplotlib的GridSpec实现复杂布局：
-
-```python
-gs = GridSpec(2, 1, height_ratios=[2, 1], hspace=0.05)
-ax1 = fig.add_subplot(gs[0])  # 累计收益率
-ax2 = fig.add_subplot(gs[1])  # 回撤
-```
-
----
-
-## 🧪 测试覆盖
-
-### 单元测试
-
-- ✅ 策略初始化测试
-- ✅ 参数配置测试
-- ✅ 动量计算逻辑测试
-- ✅ 多数据源测试
-
-### 运行测试
+测试：
 
 ```bash
-python -m unittest tests.etf_momentum_test.EtfMomentumTest
+.venv/Scripts/python.exe -m unittest tests.etf_momentum_test.EtfMomentumTest
 ```
 
----
+## 注意事项
 
-## 📁 项目结构
+- 运行回测前需确保 miniQMT/xtdata 本地数据服务可用。
+- ETF 代码使用本地 xtdata 格式，不使用 `.SS` 后缀。
+- 数据完整性依赖本机历史数据下载情况。
+- 当前回测未单独建模滑点，实盘结果可能低于回测。
 
-```
-stock-backtrader-webapp/
-├── strategy/
-│   ├── etf_momentum.py           # ⭐ 策略类（新）
-│   └── etf_momentum/
-│       ├── strategy.r            # 原始R脚本
-│       ├── README.md             # 原始说明
-│       ├── backtest_etf_momentum.py  # ⭐⭐⭐ 独立回测脚本（新）
-│       ├── README_PYTHON.md      # Python版本文档（新）
-│       ├── PACKAGE_MAPPING.md    # 包映射文档（新）
-│       └── CONVERSION_SUMMARY.md # 本文档（新）
-├── tests/
-│   └── etf_momentum_test.py      # 单元测试（新）
-├── config/
-│   └── strategy.yaml             # 策略配置（已更新）
-└── requirements.txt              # 依赖列表（已更新）
-```
+## 后续可改进项
 
----
+- 增加更多 ETF 标的池。
+- 增加参数优化与敏感性分析。
+- 增加数据可用性检查和更明确的错误提示。
+- 调整交易分率、调整交易频次。
+- 输出更完整的 HTML/PDF 回测报告。
 
-## 📝 下一步建议
-
-### 立即可以做的
-1. ✅ 运行独立回测脚本验证结果
-2. ✅ 运行单元测试确保功能正常
-3. ✅ 在Streamlit应用中测试策略
-
-### 可以改进的
-1. ⬜ 添加更多ETF标的（如中证500、创业板等）
-2. ⬜ 实现实时数据更新和监控
-3. ⬜ 添加交互式图表（使用plotly）
-4. ⬜ 实现策略参数优化功能
-5. ⬜ 添加回测报告PDF导出
-
-### 高级功能
-1. ⬜ 实现多策略组合
-2. ⬜ 添加风险预警机制
-3. ⬜ 集成实盘交易接口
-4. ⬜ 添加机器学习增强版本
-
----
-
-## 🎓 学习要点
-
-### R → Python 关键差异
-
-1. **索引** - R从1开始，Python从0开始
-2. **向量化** - R默认向量化，Python需要NumPy/pandas
-3. **管道操作** - R的 `%>%` vs Python的 `.` 方法链
-4. **绘图哲学** - ggplot2的图层叠加 vs matplotlib的画布+轴
-
-### 关键包功能对照
-
-```python
-# R: quantmod::getSymbols()
-import yfinance as yf
-data = yf.download(...)
-
-# R: dplyr::filter() %>% select()
-df[df['col'] > 0][['col1', 'col2']]
-
-# R: PerformanceAnalytics::table.AnnualizedReturns()
-import empyrical-reloaded as ep
-ep.annual_return(returns)
-
-# R: ggplot2 + geom_line()
-import matplotlib.pyplot as plt
-plt.plot(x, y)
-```
-
----
-
-## 🤝 致谢
-
-- 原始R策略设计和实现
-- Backtrader框架提供回测引擎
-- yfinance提供数据获取功能
-- empyrical-reloaded提供性能分析工具
-- matplotlib提供可视化能力
-
----
-
-## 📄 许可与版权
-
-本Python实现遵循与原R代码相同的许可证。
-
----
-
-## 🔗 相关链接
-
-- [策略说明文档](README.md)
-- [Python使用文档](README_PYTHON.md)
-- [包映射详细文档](PACKAGE_MAPPING.md)
-- [Backtrader官方文档](https://www.backtrader.com/)
-- [yfinance GitHub](https://github.com/ranaroussi/yfinance)
-
----
-
-## 📧 联系方式
-
-如有问题或建议，请提交Issue或Pull Request。
-
----
-
-**最后更新：** 2026-01-26
-**转换状态：** ✅ 完成
-**测试状态：** ✅ 通过
-**文档状态：** ✅ 完整
+**最后更新：** 2026-06-01
+**状态：** ✅ Python 版本已切换到 xtdata 数据源
