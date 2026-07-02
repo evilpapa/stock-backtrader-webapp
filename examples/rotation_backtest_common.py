@@ -15,6 +15,7 @@ from strategy.equal_weight import EqualWeightStrategy
 from strategy.just_buy_hold import JustBuyHoldStrategy
 from strategy.performance_calculator import PerformanceCalculator
 from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
+from utils.commission import ChinaStockCommission
 
 
 def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strategy_name: str) -> dict[str, pd.DataFrame]:
@@ -44,11 +45,15 @@ def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strat
 	return prepared
 
 
-def build_cerebro(initial_cash: float, commission: float) -> bt.Cerebro:
+def build_cerebro(initial_cash: float) -> bt.Cerebro:
 	# 统一初始化回测引擎，保证策略、基准和等权组合使用相同资金与手续费。
 	cerebro = bt.Cerebro()
+	# 设置初始资金
 	cerebro.broker.setcash(initial_cash)
-	cerebro.broker.setcommission(commission=commission)
+	# 直接实例化，自动启用万 0.854、最低 5 元的默认配置，加载到 broker 中
+	comminfo = ChinaStockCommission()
+	cerebro.broker.addcommissioninfo(comminfo)
+	# 添加自定义分析器，用于提取每日收益率和交易日期
 	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
 	return cerebro
 
@@ -61,13 +66,12 @@ def run_rotation_strategy_backtest(
 	strategy_cls,
 	strategy_display_name: str,
 	initial_cash: float,
-	commission: float,
 	momentum_window: int,
 	rebalance_days: int,
 	top_l: int,
 ):
 	print(f"\n==> 运行{strategy_display_name}回测...")
-	cerebro = build_cerebro(initial_cash, commission)
+	cerebro = build_cerebro(initial_cash)
 
 	# 将可用标的数据逐个注册到 Backtrader，缺失数据的标的自动跳过。
 	for symbol, name in zip(symbols, names):
@@ -100,10 +104,9 @@ def run_benchmark_backtest(
 	benchmark_symbol: str,
 	benchmark_name: str,
 	initial_cash: float,
-	commission: float,
 ):
 	print(f"\n==> 运行基准策略回测: {benchmark_name}")
-	cerebro = build_cerebro(initial_cash, commission)
+	cerebro = build_cerebro(initial_cash)
 	data = price_data[benchmark_symbol]
 	cerebro.adddata(bt.feeds.PandasData(dataname=data), name=benchmark_name)
 	# 基准使用买入并持有，便于和轮动策略的主动择时效果对比。
@@ -119,12 +122,11 @@ def run_equal_weight_backtest(
 	symbols: list[str],
 	names: list[str],
 	initial_cash: float,
-	commission: float,
 	equal_weight_name: str,
 	exclude_names: set[str] | None = None,
 ):
 	print(f"\n==> 运行{equal_weight_name}回测")
-	cerebro = build_cerebro(initial_cash, commission)
+	cerebro = build_cerebro(initial_cash)
 	data_count = 0
 	# 可排除基准或不参与等权配置的标的，只保留组合资产池。
 	exclude_names = exclude_names or set()

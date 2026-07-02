@@ -38,7 +38,6 @@ from strategy.sector_rotation import SectorRotationStrategy
 configure_matplotlib_chinese_font()
 
 INITIAL_CASH = 100000.0
-COMMISSION = 0.001
 MOMENTUM_WINDOW = 20
 BACKTEST_START = "2026-01-01"
 BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -93,7 +92,6 @@ def main() -> None:
 		SectorRotationStrategy,
 		STRATEGY_NAME,
 		INITIAL_CASH,
-		COMMISSION,
 		MOMENTUM_WINDOW,
 		REBALANCE_DAYS,
 		TOP_L,
@@ -103,14 +101,12 @@ def main() -> None:
 		BENCHMARK_SYMBOL,
 		BENCHMARK_NAME,
 		INITIAL_CASH,
-		COMMISSION,
 	)
 	equal_result = run_equal_weight_backtest(
 		price_data,
 		ETF_SYMBOLS,
 		ETF_NAMES,
 		INITIAL_CASH,
-		COMMISSION,
 		EQUAL_WEIGHT_NAME,
 		exclude_names={BENCHMARK_NAME},
 	)

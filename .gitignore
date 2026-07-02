@@ -152,3 +152,7 @@ __marimo__
 
 # IDEs
 .idea/
+
+# agents
+.claude/
+.omx/

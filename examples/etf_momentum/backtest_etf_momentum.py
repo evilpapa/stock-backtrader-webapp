@@ -34,11 +34,10 @@ from strategy.just_buy_hold import JustBuyHoldStrategy
 from strategy.performance_calculator import PerformanceCalculator
 from utils.colors import BLUE, YELLOW, colorize
 from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
-
+from utils.commission import ChinaStockCommission
 
 # ==================== 配置参数 ====================
 INITIAL_CASH = 100000.0
-COMMISSION = 0.025
 MOMENTUM_WINDOW = 10
 REBALANCE_DAYS = 20
 
@@ -184,6 +183,12 @@ def run_backtest(data_dict, symbols, names):
 	# 创建Cerebro引擎
 	cerebro = bt.Cerebro()
 
+	# 直接实例化，自动启用万 0.854、最低 5 元的默认配置
+	comminfo = ChinaStockCommission()
+
+	# 加载到 broker 中
+	cerebro.broker.addcommissioninfo(comminfo)
+
 	# 添加数据源
 	for symbol, name in zip(symbols, names):
 		if symbol in data_dict:
@@ -199,9 +204,6 @@ def run_backtest(data_dict, symbols, names):
 
 	# 设置初始资金
 	cerebro.broker.setcash(INITIAL_CASH)
-
-	# 设置手续费
-	cerebro.broker.setcommission(commission=COMMISSION)
 
 	# 添加分析器
 	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
@@ -234,7 +236,6 @@ def run_benchmark_backtest(data_dict, benchmark_symbol, benchmark_name):
 
 	cerebro.addstrategy(JustBuyHoldStrategy)
 	cerebro.broker.setcash(INITIAL_CASH)
-	cerebro.broker.setcommission(commission=COMMISSION)
 	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
 
 	logger.info("初始资金: %.2f", cerebro.broker.getvalue())
@@ -265,7 +266,6 @@ def run_equal_weight_backtest(data_dict, symbols, names):
 
 	cerebro.addstrategy(EqualWeightStrategy)
 	cerebro.broker.setcash(INITIAL_CASH)
-	cerebro.broker.setcommission(commission=COMMISSION)
 	cerebro.addanalyzer(CustomAnalyzer, _name="custom")
 
 	logger.info("初始资金: %.2f", cerebro.broker.getvalue())

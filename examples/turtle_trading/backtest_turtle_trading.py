@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import backtrader as bt
 import matplotlib.pyplot as plt
 import pandas as pd
+from utils.commission import ChinaStockCommission
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
@@ -38,7 +39,6 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument("--max-units", type=int, default=4)
 	parser.add_argument("--risk-pct", type=float, default=0.01)
 	parser.add_argument("--lot-size", type=int, default=1)
-	parser.add_argument("--commission", type=float, default=0.001)
 	parser.add_argument("--cash", type=float, default=100000.0)
 	parser.add_argument("--long-only", action="store_true")
 	return parser.parse_args()
@@ -55,7 +55,9 @@ def run_backtest(df: pd.DataFrame, args: argparse.Namespace) -> TurtleTradingStr
 	cerebro = bt.Cerebro()
 	cerebro.adddata(bt.feeds.PandasData(dataname=df))
 	cerebro.broker.setcash(args.cash)
-	cerebro.broker.setcommission(commission=args.commission)
+	# 直接实例化，自动启用万 0.854、最低 5 元的默认配置，加载到 broker 中
+	comminfo = ChinaStockCommission()
+	cerebro.broker.addcommissioninfo(comminfo)
 	cerebro.addstrategy(
 		TurtleTradingStrategy,
 		entry_period=args.entry_period,
