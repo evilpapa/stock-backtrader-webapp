@@ -14,6 +14,7 @@ from pathlib import Path
 import backtrader as bt
 import numpy as np
 import pandas as pd
+from tabulate import tabulate
 
 _bootstrap = runpy.run_path(str(Path(__file__).resolve().parents[1] / "bootstrap.py"))
 project_root = _bootstrap["project_root"]
@@ -249,7 +250,7 @@ def main() -> None:
 	print("\n" + "=" * 60)
 	print("效能指标汇总")
 	print("=" * 60)
-	print(console_metrics.to_string(index=False))
+	print(tabulate(console_metrics, headers='keys', tablefmt='grid', showindex=False))
 	print(f"\n结果已保存到: {OUTPUT_DIR}")
 
 

@@ -13,4 +13,7 @@ def configure_matplotlib_chinese_font(font_path: str | Path = DEFAULT_FONT_PATH)
     font_name = font_manager.FontProperties(fname=font_path).get_name()
     plt.rcParams["font.family"] = font_name
     plt.rcParams["axes.unicode_minus"] = False
+
+    fig, ax = plt.subplots()
+    fig.set_tight_layout(False)
     return font_name
