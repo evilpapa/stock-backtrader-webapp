@@ -1,77 +1,68 @@
 """
 海龟交易策略回测脚本
 使用:
-	uv run python examples/turtle_trading/backtest_turtle_trading.py --symbol 600519 --lot-size 1
+	uv run python examples/turtle_trading/backtest_turtle_trading.py
 """
 
 from __future__ import annotations
 
-import argparse
-import os
-import sys
+import runpy
 from pathlib import Path
 from datetime import datetime, timedelta
-import backtrader as bt
 import matplotlib.pyplot as plt
 import pandas as pd
-from utils.commission import ChinaStockCommission
 
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, project_root)
+_bootstrap = runpy.run_path(str(Path(__file__).resolve().parents[1] / "bootstrap.py"))
+project_root = _bootstrap["project_root"]
+project_path = _bootstrap["project_path"]
 
 from charts import configure_matplotlib_chinese_font
+from examples.rotation_backtest_common import (
+	prepare_price_data,
+	run_strategy_backtest,
+)
 from strategy.turtle_trading import TurtleTradingStrategy
-from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 
-OUTPUT_DIR = f'{project_root}/examples/turtle_trading/backtest_results'
+OUTPUT_DIR = project_path("examples", "turtle_trading", "backtest_results")
+STRATEGY_NAME = "海龟交易策略"
+SYMBOL = "600519"
+BACKTEST_START = "2021-01-01"
+BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+ENTRY_PERIOD = 20
+EXIT_PERIOD = 10
+ATR_PERIOD = 20
+MAX_UNITS = 4
+RISK_PCT = 0.01
+LOT_SIZE = 100
+INITIAL_CASH = 100000.0
+ALLOW_SHORT = True
 
 configure_matplotlib_chinese_font()
 
 
-def parse_args() -> argparse.Namespace:
-	parser = argparse.ArgumentParser(description="海龟交易策略回测")
-	parser.add_argument("--symbol", default="600519")
-	parser.add_argument("--start", default="2021-01-01")
-	parser.add_argument("--end", default=(datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d"))
-	parser.add_argument("--entry-period", type=int, default=20)
-	parser.add_argument("--exit-period", type=int, default=10)
-	parser.add_argument("--atr-period", type=int, default=20)
-	parser.add_argument("--max-units", type=int, default=4)
-	parser.add_argument("--risk-pct", type=float, default=0.01)
-	parser.add_argument("--lot-size", type=int, default=1)
-	parser.add_argument("--cash", type=float, default=100000.0)
-	parser.add_argument("--long-only", action="store_true")
-	return parser.parse_args()
+def fetch_data() -> pd.DataFrame:
+	price_data = prepare_price_data([SYMBOL], BACKTEST_START, BACKTEST_END, STRATEGY_NAME)
+	return price_data.get(SYMBOL, pd.DataFrame())
 
 
-def fetch_data(args: argparse.Namespace) -> pd.DataFrame:
-	df = to_title_case_ohlcv(fetch_history_ohlcv(args.symbol, args.start, args.end))
-	if df.empty:
-		return pd.DataFrame()
-	return df[["Open", "High", "Low", "Close", "Volume"]].dropna()
-
-
-def run_backtest(df: pd.DataFrame, args: argparse.Namespace) -> TurtleTradingStrategy:
-	cerebro = bt.Cerebro()
-	cerebro.adddata(bt.feeds.PandasData(dataname=df))
-	cerebro.broker.setcash(args.cash)
-	# 直接实例化，自动启用万 0.854、最低 5 元的默认配置，加载到 broker 中
-	comminfo = ChinaStockCommission()
-	cerebro.broker.addcommissioninfo(comminfo)
-	cerebro.addstrategy(
+def run_backtest(df: pd.DataFrame) -> TurtleTradingStrategy:
+	return run_strategy_backtest(
+		{SYMBOL: df},
+		[SYMBOL],
+		[SYMBOL],
 		TurtleTradingStrategy,
-		entry_period=args.entry_period,
-		exit_period=args.exit_period,
-		atr_period=args.atr_period,
-		max_units=args.max_units,
-		risk_pct=args.risk_pct,
-		lot_size=args.lot_size,
-		allow_short=not args.long_only,
+		STRATEGY_NAME,
+		INITIAL_CASH,
+		{
+			"entry_period": ENTRY_PERIOD,
+			"exit_period": EXIT_PERIOD,
+			"atr_period": ATR_PERIOD,
+			"max_units": MAX_UNITS,
+			"risk_pct": RISK_PCT,
+			"lot_size": LOT_SIZE,
+			"allow_short": ALLOW_SHORT,
+		},
 	)
-	results = cerebro.run()
-	strategy = results[0]
-	print(f"期末资金: {cerebro.broker.getvalue():.2f}")
-	return strategy
 
 
 def build_trade_frame(strategy: TurtleTradingStrategy) -> pd.DataFrame:
@@ -117,7 +108,7 @@ def print_stats(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
 	print(f"胜率: {win_rate * 100:.2f}%")
 
 
-def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame, args: argparse.Namespace) -> None:
+def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
 	OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 	equity_df.to_csv(OUTPUT_DIR / "equity_curve.csv", index=False, encoding="utf-8-sig")
 	trades_df.to_csv(OUTPUT_DIR / "trade_log.csv", index=False, encoding="utf-8-sig")
@@ -129,7 +120,7 @@ def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame, args: argpars
 		sells = trades_df[trades_df["action"] == "SELL"]
 		ax.scatter(pd.to_datetime(buys["date"]), buys["price"], marker="^", color="green", label="Buy")
 		ax.scatter(pd.to_datetime(sells["date"]), sells["price"], marker="v", color="red", label="Sell")
-	ax.set_title(f"{args.symbol} Price With Signals")
+	ax.set_title(f"{SYMBOL} Price With Signals")
 	ax.legend()
 	ax.grid(True, alpha=0.3)
 	fig.tight_layout()
@@ -154,18 +145,24 @@ def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame, args: argpars
 
 
 def main() -> None:
-	args = parse_args()
-	args.lot_size = 100
+	print("=" * 60)
+	print("海龟交易策略回测 (Python版本)")
+	print("=" * 60)
+	print(f"回测期间: {BACKTEST_START} 至 {BACKTEST_END}")
+	print(f"标的: {SYMBOL}")
+	print(f"参数: entry={ENTRY_PERIOD}, exit={EXIT_PERIOD}, atr={ATR_PERIOD}, max_units={MAX_UNITS}")
+	print(f"初始资金: {INITIAL_CASH:,.0f} 元")
+	print("=" * 60)
 
-	df = fetch_data(args)
+	df = fetch_data()
 	if df.empty:
 		raise ValueError("未获取到可用数据")
 
-	strategy = run_backtest(df, args)
+	strategy = run_backtest(df)
 	trades_df = build_trade_frame(strategy)
 	equity_df = build_equity_frame(strategy)
 	print_stats(equity_df, trades_df)
-	save_outputs(equity_df, trades_df, args)
+	save_outputs(equity_df, trades_df)
 	print(f"结果已保存到: {OUTPUT_DIR}")
 
 

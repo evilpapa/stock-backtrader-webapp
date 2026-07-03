@@ -7,12 +7,13 @@
 
 from __future__ import annotations
 
-import sys
+import runpy
 from pathlib import Path
 from datetime import datetime, timedelta
 
-project_root = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(project_root))
+_bootstrap = runpy.run_path(str(Path(__file__).resolve().parents[1] / "bootstrap.py"))
+project_root = _bootstrap["project_root"]
+project_path = _bootstrap["project_path"]
 
 from charts import configure_matplotlib_chinese_font
 from examples.rotation_backtest_common import (
@@ -47,7 +48,7 @@ BENCHMARK_SYMBOL = "588000"
 BENCHMARK_NAME = "科创50ETF"
 STRATEGY_NAME = "行业动量轮动策略"
 EQUAL_WEIGHT_NAME = "行业等权重组合"
-OUTPUT_DIR = f'{project_root}/examples/sector_rotation/backtest_results'
+OUTPUT_DIR = project_path("examples", "sector_rotation", "backtest_results")
 DATA_CACHE_NAME = "sector_rotation"
 ASSET_LABEL = "ETF"
 

@@ -58,6 +58,47 @@ def build_cerebro(initial_cash: float) -> bt.Cerebro:
 	return cerebro
 
 
+def add_named_price_data(
+	cerebro: bt.Cerebro,
+	price_data: dict[str, pd.DataFrame],
+	symbols: list[str],
+	names: list[str],
+) -> int:
+	# 将可用行情按名称注册到 Backtrader，返回实际添加的数据源数量。
+	data_count = 0
+	for symbol, name in zip(symbols, names):
+		data = price_data.get(symbol)
+		if data is None:
+			continue
+		cerebro.adddata(bt.feeds.PandasData(dataname=data), name=name)
+		data_count += 1
+		print(f"  ✓ 已添加数据: {name}")
+	return data_count
+
+
+def run_strategy_backtest(
+	price_data: dict[str, pd.DataFrame],
+	symbols: list[str],
+	names: list[str],
+	strategy_cls,
+	strategy_display_name: str,
+	initial_cash: float,
+	strategy_kwargs: dict | None = None,
+):
+	print(f"\n==> 运行{strategy_display_name}回测...")
+	cerebro = build_cerebro(initial_cash)
+	data_count = add_named_price_data(cerebro, price_data, symbols, names)
+
+	if data_count == 0:
+		raise RuntimeError(f"{strategy_display_name}回测缺少可用数据")
+
+	cerebro.addstrategy(strategy_cls, **(strategy_kwargs or {}))
+	print(f"  初始资金: {cerebro.broker.getvalue():.2f}")
+	result = cerebro.run()[0]
+	print(f"  期末资金: {cerebro.broker.getvalue():.2f}")
+	return result
+
+
 def run_rotation_strategy_backtest(
 	price_data: dict[str, pd.DataFrame],
 	symbols: list[str],
@@ -72,14 +113,7 @@ def run_rotation_strategy_backtest(
 ):
 	print(f"\n==> 运行{strategy_display_name}回测...")
 	cerebro = build_cerebro(initial_cash)
-
-	# 将可用标的数据逐个注册到 Backtrader，缺失数据的标的自动跳过。
-	for symbol, name in zip(symbols, names):
-		data = price_data.get(symbol)
-		if data is None:
-			continue
-		cerebro.adddata(bt.feeds.PandasData(dataname=data), name=name)
-		print(f"  ✓ 已添加数据: {name}")
+	add_named_price_data(cerebro, price_data, symbols, names)
 
 	# 策略内部需要知道基准数据在 cerebro.datas 中的位置，用于相对动量等计算。
 	benchmark_index = next(
@@ -127,17 +161,16 @@ def run_equal_weight_backtest(
 ):
 	print(f"\n==> 运行{equal_weight_name}回测")
 	cerebro = build_cerebro(initial_cash)
-	data_count = 0
 	# 可排除基准或不参与等权配置的标的，只保留组合资产池。
 	exclude_names = exclude_names or set()
-
-	for symbol, name in zip(symbols, names):
-		data = price_data.get(symbol)
-		if data is None or name in exclude_names:
-			continue
-		cerebro.adddata(bt.feeds.PandasData(dataname=data), name=name)
-		data_count += 1
-		print(f"  ✓ 已添加数据: {name}")
+	filtered = [
+		(symbol, name)
+		for symbol, name in zip(symbols, names)
+		if name not in exclude_names
+	]
+	filtered_symbols = [symbol for symbol, _ in filtered]
+	filtered_names = [name for _, name in filtered]
+	data_count = add_named_price_data(cerebro, price_data, filtered_symbols, filtered_names)
 
 	if data_count == 0:
 		raise RuntimeError(f"{equal_weight_name}回测缺少可用数据")
@@ -215,6 +248,21 @@ def build_weight_frame(strategy_result) -> pd.DataFrame:
 		row = {"Date": snapshot["date"]}
 		row.update(snapshot["target_weights_by_name"])
 		row["权重合计"] = sum(snapshot["target_weights_by_name"].values())
+		rows.append(row)
+	return pd.DataFrame(rows)
+
+
+def build_trade_log_weight_frame(trade_log: list[dict], names: list[str]) -> pd.DataFrame:
+	# 兼容只记录 date/weights 的策略日志，生成和轮动结果一致的权重宽表。
+	rows = []
+	for snapshot in trade_log:
+		weights = snapshot.get("weights")
+		if weights is None:
+			continue
+		row = {"Date": snapshot["date"]}
+		for index, name in enumerate(names):
+			row[name] = float(weights[index]) if index < len(weights) else 0.0
+		row["权重合计"] = sum(row[name] for name in names)
 		rows.append(row)
 	return pd.DataFrame(rows)
 
@@ -375,8 +423,8 @@ def save_results(
 	cumulative_df: pd.DataFrame,
 	drawdown_df: pd.DataFrame,
 	weights_df: pd.DataFrame,
-	selection_frequency_df: pd.DataFrame,
-	rebalance_detail_df: pd.DataFrame,
+	selection_frequency_df: pd.DataFrame | None = None,
+	rebalance_detail_df: pd.DataFrame | None = None,
 ) -> None:
 	# 将绩效、收益、回撤、权重和调仓明细统一导出为 UTF-8 BOM CSV，方便 Excel 打开。
 	os.makedirs(output_dir, exist_ok=True)
@@ -385,5 +433,7 @@ def save_results(
 	cumulative_df.to_csv(output_dir / "cumulative_returns.csv", index=False, encoding="utf-8-sig")
 	drawdown_df.to_csv(output_dir / "drawdowns.csv", index=False, encoding="utf-8-sig")
 	weights_df.to_csv(output_dir / "daily_weights.csv", index=False, encoding="utf-8-sig")
-	selection_frequency_df.to_csv(output_dir / "selection_frequency.csv", index=False, encoding="utf-8-sig")
-	rebalance_detail_df.to_csv(output_dir / "rebalance_details.csv", index=False, encoding="utf-8-sig")
+	if selection_frequency_df is not None:
+		selection_frequency_df.to_csv(output_dir / "selection_frequency.csv", index=False, encoding="utf-8-sig")
+	if rebalance_detail_df is not None:
+		rebalance_detail_df.to_csv(output_dir / "rebalance_details.csv", index=False, encoding="utf-8-sig")
