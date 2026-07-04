@@ -13,7 +13,7 @@ def xtdata_selector_ui() -> XtDataParams:
 	st.sidebar.markdown("# XtData Config")
 	symbol = st.sidebar.text_input("symbol", value="000001.SZ")
 	period = st.sidebar.selectbox("period", ("1d", "1w", "1mon"))
-	start_date = st.sidebar.date_input("start date", datetime.date(1970, 1, 1))
+	start_date = st.sidebar.date_input("start date", datetime.date(2010, 1, 1))
 	start_date = start_date.strftime("%Y%m%d")
 	end_date = st.sidebar.date_input("end date", datetime.datetime.today())
 	end_date = end_date.strftime("%Y%m%d")
