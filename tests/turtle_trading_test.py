@@ -4,6 +4,7 @@ import backtrader as bt
 import pandas as pd
 
 from strategy.turtle_trading import TurtleTradingStrategy
+from examples.turtle_trading.backtest_turtle_trading import TurtleBacktestConfig, parse_args, run_backtest
 
 
 def make_feed(closes: list[float], signal_bar: int | None = None, signal_side: str | None = None) -> bt.feeds.PandasData:
@@ -37,6 +38,28 @@ def make_feed(closes: list[float], signal_bar: int | None = None, signal_side: s
 
 	df = pd.DataFrame(rows, index=dates)
 	return bt.feeds.PandasData(dataname=df)
+
+
+def make_title_case_ohlcv(closes: list[float], signal_bar: int | None = None) -> pd.DataFrame:
+	dates = pd.date_range("2024-01-01", periods=len(closes), freq="D")
+	rows = []
+	prev_close = closes[0]
+	for idx, close in enumerate(closes):
+		high_price = close + 25.0
+		low_price = close - 25.0
+		if signal_bar is not None and idx == signal_bar:
+			high_price = close + 100.0
+		rows.append(
+			{
+				"Open": prev_close,
+				"High": high_price,
+				"Low": low_price,
+				"Close": close,
+				"Volume": 100000,
+			}
+		)
+		prev_close = close
+	return pd.DataFrame(rows, index=dates)
 
 
 class TurtleTradingStrategyTest(unittest.TestCase):
@@ -134,6 +157,33 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		self.assertEqual(len(strategy.trade_log), 0)
 		self.assertEqual(strategy.position.size, 0)
 		self.assertEqual(final_value, 100000.0)
+
+	def test_example_cli_defaults_to_tradeable_lot_size(self):
+		config = parse_args([])
+		self.assertEqual(config.lot_size, 1)
+
+		config = parse_args(["--lot-size", "100", "--symbol", "000001"])
+		self.assertEqual(config.lot_size, 100)
+		self.assertEqual(config.symbol, "000001")
+
+	def test_example_backtest_with_default_lot_size_trades_high_price_symbol(self):
+		closes = [1800.0] * 20 + [1875.0, 1885.0, 1895.0, 1905.0]
+		config = TurtleBacktestConfig(
+			symbol="TEST",
+			entry_period=20,
+			exit_period=10,
+			atr_period=5,
+			max_units=1,
+			risk_pct=0.01,
+			lot_size=1,
+			initial_cash=100000.0,
+			allow_short=False,
+		)
+
+		strategy = run_backtest(make_title_case_ohlcv(closes, signal_bar=20), config)
+
+		self.assertGreater(len(strategy.trade_log), 0)
+		self.assertNotEqual(strategy.position.size, 0)
 
 	def test_parameter_injection(self):
 		strategy, _ = self._run(

@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 
+import argparse
 import runpy
+from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
@@ -33,34 +35,88 @@ EXIT_PERIOD = 10
 ATR_PERIOD = 20
 MAX_UNITS = 4
 RISK_PCT = 0.01
-LOT_SIZE = 100
+LOT_SIZE = 1
 INITIAL_CASH = 100000.0
 ALLOW_SHORT = True
 
 configure_matplotlib_chinese_font()
 
 
-def fetch_data() -> pd.DataFrame:
-	price_data = prepare_price_data([SYMBOL], BACKTEST_START, BACKTEST_END, STRATEGY_NAME)
-	return price_data.get(SYMBOL, pd.DataFrame())
+@dataclass(frozen=True)
+class TurtleBacktestConfig:
+	symbol: str = SYMBOL
+	start_date: str = BACKTEST_START
+	end_date: str = BACKTEST_END
+	entry_period: int = ENTRY_PERIOD
+	exit_period: int = EXIT_PERIOD
+	atr_period: int = ATR_PERIOD
+	max_units: int = MAX_UNITS
+	risk_pct: float = RISK_PCT
+	lot_size: int = LOT_SIZE
+	initial_cash: float = INITIAL_CASH
+	allow_short: bool = ALLOW_SHORT
+	output_dir: Path = OUTPUT_DIR
 
 
-def run_backtest(df: pd.DataFrame) -> TurtleTradingStrategy:
+def parse_args(argv: list[str] | None = None) -> TurtleBacktestConfig:
+	parser = argparse.ArgumentParser(description="运行海龟交易策略回测")
+	parser.add_argument("--symbol", default=SYMBOL, help="股票代码，例如 600519")
+	parser.add_argument("--start-date", default=BACKTEST_START, help="回测开始日期 YYYY-MM-DD")
+	parser.add_argument("--end-date", default=BACKTEST_END, help="回测结束日期 YYYY-MM-DD")
+	parser.add_argument("--entry-period", type=int, default=ENTRY_PERIOD, help="入场通道周期")
+	parser.add_argument("--exit-period", type=int, default=EXIT_PERIOD, help="离场通道周期")
+	parser.add_argument("--atr-period", type=int, default=ATR_PERIOD, help="ATR 周期")
+	parser.add_argument("--max-units", type=int, default=MAX_UNITS, help="最大加仓单位数")
+	parser.add_argument("--risk-pct", type=float, default=RISK_PCT, help="单单位风险比例")
+	parser.add_argument(
+		"--lot-size",
+		type=int,
+		default=LOT_SIZE,
+		help="交易单位取整手数。默认 1，便于小资金示例触发交易；A 股整手可设为 100。",
+	)
+	parser.add_argument("--initial-cash", type=float, default=INITIAL_CASH, help="初始资金")
+	parser.add_argument("--output-dir", type=Path, default=OUTPUT_DIR, help="结果输出目录")
+	short_group = parser.add_mutually_exclusive_group()
+	short_group.add_argument("--allow-short", dest="allow_short", action="store_true", default=ALLOW_SHORT)
+	short_group.add_argument("--no-allow-short", dest="allow_short", action="store_false")
+	args = parser.parse_args(argv)
+	return TurtleBacktestConfig(
+		symbol=args.symbol,
+		start_date=args.start_date,
+		end_date=args.end_date,
+		entry_period=args.entry_period,
+		exit_period=args.exit_period,
+		atr_period=args.atr_period,
+		max_units=args.max_units,
+		risk_pct=args.risk_pct,
+		lot_size=max(args.lot_size, 1),
+		initial_cash=args.initial_cash,
+		allow_short=args.allow_short,
+		output_dir=args.output_dir,
+	)
+
+
+def fetch_data(config: TurtleBacktestConfig) -> pd.DataFrame:
+	price_data = prepare_price_data([config.symbol], config.start_date, config.end_date, STRATEGY_NAME)
+	return price_data.get(config.symbol, pd.DataFrame())
+
+
+def run_backtest(df: pd.DataFrame, config: TurtleBacktestConfig) -> TurtleTradingStrategy:
 	return run_strategy_backtest(
-		{SYMBOL: df},
-		[SYMBOL],
-		[SYMBOL],
+		{config.symbol: df},
+		[config.symbol],
+		[config.symbol],
 		TurtleTradingStrategy,
 		STRATEGY_NAME,
-		INITIAL_CASH,
+		config.initial_cash,
 		{
-			"entry_period": ENTRY_PERIOD,
-			"exit_period": EXIT_PERIOD,
-			"atr_period": ATR_PERIOD,
-			"max_units": MAX_UNITS,
-			"risk_pct": RISK_PCT,
-			"lot_size": LOT_SIZE,
-			"allow_short": ALLOW_SHORT,
+			"entry_period": config.entry_period,
+			"exit_period": config.exit_period,
+			"atr_period": config.atr_period,
+			"max_units": config.max_units,
+			"risk_pct": config.risk_pct,
+			"lot_size": config.lot_size,
+			"allow_short": config.allow_short,
 		},
 	)
 
@@ -108,10 +164,10 @@ def print_stats(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
 	print(f"胜率: {win_rate * 100:.2f}%")
 
 
-def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
-	OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-	equity_df.to_csv(OUTPUT_DIR / "equity_curve.csv", index=False, encoding="utf-8-sig")
-	trades_df.to_csv(OUTPUT_DIR / "trade_log.csv", index=False, encoding="utf-8-sig")
+def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame, config: TurtleBacktestConfig) -> None:
+	config.output_dir.mkdir(parents=True, exist_ok=True)
+	equity_df.to_csv(config.output_dir / "equity_curve.csv", index=False, encoding="utf-8-sig")
+	trades_df.to_csv(config.output_dir / "trade_log.csv", index=False, encoding="utf-8-sig")
 
 	fig, ax = plt.subplots(figsize=(12, 6))
 	ax.plot(equity_df["date"], equity_df["close"], label="Close", color="#1f77b4")
@@ -120,11 +176,11 @@ def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
 		sells = trades_df[trades_df["action"] == "SELL"]
 		ax.scatter(pd.to_datetime(buys["date"]), buys["price"], marker="^", color="green", label="Buy")
 		ax.scatter(pd.to_datetime(sells["date"]), sells["price"], marker="v", color="red", label="Sell")
-	ax.set_title(f"{SYMBOL} Price With Signals")
+	ax.set_title(f"{config.symbol} Price With Signals")
 	ax.legend()
 	ax.grid(True, alpha=0.3)
 	fig.tight_layout()
-	fig.savefig(OUTPUT_DIR / "price_with_signals.png", dpi=200, bbox_inches="tight")
+	fig.savefig(config.output_dir / "price_with_signals.png", dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
 	fig, ax = plt.subplots(figsize=(12, 6))
@@ -132,7 +188,7 @@ def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
 	ax.set_title("Equity Curve")
 	ax.grid(True, alpha=0.3)
 	fig.tight_layout()
-	fig.savefig(OUTPUT_DIR / "equity_curve.png", dpi=200, bbox_inches="tight")
+	fig.savefig(config.output_dir / "equity_curve.png", dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
 	fig, ax = plt.subplots(figsize=(12, 4))
@@ -140,30 +196,35 @@ def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
 	ax.set_title("Position State")
 	ax.grid(True, alpha=0.3)
 	fig.tight_layout()
-	fig.savefig(OUTPUT_DIR / "position_state.png", dpi=200, bbox_inches="tight")
+	fig.savefig(config.output_dir / "position_state.png", dpi=200, bbox_inches="tight")
 	plt.close(fig)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+	config = parse_args(argv)
 	print("=" * 60)
 	print("海龟交易策略回测 (Python版本)")
 	print("=" * 60)
-	print(f"回测期间: {BACKTEST_START} 至 {BACKTEST_END}")
-	print(f"标的: {SYMBOL}")
-	print(f"参数: entry={ENTRY_PERIOD}, exit={EXIT_PERIOD}, atr={ATR_PERIOD}, max_units={MAX_UNITS}")
-	print(f"初始资金: {INITIAL_CASH:,.0f} 元")
+	print(f"回测期间: {config.start_date} 至 {config.end_date}")
+	print(f"标的: {config.symbol}")
+	print(
+		"参数: "
+		f"entry={config.entry_period}, exit={config.exit_period}, atr={config.atr_period}, "
+		f"max_units={config.max_units}, risk_pct={config.risk_pct}, lot_size={config.lot_size}"
+	)
+	print(f"初始资金: {config.initial_cash:,.0f} 元")
 	print("=" * 60)
 
-	df = fetch_data()
+	df = fetch_data(config)
 	if df.empty:
 		raise ValueError("未获取到可用数据")
 
-	strategy = run_backtest(df)
+	strategy = run_backtest(df, config)
 	trades_df = build_trade_frame(strategy)
 	equity_df = build_equity_frame(strategy)
 	print_stats(equity_df, trades_df)
-	save_outputs(equity_df, trades_df)
-	print(f"结果已保存到: {OUTPUT_DIR}")
+	save_outputs(equity_df, trades_df, config)
+	print(f"结果已保存到: {config.output_dir}")
 
 
 if __name__ == "__main__":

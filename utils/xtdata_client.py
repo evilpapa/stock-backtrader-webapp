@@ -18,6 +18,7 @@ class XtDataError(RuntimeError):
 def import_xtdata() -> Any:
     try:
         from xtquant import xtdata
+        xtdata.enable_hello = False
     except ImportError as exc:
         raise XtDataError("xtquant 未安装或 MiniQmt xtdata 环境不可用") from exc
     return xtdata

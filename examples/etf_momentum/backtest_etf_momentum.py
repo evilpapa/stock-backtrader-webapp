@@ -42,8 +42,8 @@ from examples.rotation_backtest_common import (
 configure_matplotlib_chinese_font()
 
 INITIAL_CASH = 100000.0
-MOMENTUM_WINDOW = 10
-REBALANCE_DAYS = 20
+MOMENTUM_WINDOW = 20
+REBALANCE_DAYS = 5
 BACKTEST_START = "2025-01-01"
 BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 BENCHMARK_SYMBOL = "510300"
@@ -53,8 +53,8 @@ EQUAL_WEIGHT_NAME = "等权重组合"
 OUTPUT_DIR = project_path("examples", "etf_momentum", "backtest_results")
 DATA_CACHE_NAME = "ETF动量轮动策略"
 
-ETF_SYMBOLS = ["513100", "510300", "518880"]
-ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
+ETF_SYMBOLS = ["513100", "510300", "518880", "515000"]
+ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF", "科技ETF华宝"]
 COLORS = {
 	STRATEGY_NAME: "#E41A1C",
 	BENCHMARK_NAME: "#377EB8",

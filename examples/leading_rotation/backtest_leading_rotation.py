@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 import runpy
 from pathlib import Path
+from tabulate import tabulate
 
 _bootstrap = runpy.run_path(str(Path(__file__).resolve().parents[1] / "bootstrap.py"))
 project_root = _bootstrap["project_root"]
@@ -41,7 +42,7 @@ configure_matplotlib_chinese_font()
 
 INITIAL_CASH = 100000.0
 MOMENTUM_WINDOW = 20
-BACKTEST_START = "2026-01-01"
+BACKTEST_START = "2025-01-01"
 BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
 REBALANCE_DAYS = 5
 TOP_L = 5
@@ -179,7 +180,7 @@ def main() -> None:
 	print("\n" + "=" * 60)
 	print("效能指标汇总")
 	print("=" * 60)
-	print(console_metrics.to_string(index=False))
+	print(tabulate(console_metrics, headers='keys', tablefmt='grid', showindex=False))
 	print(f"\n结果已保存到: {OUTPUT_DIR}")
 
 

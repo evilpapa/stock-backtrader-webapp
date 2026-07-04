@@ -27,18 +27,18 @@ def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strat
 		try:
 			df = to_title_case_ohlcv(fetch_history_ohlcv(symbol, start_date, end_date))
 		except Exception as exc:
-			print(f"  ✗ 跳过 {symbol}: 获取失败 - {exc}")
+			print(f"  SKIP {symbol}: 获取失败 - {exc}")
 			continue
 
 		required = ["Open", "High", "Low", "Close", "Volume"]
 		if not all(column in df.columns for column in required):
-			print(f"  ✗ 跳过 {symbol}: 缺少必要列")
+			print(f"  SKIP {symbol}: 缺少必要列")
 			continue
 
 		# 仅保留必要行情列，并删除不完整记录，避免回测阶段读到无效价格。
 		df = df[required].dropna().sort_index()
 		if df.empty:
-			print(f"  ✗ 跳过 {symbol}: 清洗后无可用数据")
+			print(f"  SKIP {symbol}: 清洗后无可用数据")
 			continue
 		prepared[symbol] = df
 
@@ -72,7 +72,7 @@ def add_named_price_data(
 			continue
 		cerebro.adddata(bt.feeds.PandasData(dataname=data), name=name)
 		data_count += 1
-		print(f"  ✓ 已添加数据: {name}")
+		print(f"  OK 已添加数据: {name}")
 	return data_count
 
 
