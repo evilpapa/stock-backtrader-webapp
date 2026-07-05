@@ -2,6 +2,7 @@ import logging
 
 import backtrader as bt
 import backtrader.analyzers as btanalyzers
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -76,7 +77,7 @@ def run_backtrader(stock_df: pd.DataFrame, strategy: StrategyBase, bt_params: Ba
         raise ValueError(f"无法找到策略: {strategy.name}Strategy")
 
     # 运行回测
-    back = cerebro.run()
+    back = cerebro.run(maxcpus=1)
 
     # 处理回测结果
     par_list = []
@@ -86,18 +87,31 @@ def run_backtrader(stock_df: pd.DataFrame, strategy: StrategyBase, bt_params: Ba
         for param in strategy.params.keys():
             par.append(x[0].params._getkwargs()[param])
 
+        returns_analysis = x[0].analyzers.returns.get_analysis()
+        annual_return_pct = returns_analysis["rnorm100"]
+        max_drawdown_pct = x[0].analyzers.drawdown.get_analysis()["max"]["drawdown"]
+        total_return = np.expm1(returns_analysis.get("rtot", np.nan))
+        calmar = (
+            (annual_return_pct / 100.0) / (max_drawdown_pct / 100.0)
+            if max_drawdown_pct
+            else np.nan
+        )
+
         # 添加性能指标
         par.extend(
             [
-                x[0].analyzers.returns.get_analysis()["rnorm100"],
-                x[0].analyzers.drawdown.get_analysis()["max"]["drawdown"],
+                annual_return_pct,
+                total_return,
+                max_drawdown_pct,
                 x[0].analyzers.sharpe.get_analysis()["sharperatio"],
+                calmar,
             ]
         )
         par_list.append(par)
 
     # 创建结果数据框
     columns = list(strategy.params.keys())
-    columns.extend(["return", "dd", "sharpe"])
+    columns.extend(["return", "total_return", "dd", "sharpe", "calmar"])
     par_df = pd.DataFrame(par_list, columns=columns)
     return par_df
+

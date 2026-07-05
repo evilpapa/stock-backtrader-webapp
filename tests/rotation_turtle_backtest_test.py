@@ -118,9 +118,14 @@ class RotationAndTurtleBacktestServiceTest(unittest.TestCase):
 
 			self.assertIn("value", frames.equity.columns)
 			self.assertIn("drawdown", frames.equity.columns)
+			self.assertEqual(frames.metrics["策略"].tolist(), ["海龟交易策略"])
+			self.assertIn("累计收益率", frames.metrics.columns)
+			self.assertIn("卡玛比率", frames.metrics.columns)
 			self.assertTrue((output_dir / "equity_curve.csv").exists())
 			self.assertTrue((output_dir / "trade_log.csv").exists())
+			self.assertTrue((output_dir / "performance_metrics.csv").exists())
 
 
 if __name__ == "__main__":
 	unittest.main()
+

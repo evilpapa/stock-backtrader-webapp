@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from examples.turtle_trading.backtest_turtle_trading import (
@@ -13,6 +14,7 @@ from examples.turtle_trading.backtest_turtle_trading import (
 	save_outputs,
 )
 from examples.rotation_backtest_common import prepare_price_data, run_strategy_backtest
+from strategy.performance_calculator import PerformanceCalculator
 from strategy.turtle_trading import TurtleTradingStrategy
 
 
@@ -28,21 +30,55 @@ DEFAULT_LOT_SIZE = 1
 DEFAULT_INITIAL_CASH = 100000.0
 DEFAULT_ALLOW_SHORT = True
 
+def build_turtle_metrics(equity: pd.DataFrame) -> pd.DataFrame:
+	if equity.empty:
+		return pd.DataFrame(
+			columns=["策略", "累计收益率", "年化收益率", "最大回撤", "夏普比率", "卡玛比率"]
+		)
+
+	returns = pd.to_numeric(equity["returns"], errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
+	calc = PerformanceCalculator()
+	start_value = float(equity["value"].iloc[0])
+	end_value = float(equity["value"].iloc[-1])
+	total_return = end_value / start_value - 1.0 if start_value else float("nan")
+	max_drawdown = float(pd.to_numeric(equity["drawdown"], errors="coerce").min())
+	return pd.DataFrame(
+		[
+			{
+				"策略": STRATEGY_NAME,
+				"累计收益率": total_return,
+				"年化收益率": calc.annualized_return(returns),
+				"最大回撤": max_drawdown,
+				"夏普比率": calc.sharpe_ratio(returns),
+				"卡玛比率": calc.calmar_ratio(returns),
+			}
+		]
+	)
+
 
 @dataclass(frozen=True)
 class TurtleFrames:
 	equity: pd.DataFrame
 	trades: pd.DataFrame
+	metrics: pd.DataFrame
 
 
 def load_turtle_results(output_dir: Path = DEFAULT_OUTPUT_DIR) -> TurtleFrames | None:
 	equity_path = output_dir / "equity_curve.csv"
 	trades_path = output_dir / "trade_log.csv"
+	metrics_path = output_dir / "performance_metrics.csv"
 	if not equity_path.exists() or not trades_path.exists():
 		return None
+	equity = pd.read_csv(equity_path, encoding="utf-8-sig")
+	metrics = (
+		pd.read_csv(metrics_path, encoding="utf-8-sig")
+		if metrics_path.exists()
+		else build_turtle_metrics(equity)
+	)
 	return TurtleFrames(
-		equity=pd.read_csv(equity_path, encoding="utf-8-sig"),
+		equity=equity,
 		trades=pd.read_csv(trades_path, encoding="utf-8-sig"),
+		metrics=metrics,
 	)
 
 
@@ -99,5 +135,8 @@ def run_turtle_backtest(
 	)
 	equity = build_equity_frame(strategy)
 	trades = build_trade_frame(strategy)
+	metrics = build_turtle_metrics(equity)
 	save_outputs(equity, trades, config)
-	return TurtleFrames(equity=equity, trades=trades)
+	metrics.to_csv(output_dir / "performance_metrics.csv", index=False, encoding="utf-8-sig")
+	return TurtleFrames(equity=equity, trades=trades, metrics=metrics)
+
