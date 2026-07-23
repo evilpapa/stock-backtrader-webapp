@@ -4,14 +4,14 @@ from typing import Any, Dict
 from pydantic import BaseModel
 
 
-class XtDataParams(BaseModel):
-    """XtDataParams 模型"""
+class DataParams(BaseModel):
+    """数据参数模型（AKShare 数据源）"""
 
-    symbol: str         # 股票代码，如 "000001"（需要加上交易所后缀，如 "000001.SZ"）
-    period: str         # 数据周期，如 "1d"（日线）、"1h"（小时线）等
+    symbol: str         # 股票代码，如 "000001" 或 "000001.SZ"
+    period: str         # 数据周期，如 "1d"（日线，暂仅支持日线）
     start_date: str     # 开始时间，日期格式为 "YYYY-MM-DD"
     end_date: str       # 结束时间，日期格式为 "YYYY-MM-DD"
-    dividend_type: str  # 利率类型，如 "qfq"（前复权）、"hfq"（后复权）等
+    dividend_type: str  # 复权方式，如 "qfq"（前复权）、"hfq"（后复权）等
 
 
 class BacktraderParams(BaseModel):

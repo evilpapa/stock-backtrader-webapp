@@ -21,7 +21,7 @@ class StrategyTest(unittest.TestCase):
 		start_date = datetime(2024, 1, 1)
 		end_date = datetime(2025, 1, 1)
 		stock_hfq_df = fetch_history_ohlcv(
-			"600070",
+			"600000",
 			start_date,
 			end_date,
 			dividend_type="back",

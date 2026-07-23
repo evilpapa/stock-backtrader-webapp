@@ -1,4 +1,9 @@
-"""Helpers for loading OHLCV data with xtquant.xtdata."""
+"""Helpers for loading OHLCV data with AKShare (Sina backend).
+
+替代原先的 xtquant/miniQMT 数据源，使用 AKShare 的新浪接口获取 A股/ETF 行情。
+- 股票：ak.stock_zh_a_daily (支持前复权/后复权)
+- ETF：ak.fund_etf_hist_sina
+"""
 
 from __future__ import annotations
 
@@ -6,61 +11,64 @@ from typing import Any
 
 import pandas as pd
 
-# xtdata 默认返回的字段列表
+# 标准输出字段列表
 DEFAULT_OHLCV_FIELDS = ["open", "high", "low", "close", "volume"]
 
 
-class XtDataError(RuntimeError):
-    """Raised when xtdata cannot return a usable market-data payload."""
+class AkShareDataError(RuntimeError):
+    """Raised when AKShare cannot return usable market-data payload."""
 
 
-"""Helpers for loading OHLCV data with xtquant.xtdata."""
-def import_xtdata() -> Any:
-    try:
-        from xtquant import xtdata
-        xtdata.enable_hello = False
-    except ImportError as exc:
-        raise XtDataError("xtquant 未安装或 MiniQmt xtdata 环境不可用") from exc
-    return xtdata
+def _is_etf(symbol: str) -> bool:
+    """通过代码前缀自动判断是否为 ETF。"""
+    code = symbol.strip().upper().rstrip(".SH").rstrip(".SZ").rstrip(".BJ")
+    return bool(code) and code[0] in ("1", "5")
 
 
-def normalize_xt_symbol(symbol: str) -> str:
-    """转换常见的 Akshare/Yahoo 股票代码为 xtdata code.market 格式。"""
-    symbol = symbol.strip().upper()
-    if symbol.endswith((".SH", ".SZ", ".BJ")):
-        return symbol
-    if len(symbol) == 6 and symbol.startswith(("5", "6", "9")):
-        return symbol + ".SH"
-    if len(symbol) == 6 and symbol.startswith(("0", "1", "2", "3")):
-        return symbol + ".SZ"
-    if len(symbol) == 6 and symbol.startswith(("4", "8")):
-        return symbol + ".BJ"
-    return symbol
+def _to_akshare_symbol(symbol: str) -> str:
+    """将 6 位代码或 xtdata 格式代码转换为 sh/sz 前缀格式。"""
+    code = symbol.strip().upper()
+    # 去掉 .SH/.SZ/.BJ 后缀
+    for suffix in (".SH", ".SZ", ".BJ"):
+        if code.endswith(suffix):
+            code = code[: -len(suffix)]
+            market = suffix[1:].lower()  # sh / sz / bj
+            break
+    else:
+        # 根据代码首位自动判断市场
+        if code.startswith(("5", "6", "9")):
+            market = "sh"
+        elif code.startswith(("0", "1", "2", "3")):
+            market = "sz"
+        elif code.startswith(("4", "8")):
+            market = "bj"
+        else:
+            market = "sz"  # 兜底
+    return f"{market}{code}"
 
 
-def format_xt_date(value: Any) -> str:
-    """转换 YYYY-MM-DD/日期类型 值为 xtdata YYYYMMDD 字符串。"""
+def _format_date(value: Any) -> str:
+    """统一转为 YYYY-MM-DD 格式。"""
     if hasattr(value, "strftime"):
-        return value.strftime("%Y%m%d")
-    return str(value).replace("-", "")
+        return value.strftime("%Y-%m-%d")
+    return str(value).replace("-", "").replace("/", "-")
 
 
-def normalize_dividend_type(value: str | None) -> str:
+def _normalize_dividend_type(value: str | None) -> str:
+    """将 xtdata 风格的复权参数映射为 AKShare 风格。"""
     mapping = {
-        None: "none",
-        "": "none",
-        "none": "none",
-        "qfq": "front",
-        "hfq": "back",
-        "front": "front",
-        "back": "back",
-        "front_ratio": "front_ratio",
-        "back_ratio": "back_ratio",
+        None: "qfq",
+        "": "",
+        "none": "",
+        "qfq": "qfq",
+        "hfq": "hfq",
+        "front": "qfq",
+        "back": "hfq",
+        "front_ratio": "qfq",
+        "back_ratio": "hfq",
     }
     key = value.lower() if isinstance(value, str) else value
-    if key not in mapping:
-        raise XtDataError(f"Unsupported xtdata dividend_type: {value}")
-    return mapping[key]
+    return mapping.get(key, "qfq")
 
 
 def fetch_history_ohlcv(
@@ -70,67 +78,89 @@ def fetch_history_ohlcv(
     period: str = "1d",
     dividend_type: str = "front",
     fields: list[str] | None = None,
-    download: bool = True,
-    xtdata_module: Any | None = None,
 ) -> pd.DataFrame:
     """
     获取历史 K 线数据，返回包含 date/open/high/low/close/volume 列的 DataFrame。
-    通过 xtdata.get_market_data 下载并读取数据，支持前复权、后复权和不复权选项。
+
+    使用 AKShare（新浪数据源），自动识别股票/ETF 并调用对应接口。
+    - 股票：stock_zh_a_daily，支持复权参数
+    - ETF：fund_etf_hist_sina，原生数据
+
     ohlcv 代表：Open High Low Close Volume / 开盘价 最高价 最低价 收盘价 成交量
     """
-    xt_symbol = normalize_xt_symbol(symbol)
-    start_time = format_xt_date(start_date)
-    end_time = format_xt_date(end_date)
-    dividend_type = normalize_dividend_type(dividend_type)
-    field_list = fields or DEFAULT_OHLCV_FIELDS
-    xtdata = xtdata_module or import_xtdata()
+    import akshare as ak
 
-    if download:
-        xtdata.download_history_data(xt_symbol, period, start_time, end_time)
+    if period != "1d":
+        raise AkShareDataError(f"AKShare 版暂不支持周期: {period}，仅支持日线(1d)")
 
-    data = xtdata.get_market_data(
-        field_list=field_list,
-        stock_list=[xt_symbol],
-        period=period,
-        start_time=start_time,
-        end_time=end_time,
-        count=-1,
-        dividend_type=dividend_type,
-        fill_data=True,
-    )
-    return market_data_to_ohlcv(data, xt_symbol, field_list)
+    start = _format_date(start_date)
+    end = _format_date(end_date)
+    ak_symbol = _to_akshare_symbol(symbol)
 
-
-def market_data_to_ohlcv(data: dict[str, pd.DataFrame], symbol: str, fields: list[str] | None = None) -> pd.DataFrame:
-    """
-    将 xtdata 的 `dict[field] -> DataFrame` 结构转换为逐行的 OHLCV 数据格式。
-    """
-    field_list = fields or DEFAULT_OHLCV_FIELDS
-    if not isinstance(data, dict):
-        raise XtDataError("xtdata.get_market_data 未返回字段字典")
-
-    series_by_field = {}
-    for field in field_list:
-        field_frame = data.get(field)
-        if field_frame is None or field_frame.empty:
-            raise XtDataError(f"xtdata 响应缺少字段: {field}")
-        if symbol in field_frame.index:
-            series = field_frame.loc[symbol]
-        elif len(field_frame.index) == 1:
-            series = field_frame.iloc[0]
+    try:
+        if _is_etf(symbol):
+            df = _fetch_etf_data(ak, ak_symbol, start, end)
         else:
-            raise XtDataError(f"xtdata 响应不包含股票代码: {symbol}")
-        series_by_field[field] = pd.to_numeric(series, errors="coerce")
+            df = _fetch_stock_data(ak, ak_symbol, start, end, dividend_type)
+    except Exception as exc:
+        raise AkShareDataError(
+            f"AKShare 获取数据失败 ({symbol}): {exc}"
+        ) from exc
 
-    frame = pd.DataFrame(series_by_field)
-    frame.index.name = "date"
-    frame = frame.reset_index()
-    frame["date"] = _normalize_time_values(frame["date"])
-    frame = frame.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
-    return frame[["date", *field_list]]
+    field_list = fields or DEFAULT_OHLCV_FIELDS
+    available = [c for c in field_list if c in df.columns]
+    if not available:
+        raise AkShareDataError(f"AKShare 返回数据缺少所有行情列: {field_list}")
+
+    result = df[["date", *available]].copy()
+    result = result.dropna(subset=["date"] + available).sort_values("date").reset_index(drop=True)
+    return result
+
+
+def _fetch_stock_data(ak: Any, ak_symbol: str, start: str, end: str, dividend_type: str) -> pd.DataFrame:
+    """使用 stock_zh_a_daily 获取股票数据（支持复权），失败时回退到 fund_etf_hist_sina。"""
+    adj = _normalize_dividend_type(dividend_type)
+    try:
+        df = ak.stock_zh_a_daily(
+            symbol=ak_symbol,
+            adjust=adj,
+            start_date=start.replace("-", ""),
+            end_date=end.replace("-", ""),
+        )
+    except Exception:
+        df = pd.DataFrame()
+
+    if df.empty or "date" not in df.columns:
+        # fallback: fund_etf_hist_sina 也支持股票
+        return _fetch_etf_data(ak, ak_symbol, start, end)
+
+    # 保留必要列
+    columns = {"date", "open", "high", "low", "close", "volume"}
+    keep = [c for c in df.columns if c in columns]
+    if "date" not in df.columns:
+        df = df.reset_index()
+    df = df[keep].copy()
+    df["date"] = pd.to_datetime(df["date"])
+    return df
+
+
+def _fetch_etf_data(ak: Any, ak_symbol: str, start: str, end: str) -> pd.DataFrame:
+    """使用 fund_etf_hist_sina 获取 ETF 数据。"""
+    df = ak.fund_etf_hist_sina(symbol=ak_symbol)
+    if df.empty:
+        return pd.DataFrame()
+    df["date"] = pd.to_datetime(df["date"])
+    # 按日期过滤
+    start_dt = pd.Timestamp(start)
+    end_dt = pd.Timestamp(end)
+    df = df[(df["date"] >= start_dt) & (df["date"] <= end_dt)]
+    # 保留必要列
+    keep = [c for c in ["date", "open", "high", "low", "close", "volume"] if c in df.columns]
+    return df[keep].copy()
 
 
 def to_chinese_ohlcv(data_frame: pd.DataFrame) -> pd.DataFrame:
+    """将日期和行情列名转为中文，用于 Streamlit 界面展示。"""
     frame = data_frame.copy()
     frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
     return frame.rename(
@@ -147,7 +177,8 @@ def to_chinese_ohlcv(data_frame: pd.DataFrame) -> pd.DataFrame:
 
 def to_title_case_ohlcv(data_frame: pd.DataFrame) -> pd.DataFrame:
     """
-    保持已有策略示例与 Open/High/Low/Close/Volume 列兼容。
+    将列名转为 Open/High/Low/Close/Volume 格式，
+    保持与 Backtrader 兼容。
     """
     frame = data_frame.copy()
     if "date" in frame.columns:
@@ -161,15 +192,3 @@ def to_title_case_ohlcv(data_frame: pd.DataFrame) -> pd.DataFrame:
             "volume": "Volume",
         }
     )[["Open", "High", "Low", "Close", "Volume"]]
-
-
-def _normalize_time_values(values: pd.Series) -> pd.Series:
-    raw = values.astype(str).str.replace(r"\.0$", "", regex=True)
-    lengths = raw.str.len()
-    if lengths.ge(13).all():
-        return pd.to_datetime(raw.astype("int64"), unit="ms", errors="coerce")
-    if lengths.eq(8).all():
-        return pd.to_datetime(raw, format="%Y%m%d", errors="coerce")
-    if lengths.eq(14).all():
-        return pd.to_datetime(raw, format="%Y%m%d%H%M%S", errors="coerce")
-    return pd.to_datetime(raw, errors="coerce")
