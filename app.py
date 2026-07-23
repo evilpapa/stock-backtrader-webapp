@@ -6,7 +6,7 @@ import streamlit as st
 from streamlit_echarts import st_pyecharts
 
 from charts import draw_multi_line, draw_pro_kline, draw_result_bar, draw_weight_area
-from frames import backtrader_selector_ui, params_selector_ui, xtdata_selector_ui
+from frames import backtrader_selector_ui, data_selector_ui, params_selector_ui
 from utils.etf_momentum_backtest import (
 	BENCHMARK_NAME as ETF_BENCHMARK_NAME,
 	DEFAULT_ASSETS as ETF_DEFAULT_ASSETS,
@@ -417,12 +417,12 @@ def render_turtle_page() -> None:
 
 
 def render_single_symbol_strategy(name: str) -> None:
-	xtdata_params = xtdata_selector_ui()
+	data_params = data_selector_ui()
 	bt_params = backtrader_selector_ui()
-	if not xtdata_params.symbol:
+	if not data_params.symbol:
 		return
 
-	stock_df = gen_stock_df(xtdata_params)
+	stock_df = gen_stock_df(data_params)
 	if stock_df.empty:
 		st.error("Get stock data failed!")
 		return
@@ -436,7 +436,7 @@ def render_single_symbol_strategy(name: str) -> None:
 	if not submitted:
 		return
 
-	logger.info(f"xtdata: {xtdata_params}")
+	logger.info(f"akshare: {data_params}")
 	logger.info(f"backtrader: {bt_params}")
 	stock_df = stock_df.rename(
 		columns={

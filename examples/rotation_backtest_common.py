@@ -19,8 +19,8 @@ from utils.commission import ChinaStockCommission
 
 
 def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strategy_name: str) -> dict[str, pd.DataFrame]:
-	# 从 xtdata 拉取行情，并整理为 Backtrader 可直接使用的 OHLCV 数据。
-	print(f"正在从 xtdata 获取{strategy_name}历史数据...")
+	# 从 AKShare 拉取行情，并整理为 Backtrader 可直接使用的 OHLCV 数据。
+	print(f"正在从 AKShare 获取{strategy_name}历史数据...")
 	prepared: dict[str, pd.DataFrame] = {}
 
 	for symbol in symbols:

@@ -2,23 +2,23 @@ import datetime
 
 import streamlit as st
 
-from utils.schemas import BacktraderParams, XtDataParams
+from utils.schemas import BacktraderParams, DataParams
 
 
-def xtdata_selector_ui() -> XtDataParams:
-	"""xtdata params
+def data_selector_ui() -> DataParams:
+	"""AKShare 数据参数
 
-	:return: XtDataParams
+	:return: DataParams
 	"""
-	st.sidebar.markdown("# XtData Config")
-	symbol = st.sidebar.text_input("symbol", value="000001.SZ")
-	period = st.sidebar.selectbox("period", ("1d", "1w", "1mon"))
-	start_date = st.sidebar.date_input("start date", datetime.date(2010, 1, 1))
-	start_date = start_date.strftime("%Y%m%d")
-	end_date = st.sidebar.date_input("end date", datetime.datetime.today())
-	end_date = end_date.strftime("%Y%m%d")
-	dividend_type = st.sidebar.selectbox("dividend type", ("front", "back", "none", "front_ratio", "back_ratio"))
-	return XtDataParams(
+	st.sidebar.markdown("# 数据配置")
+	symbol = st.sidebar.text_input("股票代码", value="000001")
+	period = st.sidebar.selectbox("周期", ("1d",), index=0)
+	start_date = st.sidebar.date_input("开始日期", datetime.date(2010, 1, 1))
+	start_date = start_date.strftime("%Y-%m-%d")
+	end_date = st.sidebar.date_input("结束日期", datetime.datetime.today())
+	end_date = end_date.strftime("%Y-%m-%d")
+	dividend_type = st.sidebar.selectbox("复权方式", ("qfq", "hfq", "none"))
+	return DataParams(
 		symbol=symbol,
 		period=period,
 		start_date=start_date,
