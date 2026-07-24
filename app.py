@@ -20,12 +20,14 @@ from utils.load import load_strategy
 from utils.logs import logger
 from utils.processing import gen_stock_df, run_backtrader
 from utils.rotation_backtest import (
-	ROTATION_SPECS,
-	RotationFrames,
-	RotationSpec,
-	load_rotation_results,
-	normalize_assets as normalize_rotation_assets,
-	run_rotation_backtest,
+    ROTATION_SPECS,
+    RotationFrames,
+    RotationGridResult,
+    RotationSpec,
+    load_rotation_results,
+    normalize_assets as normalize_rotation_assets,
+    run_rotation_backtest,
+    run_rotation_grid_search,
 )
 from utils.schemas import StrategyBase
 from utils.turtle_backtest import (
@@ -281,67 +283,155 @@ def render_etf_momentum_page() -> None:
 	render_strategy_result_frames(frames)
 
 
+def _param_range_ui(key: str, label: str, default_value: int) -> tuple[int, int, int]:
+    """渲染 min / max / step 三列参数范围输入，返回 (min_val, max_val, step)"""
+    st.markdown(f"**{label}**")
+    cols = st.columns(3)
+    with cols[0]:
+        min_val = st.number_input(f"min {key}", value=default_value - 10, min_value=1, step=1, key=f"min_{key}")
+    with cols[1]:
+        max_val = st.number_input(f"max {key}", value=default_value + 10, min_value=1, step=1, key=f"max_{key}")
+    with cols[2]:
+        step_val = st.number_input(f"step {key}", value=5, min_value=1, step=1, key=f"step_{key}")
+    if min_val > max_val:
+        min_val, max_val = max_val, min_val
+    if step_val < 1:
+        step_val = 1
+    return min_val, max_val, step_val
+
+
 def render_rotation_page(spec: RotationSpec) -> None:
-	st.subheader(spec.title)
-	st.sidebar.markdown(f"# {spec.title} Config")
-	start_date = st.sidebar.date_input(
-		f"{spec.key} start date",
-		datetime.date.fromisoformat(spec.default_start_date),
-	)
-	end_date = st.sidebar.date_input(f"{spec.key} end date", datetime.datetime.today())
-	initial_cash = st.sidebar.number_input(f"{spec.key} start cash", min_value=0.0, value=100000.0, step=10000.0)
-	momentum_window = st.sidebar.number_input(
-		f"{spec.key} momentum window",
-		min_value=1,
-		value=spec.default_momentum_window,
-		step=1,
-	)
-	rebalance_days = st.sidebar.number_input(
-		f"{spec.key} rebalance days",
-		min_value=1,
-		value=spec.default_rebalance_days,
-		step=1,
-	)
-	top_l = st.sidebar.number_input(f"{spec.key} top L", min_value=1, value=spec.default_top_l, step=1)
-	benchmark_symbol = st.sidebar.text_input(f"{spec.key} benchmark symbol", value=spec.benchmark_symbol)
-	benchmark_name = st.sidebar.text_input(f"{spec.key} benchmark name", value=spec.benchmark_name)
+    st.subheader(spec.title)
+    st.sidebar.markdown(f"# {spec.title} Config")
+    start_date = st.sidebar.date_input(
+        f"{spec.key} start date",
+        datetime.date.fromisoformat(spec.default_start_date),
+    )
+    end_date = st.sidebar.date_input(f"{spec.key} end date", datetime.datetime.today())
+    initial_cash = st.sidebar.number_input(f"{spec.key} start cash", min_value=0.0, value=100000.0, step=10000.0)
 
-	assets_df = st.data_editor(
-		pd.DataFrame(spec.assets),
-		column_order=["symbol", "name"],
-		num_rows="dynamic",
-		use_container_width=True,
-		key=f"{spec.key}_assets",
-	)
-	assets = normalize_rotation_assets(assets_df)
+    # 参数范围输入（替换之前的单个数字）
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**参数范围（网格搜索）**")
+    st.sidebar.caption("设 min=max 即为单次运行")
+    mw_min, mw_max, mw_step = _param_range_ui(f"{spec.key}_mw", "动量窗口", spec.default_momentum_window)
+    rd_min, rd_max, rd_step = _param_range_ui(f"{spec.key}_rd", "调仓间隔", spec.default_rebalance_days)
+    tl_min, tl_max, tl_step = _param_range_ui(f"{spec.key}_tl", "持仓数量(L)", spec.default_top_l)
 
-	if st.button(f"重新运行 {spec.title} 回测", type="primary"):
-		try:
-			with st.spinner(f"正在运行 {spec.title} 回测..."):
-				frames = run_rotation_backtest(
-					spec=spec,
-					assets=assets,
-					benchmark_symbol=benchmark_symbol.strip(),
-					benchmark_name=benchmark_name.strip() or spec.benchmark_name,
-					start_date=start_date.isoformat(),
-					end_date=end_date.isoformat(),
-					initial_cash=float(initial_cash),
-					momentum_window=int(momentum_window),
-					rebalance_days=int(rebalance_days),
-					top_l=int(top_l),
-				)
-			st.success(f"{spec.title} 结果已更新: {spec.output_dir}")
-		except Exception as exc:
-			logger.exception(f"{spec.key} backtest failed")
-			st.error(f"{spec.title} 回测失败: {exc}")
-			frames = load_rotation_results(spec)
-	else:
-		frames = load_rotation_results(spec)
+    benchmark_symbol = st.sidebar.text_input(f"{spec.key} benchmark symbol", value=spec.benchmark_symbol)
+    benchmark_name = st.sidebar.text_input(f"{spec.key} benchmark name", value=spec.benchmark_name)
 
-	if frames is None:
-		st.info(f"未找到完整 {spec.title} 结果，请点击重新回测生成 {spec.output_dir} 下的 CSV。")
-		return
-	render_strategy_result_frames(frames)
+    assets_df = st.data_editor(
+        pd.DataFrame(spec.assets),
+        column_order=["symbol", "name"],
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"{spec.key}_assets",
+    )
+    assets = normalize_rotation_assets(assets_df)
+
+    # 存储结果
+    if "rotation_grid_result" not in st.session_state:
+        st.session_state.rotation_grid_result = None
+    if "rotation_frames" not in st.session_state:
+        st.session_state.rotation_frames = None
+
+    if st.button(f"运行 {spec.title} 回测", type="primary"):
+        try:
+            mw_range = range(mw_min, mw_max + 1, mw_step)
+            rd_range = range(rd_min, rd_max + 1, rd_step)
+            tl_range = range(tl_min, tl_max + 1, tl_step)
+            total_combos = len(list(mw_range)) * len(list(rd_range)) * len(list(tl_range))
+
+            param_ranges = {
+                "momentum_window": mw_range,
+                "rebalance_days": rd_range,
+                "top_l": tl_range,
+            }
+
+            with st.spinner(f"正在运行 {spec.title} 网格搜索（共 {total_combos} 种参数组合）..."):
+                if total_combos == 1:
+                    # 单次运行，走原来的路
+                    frames = run_rotation_backtest(
+                        spec=spec,
+                        assets=assets,
+                        benchmark_symbol=benchmark_symbol.strip(),
+                        benchmark_name=benchmark_name.strip() or spec.benchmark_name,
+                        start_date=start_date.isoformat(),
+                        end_date=end_date.isoformat(),
+                        initial_cash=float(initial_cash),
+                        momentum_window=mw_min,
+                        rebalance_days=rd_min,
+                        top_l=tl_min,
+                    )
+                    st.session_state.rotation_grid_result = None
+                    st.session_state.rotation_frames = frames
+                    st.success(f"{spec.title} 回测完成")
+                else:
+                    # 网格搜索
+                    grid_result = run_rotation_grid_search(
+                        spec=spec,
+                        assets=assets,
+                        benchmark_symbol=benchmark_symbol.strip(),
+                        benchmark_name=benchmark_name.strip() or spec.benchmark_name,
+                        start_date=start_date.isoformat(),
+                        end_date=end_date.isoformat(),
+                        initial_cash=float(initial_cash),
+                        param_ranges=param_ranges,
+                    )
+                    st.session_state.rotation_grid_result = grid_result
+                    st.session_state.rotation_frames = grid_result.best_frames
+                    st.success(
+                        f"{spec.title} 网格搜索完成（{total_combos} 种组合），"
+                        f"最优参数已保存到 {spec.output_dir}"
+                    )
+        except Exception as exc:
+            logger.exception(f"{spec.key} backtest failed")
+            st.error(f"{spec.title} 回测失败: {exc}")
+            st.session_state.rotation_grid_result = None
+            st.session_state.rotation_frames = load_rotation_results(spec)
+
+    grid_result = st.session_state.rotation_grid_result
+    frames = st.session_state.rotation_frames
+
+    if frames is None:
+        st.info(f"未找到完整 {spec.title} 结果，请点击运行回测。")
+        return
+
+    # 显示参数对比表（网格搜索时）
+    if grid_result is not None and not grid_result.comparison.empty:
+        st.subheader("参数对比")
+
+        # 格式化百分比列
+        display_df = grid_result.comparison.copy()
+        pct_cols = ["年化收益率", "年化波动率", "最大回撤", "胜率"]
+        for col in pct_cols:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].map(
+                    lambda v: f"{v * 100:.2f}%" if pd.notna(v) else "N/A"
+                )
+        ratio_cols = ["夏普比率", "卡尔马比率", "索提诺比率"]
+        for col in ratio_cols:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].map(
+                    lambda v: f"{v:.3f}" if pd.notna(v) else "N/A"
+                )
+
+        st.dataframe(display_df.style.highlight_max(subset=[c for c in display_df.columns if c not in ["momentum_window", "rebalance_days", "top_l"]]), use_container_width=True)
+        st.caption("按年化收益率降序排列，绿色高亮 = 该列最大值")
+
+        # 参数组合柱状图
+        if len(grid_result.comparison) >= 2:
+            chart_df = grid_result.comparison.copy()
+            chart_df["label"] = chart_df.apply(
+                lambda r: f"N{r['momentum_window']}_K{r['rebalance_days']}_L{r['top_l']}", axis=1
+            )
+            bar = draw_result_bar(chart_df, n_scors=5)
+            st_pyecharts(bar, height="460px")
+
+    # 显示最优结果的详细回测
+    st.subheader("最优结果详情" if grid_result else "回测结果")
+    render_strategy_result_frames(frames)
 
 
 def render_turtle_frames(frames: TurtleFrames) -> None:
