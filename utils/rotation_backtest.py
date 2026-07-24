@@ -319,14 +319,20 @@ def run_rotation_grid_search(
         comparison_rows.append(row)
 
     comparison = pd.DataFrame(comparison_rows)
-    # 按年化收益率降序排列，最优排第一
-    if "年化收益率" in comparison.columns:
-        comparison = comparison.sort_values("年化收益率", ascending=False).reset_index(drop=True)
 
-    best_idx = 0  # 已按收益排序，第一行即最优
-    best_frames = all_frames[best_idx] if all_frames else None
+    # 找到最优参数组合的原始索引（还未排序时）
+    if "年化收益率" in comparison.columns and not comparison["年化收益率"].isna().all():
+        best_orig_idx = int(comparison["年化收益率"].idxmax())
+    else:
+        best_orig_idx = 0
+
+    best_frames = all_frames[best_orig_idx] if all_frames else None
     if best_frames is None:
         raise RuntimeError("所有参数组合回测均失败")
+
+    # 按年化收益率降序排列，供前端展示
+    if "年化收益率" in comparison.columns:
+        comparison = comparison.sort_values("年化收益率", ascending=False).reset_index(drop=True)
 
     # 保存最佳结果到 CSV
     save_results(

@@ -285,12 +285,14 @@ def render_etf_momentum_page() -> None:
 
 def _param_range_ui(key: str, label: str, default_value: int) -> tuple[int, int, int]:
     """渲染 min / max / step 三列参数范围输入，返回 (min_val, max_val, step)"""
+    default_min = max(default_value - 10, 1)
+    default_max = max(default_value + 10, default_min + 1)
     st.markdown(f"**{label}**")
     cols = st.columns(3)
     with cols[0]:
-        min_val = st.number_input(f"min {key}", value=default_value - 10, min_value=1, step=1, key=f"min_{key}")
+        min_val = st.number_input(f"min {key}", value=default_min, min_value=1, step=1, key=f"min_{key}")
     with cols[1]:
-        max_val = st.number_input(f"max {key}", value=default_value + 10, min_value=1, step=1, key=f"max_{key}")
+        max_val = st.number_input(f"max {key}", value=default_max, min_value=1, step=1, key=f"max_{key}")
     with cols[2]:
         step_val = st.number_input(f"step {key}", value=5, min_value=1, step=1, key=f"step_{key}")
     if min_val > max_val:
@@ -418,16 +420,7 @@ def render_rotation_page(spec: RotationSpec) -> None:
                 )
 
         st.dataframe(display_df.style.highlight_max(subset=[c for c in display_df.columns if c not in ["momentum_window", "rebalance_days", "top_l"]]), use_container_width=True)
-        st.caption("按年化收益率降序排列，绿色高亮 = 该列最大值")
-
-        # 参数组合柱状图
-        if len(grid_result.comparison) >= 2:
-            chart_df = grid_result.comparison.copy()
-            chart_df["label"] = chart_df.apply(
-                lambda r: f"N{r['momentum_window']}_K{r['rebalance_days']}_L{r['top_l']}", axis=1
-            )
-            bar = draw_result_bar(chart_df, n_scors=5)
-            st_pyecharts(bar, height="460px")
+        st.caption("按年化收益率降序排列，绿色高亮 = 该列最大值，最佳参数组合已展示在下方的详细回测中")
 
     # 显示最优结果的详细回测
     st.subheader("最优结果详情" if grid_result else "回测结果")
