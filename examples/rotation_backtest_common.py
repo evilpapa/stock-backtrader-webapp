@@ -16,16 +16,35 @@ from strategy.just_buy_hold import JustBuyHoldStrategy
 from strategy.performance_calculator import PerformanceCalculator
 from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
 from utils.commission import ChinaStockCommission
+from utils.schemas import DataSourceParams
 
 
-def prepare_price_data(symbols: list[str], start_date: str, end_date: str, strategy_name: str) -> dict[str, pd.DataFrame]:
-	# 从 xtdata 拉取行情，并整理为 Backtrader 可直接使用的 OHLCV 数据。
-	print(f"正在从 xtdata 获取{strategy_name}历史数据...")
+def prepare_price_data(
+	symbols: list[str],
+	start_date: str,
+	end_date: str,
+	strategy_name: str,
+	data_source_params: DataSourceParams | None = None,
+) -> dict[str, pd.DataFrame]:
+	# 拉取行情，并整理为 Backtrader 可直接使用的 OHLCV 数据。
+	data_source_params = data_source_params or DataSourceParams()
+	print(f"正在从 {data_source_params.data_source} 获取{strategy_name}历史数据...")
 	prepared: dict[str, pd.DataFrame] = {}
 
 	for symbol in symbols:
 		try:
-			df = to_title_case_ohlcv(fetch_history_ohlcv(symbol, start_date, end_date))
+			df = to_title_case_ohlcv(
+				fetch_history_ohlcv(
+					symbol,
+					start_date,
+					end_date,
+					dividend_type=data_source_params.dividend_type,
+					data_source=data_source_params.data_source,
+					qmt_base_url=data_source_params.qmt_base_url,
+					qmt_token=data_source_params.qmt_token,
+					qmt_timeout=data_source_params.qmt_timeout,
+				)
+			)
 		except Exception as exc:
 			print(f"  SKIP {symbol}: 获取失败 - {exc}")
 			continue

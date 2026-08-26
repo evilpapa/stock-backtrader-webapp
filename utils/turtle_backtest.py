@@ -16,6 +16,7 @@ from examples.turtle_trading.backtest_turtle_trading import (
 from examples.rotation_backtest_common import prepare_price_data, run_strategy_backtest
 from strategy.performance_calculator import PerformanceCalculator
 from strategy.turtle_trading import TurtleTradingStrategy
+from utils.schemas import DataSourceParams
 
 
 DEFAULT_OUTPUT_DIR = Path("examples") / "turtle_trading" / "backtest_results"
@@ -96,6 +97,7 @@ def run_turtle_backtest(
 	allow_short: bool,
 	output_dir: Path = DEFAULT_OUTPUT_DIR,
 	price_data: dict[str, pd.DataFrame] | None = None,
+	data_source_params: DataSourceParams | None = None,
 ) -> TurtleFrames:
 	config = TurtleBacktestConfig(
 		symbol=symbol,
@@ -111,7 +113,7 @@ def run_turtle_backtest(
 		allow_short=allow_short,
 		output_dir=output_dir,
 	)
-	price_data = price_data or prepare_price_data([symbol], start_date, end_date, STRATEGY_NAME)
+	price_data = price_data or prepare_price_data([symbol], start_date, end_date, STRATEGY_NAME, data_source_params)
 	df = price_data.get(symbol, pd.DataFrame())
 	if df.empty:
 		raise ValueError("未获取到可用数据")

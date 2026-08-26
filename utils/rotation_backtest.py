@@ -23,6 +23,7 @@ from examples.rotation_backtest_common import (
 )
 from strategy.leading_rotation import LeadingRotationStrategy
 from strategy.sector_rotation import SectorRotationStrategy
+from utils.schemas import DataSourceParams
 
 
 @dataclass(frozen=True)
@@ -182,6 +183,7 @@ def run_rotation_backtest(
 	rebalance_days: int,
 	top_l: int,
 	price_data: dict[str, pd.DataFrame] | None = None,
+	data_source_params: DataSourceParams | None = None,
 ) -> RotationFrames:
 	if not assets:
 		raise ValueError(f"{spec.title} 至少需要一个可交易标的")
@@ -192,7 +194,13 @@ def run_rotation_backtest(
 
 	all_symbols = [asset["symbol"] for asset in strategy_assets]
 	all_names = [asset["name"] for asset in strategy_assets]
-	price_data = price_data or prepare_price_data(all_symbols, start_date, end_date, spec.data_cache_name)
+	price_data = price_data or prepare_price_data(
+		all_symbols,
+		start_date,
+		end_date,
+		spec.data_cache_name,
+		data_source_params,
+	)
 	if benchmark_symbol not in price_data:
 		raise RuntimeError(f"缺少基准数据: {benchmark_symbol}")
 

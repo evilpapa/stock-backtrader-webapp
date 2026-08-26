@@ -27,6 +27,8 @@ def import_xtdata() -> Any:
 def normalize_xt_symbol(symbol: str) -> str:
     """转换常见的 Akshare/Yahoo 股票代码为 xtdata code.market 格式。"""
     symbol = symbol.strip().upper()
+    if symbol.endswith(".SS"):
+        return symbol[:-3] + ".SH"
     if symbol.endswith((".SH", ".SZ", ".BJ")):
         return symbol
     if len(symbol) == 6 and symbol.startswith(("5", "6", "9")):
@@ -72,12 +74,33 @@ def fetch_history_ohlcv(
     fields: list[str] | None = None,
     download: bool = True,
     xtdata_module: Any | None = None,
+    data_source: str = "xtdata",
+    qmt_base_url: str = "http://127.0.0.1:10086",
+    qmt_token: str = "123456789",
+    qmt_timeout: float = 10.0,
 ) -> pd.DataFrame:
     """
     获取历史 K 线数据，返回包含 date/open/high/low/close/volume 列的 DataFrame。
     通过 xtdata.get_market_data 下载并读取数据，支持前复权、后复权和不复权选项。
     ohlcv 代表：Open High Low Close Volume / 开盘价 最高价 最低价 收盘价 成交量
     """
+    if data_source == "qmt_proxy":
+        from .qmt_client import fetch_history_ohlcv as fetch_qmt_history_ohlcv
+
+        return fetch_qmt_history_ohlcv(
+            symbol=symbol,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            dividend_type=dividend_type,
+            fields=fields,
+            base_url=qmt_base_url,
+            token=qmt_token,
+            timeout=qmt_timeout,
+        )
+    if data_source != "xtdata":
+        raise XtDataError(f"Unsupported market data source: {data_source}")
+
     xt_symbol = normalize_xt_symbol(symbol)
     start_time = format_xt_date(start_date)
     end_time = format_xt_date(end_date)

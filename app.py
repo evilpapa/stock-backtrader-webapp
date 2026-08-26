@@ -6,7 +6,7 @@ import streamlit as st
 from streamlit_echarts import st_pyecharts
 
 from charts import draw_multi_line, draw_pro_kline, draw_result_bar, draw_weight_area
-from frames import backtrader_selector_ui, params_selector_ui, xtdata_selector_ui
+from frames import backtrader_selector_ui, market_data_source_ui, params_selector_ui, xtdata_selector_ui
 from utils.etf_momentum_backtest import (
 	BENCHMARK_NAME as ETF_BENCHMARK_NAME,
 	DEFAULT_ASSETS as ETF_DEFAULT_ASSETS,
@@ -237,6 +237,7 @@ def render_strategy_result_frames(frames: EtfMomentumFrames | RotationFrames) ->
 def render_etf_momentum_page() -> None:
 	st.subheader("ETF Momentum")
 	st.sidebar.markdown("# ETF Momentum Config")
+	data_source_params = market_data_source_ui("ETF")
 	start_date = st.sidebar.date_input("ETF start date", datetime.date(2025, 1, 1))
 	end_date = st.sidebar.date_input("ETF end date", datetime.datetime.today())
 	initial_cash = st.sidebar.number_input("ETF start cash", min_value=0.0, value=100000.0, step=10000.0)
@@ -266,6 +267,7 @@ def render_etf_momentum_page() -> None:
 					initial_cash=float(initial_cash),
 					momentum_window=int(momentum_window),
 					rebalance_days=int(rebalance_days),
+					data_source_params=data_source_params,
 				)
 			st.success(f"ETF Momentum 结果已更新: {ETF_OUTPUT_DIR}")
 		except Exception as exc:
@@ -284,6 +286,7 @@ def render_etf_momentum_page() -> None:
 def render_rotation_page(spec: RotationSpec) -> None:
 	st.subheader(spec.title)
 	st.sidebar.markdown(f"# {spec.title} Config")
+	data_source_params = market_data_source_ui(spec.key)
 	start_date = st.sidebar.date_input(
 		f"{spec.key} start date",
 		datetime.date.fromisoformat(spec.default_start_date),
@@ -329,6 +332,7 @@ def render_rotation_page(spec: RotationSpec) -> None:
 					momentum_window=int(momentum_window),
 					rebalance_days=int(rebalance_days),
 					top_l=int(top_l),
+					data_source_params=data_source_params,
 				)
 			st.success(f"{spec.title} 结果已更新: {spec.output_dir}")
 		except Exception as exc:
@@ -374,6 +378,7 @@ def render_turtle_frames(frames: TurtleFrames) -> None:
 def render_turtle_page() -> None:
 	st.subheader("Turtle Trading")
 	st.sidebar.markdown("# Turtle Trading Config")
+	data_source_params = market_data_source_ui("Turtle")
 	symbol = st.sidebar.text_input("Turtle symbol", value=DEFAULT_SYMBOL)
 	start_date = st.sidebar.date_input("Turtle start date", datetime.date.fromisoformat(DEFAULT_START_DATE))
 	end_date = st.sidebar.date_input("Turtle end date", datetime.datetime.today())
@@ -401,6 +406,7 @@ def render_turtle_page() -> None:
 					lot_size=int(lot_size),
 					initial_cash=float(initial_cash),
 					allow_short=bool(allow_short),
+					data_source_params=data_source_params,
 				)
 			st.success(f"Turtle Trading 结果已更新: {TURTLE_OUTPUT_DIR}")
 		except Exception as exc:

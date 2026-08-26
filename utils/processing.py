@@ -32,6 +32,10 @@ def gen_stock_df(xtdata_params: XtDataParams) -> pd.DataFrame:
         start_date=xtdata_params.start_date,
         end_date=xtdata_params.end_date,
         dividend_type=xtdata_params.dividend_type,
+        data_source=xtdata_params.data_source,
+        qmt_base_url=xtdata_params.qmt_base_url,
+        qmt_token=xtdata_params.qmt_token,
+        qmt_timeout=xtdata_params.qmt_timeout,
     )
     if not df.empty:
         return to_chinese_ohlcv(df)

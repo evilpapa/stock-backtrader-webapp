@@ -19,6 +19,7 @@ from examples.rotation_backtest_common import (
 	save_results,
 )
 from strategy.etf_momentum import EtfMomentumStrategy
+from utils.schemas import DataSourceParams
 
 
 STRATEGY_NAME = "动量策略"
@@ -100,6 +101,7 @@ def run_etf_momentum_backtest(
 	rebalance_days: int,
 	output_dir: Path = DEFAULT_OUTPUT_DIR,
 	price_data: dict[str, pd.DataFrame] | None = None,
+	data_source_params: DataSourceParams | None = None,
 ) -> EtfMomentumFrames:
 	symbols = [asset["symbol"] for asset in assets]
 	names = [asset["name"] for asset in assets]
@@ -108,7 +110,7 @@ def run_etf_momentum_backtest(
 	if benchmark_symbol not in symbols:
 		raise ValueError("基准标的必须包含在 ETF 标的列表中")
 
-	price_data = price_data or prepare_price_data(symbols, start_date, end_date, DATA_CACHE_NAME)
+	price_data = price_data or prepare_price_data(symbols, start_date, end_date, DATA_CACHE_NAME, data_source_params)
 	if benchmark_symbol not in price_data:
 		raise RuntimeError(f"缺少基准数据: {benchmark_symbol}")
 

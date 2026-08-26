@@ -3,13 +3,17 @@ ETF动量轮动策略回测脚本
 
 使用：
 	uv run python examples/etf_momentum/backtest_etf_momentum.py
+	uv run python examples/etf_momentum/backtest_etf_momentum.py --data-source xtdata
 """
 
 from __future__ import annotations
 
+import argparse
+import os
 import runpy
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Sequence
 
 import backtrader as bt
 import numpy as np
@@ -38,6 +42,7 @@ from examples.rotation_backtest_common import (
 	run_strategy_backtest,
 	save_results,
 )
+from utils.schemas import DataSourceParams
 
 configure_matplotlib_chinese_font()
 
@@ -60,6 +65,40 @@ COLORS = {
 	BENCHMARK_NAME: "#377EB8",
 	EQUAL_WEIGHT_NAME: "#4DAF4A",
 }
+
+
+def parse_data_source_params(argv: Sequence[str] | None = None) -> DataSourceParams:
+	"""Read the market-data source configuration for this standalone example."""
+	parser = argparse.ArgumentParser(description="ETF 动量轮动策略回测")
+	parser.add_argument(
+		"--data-source",
+		choices=("qmt_proxy", "xtdata"),
+		default=os.getenv("BACKTEST_DATA_SOURCE", "qmt_proxy"),
+		help="行情数据源；默认 qmt_proxy，可通过 BACKTEST_DATA_SOURCE 覆盖",
+	)
+	parser.add_argument(
+		"--qmt-base-url",
+		default=os.getenv("QMT_PROXY_BASE_URL", "http://0.0.0.0:10086"),
+		help="QMT 代理地址",
+	)
+	parser.add_argument(
+		"--qmt-token",
+		default=os.getenv("QMT_PROXY_TOKEN", "123456789"),
+		help="QMT 代理令牌",
+	)
+	parser.add_argument(
+		"--qmt-timeout",
+		type=float,
+		default=float(os.getenv("QMT_PROXY_TIMEOUT", "10")),
+		help="QMT 代理请求超时（秒）",
+	)
+	args = parser.parse_args(argv)
+	return DataSourceParams(
+		data_source=args.data_source,
+		qmt_base_url=args.qmt_base_url,
+		qmt_token=args.qmt_token,
+		qmt_timeout=args.qmt_timeout,
+	)
 
 
 class EtfMomentumStrategy(bt.Strategy):
@@ -145,6 +184,7 @@ class EtfMomentumStrategy(bt.Strategy):
 
 
 def main() -> None:
+	data_source_params = parse_data_source_params()
 	print("=" * 60)
 	print("ETF动量轮动策略回测 (Python版本)")
 	print("=" * 60)
@@ -152,9 +192,16 @@ def main() -> None:
 	print(f"ETF标的: {', '.join(ETF_NAMES)}")
 	print(f"参数: N={MOMENTUM_WINDOW}, K={REBALANCE_DAYS}")
 	print(f"初始资金: {INITIAL_CASH:,.0f} 元")
+	print(f"数据源: {data_source_params.data_source}")
 	print("=" * 60)
 
-	price_data = prepare_price_data(ETF_SYMBOLS, BACKTEST_START, BACKTEST_END, DATA_CACHE_NAME)
+	price_data = prepare_price_data(
+		ETF_SYMBOLS,
+		BACKTEST_START,
+		BACKTEST_END,
+		DATA_CACHE_NAME,
+		data_source_params,
+	)
 	if BENCHMARK_SYMBOL not in price_data:
 		raise RuntimeError(f"缺少基准数据: {BENCHMARK_SYMBOL}")
 	available_assets = [
