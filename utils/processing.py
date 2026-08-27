@@ -7,8 +7,8 @@ import pandas as pd
 import streamlit as st
 
 from .logs import logger
-from .schemas import BacktraderParams, StrategyBase, XtDataParams
-from .xtdata_client import fetch_history_ohlcv, to_chinese_ohlcv
+from .qmt_client import fetch_history_ohlcv, to_chinese_ohlcv
+from .schemas import BacktraderParams, MarketDataParams, StrategyBase
 
 logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR)
 
@@ -16,26 +16,25 @@ logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR
 model_hash_func = lambda x: x.model_dump()
 
 
-@st.cache_data(hash_funcs={XtDataParams: model_hash_func})
-def gen_stock_df(xtdata_params: XtDataParams) -> pd.DataFrame:
+@st.cache_data(hash_funcs={MarketDataParams: model_hash_func})
+def gen_stock_df(market_data_params: MarketDataParams) -> pd.DataFrame:
     """生成股票数据
 
     Args:
-        xtdata_params (XtDataParams): xtdata 参数
+        market_data_params (MarketDataParams): QMT API 参数
 
     Returns:
         pd.DataFrame: 股票历史数据
     """
     df = fetch_history_ohlcv(
-        symbol=xtdata_params.symbol,
-        period=xtdata_params.period,
-        start_date=xtdata_params.start_date,
-        end_date=xtdata_params.end_date,
-        dividend_type=xtdata_params.dividend_type,
-        data_source=xtdata_params.data_source,
-        qmt_base_url=xtdata_params.qmt_base_url,
-        qmt_token=xtdata_params.qmt_token,
-        qmt_timeout=xtdata_params.qmt_timeout,
+        symbol=market_data_params.symbol,
+        period=market_data_params.period,
+        start_date=market_data_params.start_date,
+        end_date=market_data_params.end_date,
+        dividend_type=market_data_params.dividend_type,
+        base_url=market_data_params.qmt_base_url,
+        token=market_data_params.qmt_token,
+        timeout=market_data_params.qmt_timeout,
     )
     if not df.empty:
         return to_chinese_ohlcv(df)

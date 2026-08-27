@@ -2,16 +2,12 @@ import datetime
 
 import streamlit as st
 
-from utils.schemas import BacktraderParams, DataSourceParams, XtDataParams
+from utils.schemas import BacktraderParams, DataSourceParams, MarketDataParams
 
 
 def market_data_source_ui(prefix: str = "") -> DataSourceParams:
 	label_prefix = f"{prefix} " if prefix else ""
 	st.sidebar.markdown(f"# {label_prefix}Market Data Source")
-	data_source = st.sidebar.selectbox(
-		f"{label_prefix}data source",
-		("xtdata", "qmt_proxy"),
-	)
 	dividend_type = st.sidebar.selectbox(
 		f"{label_prefix}dividend type",
 		("front", "back", "none", "front_ratio", "back_ratio"),
@@ -19,18 +15,10 @@ def market_data_source_ui(prefix: str = "") -> DataSourceParams:
 	qmt_base_url = "http://127.0.0.1:10086"
 	qmt_token = "123456789"
 	qmt_timeout = 10.0
-	if data_source == "qmt_proxy":
-		qmt_base_url = st.sidebar.text_input(f"{label_prefix}QMT proxy url", value=qmt_base_url)
-		qmt_token = st.sidebar.text_input(f"{label_prefix}QMT token", value=qmt_token, type="password")
-		qmt_timeout = st.sidebar.number_input(
-			f"{label_prefix}QMT timeout",
-			min_value=1.0,
-			max_value=60.0,
-			value=qmt_timeout,
-			step=1.0,
-		)
+	qmt_base_url = st.sidebar.text_input(f"{label_prefix}QMT API url", value=qmt_base_url)
+	qmt_token = st.sidebar.text_input(f"{label_prefix}QMT token", value=qmt_token, type="password")
+	qmt_timeout = st.sidebar.number_input(f"{label_prefix}QMT timeout", min_value=1.0, max_value=60.0, value=qmt_timeout, step=1.0)
 	return DataSourceParams(
-		data_source=data_source,
 		dividend_type=dividend_type,
 		qmt_base_url=qmt_base_url,
 		qmt_token=qmt_token,
@@ -38,12 +26,12 @@ def market_data_source_ui(prefix: str = "") -> DataSourceParams:
 	)
 
 
-def xtdata_selector_ui() -> XtDataParams:
-	"""xtdata params
+def market_data_selector_ui() -> MarketDataParams:
+	"""QMT API market-data parameters.
 
-	:return: XtDataParams
+	:return: MarketDataParams
 	"""
-	st.sidebar.markdown("# XtData Config")
+	st.sidebar.markdown("# QMT Data Config")
 	symbol = st.sidebar.text_input("symbol", value="000001.SZ")
 	period = st.sidebar.selectbox("period", ("1d", "1w", "1mon"))
 	start_date = st.sidebar.date_input("start date", datetime.date(2010, 1, 1))
@@ -51,7 +39,7 @@ def xtdata_selector_ui() -> XtDataParams:
 	end_date = st.sidebar.date_input("end date", datetime.datetime.today())
 	end_date = end_date.strftime("%Y%m%d")
 	data_source = market_data_source_ui()
-	return XtDataParams(
+	return MarketDataParams(
 		symbol=symbol,
 		period=period,
 		start_date=start_date,

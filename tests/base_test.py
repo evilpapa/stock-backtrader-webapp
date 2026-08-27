@@ -8,7 +8,7 @@ import pandas as pd
 
 from strategy.base import BaseStrategy
 from utils.load import load_strategy
-from utils.xtdata_client import fetch_history_ohlcv
+from utils.qmt_client import fetch_history_ohlcv
 
 
 class StrategyTest(unittest.TestCase):

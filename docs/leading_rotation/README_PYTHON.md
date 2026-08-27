@@ -36,7 +36,7 @@ uv run streamlit run app.py
 uv run python examples/leading_rotation/backtest_leading_rotation.py
 ```
 
-脚本默认使用 `xtdata` 下载数据，并在 `examples/leading_rotation/backtest_results` 输出：
+脚本通过 QMT API 获取数据，并在 `examples/leading_rotation/backtest_results` 输出：
 
 - `performance_metrics.csv`
 - `daily_weights.csv`

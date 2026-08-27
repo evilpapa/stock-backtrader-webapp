@@ -26,33 +26,6 @@ def safe_call(func, *args, **kwargs):
         return None
 
 
-def load_market_data_ex(context, fields, stock_codes, period, start_time, end_time, count, dividend_type):
-    """补齐本地历史数据后，通过新版接口读取行情且不创建行情订阅。"""
-    try:
-        from xtquant import xtdata
-    except ImportError as exc:
-        raise HTTPError(500, "无法导入 xtquant.xtdata，无法补充历史行情") from exc
-
-    for stock_code in stock_codes:
-        try:
-            xtdata.download_history_data(stock_code, period, start_time, end_time)
-        except Exception as exc:
-            raise HTTPError(500, f"补充历史行情失败: {stock_code}: {exc}") from exc
-
-    return safe_call(
-        context.get_market_data_ex,
-        fields=fields,
-        stock_code=stock_codes,
-        period=period,
-        start_time=start_time,
-        end_time=end_time,
-        count=count,
-        dividend_type=dividend_type,
-        fill_data=True,
-        subscribe=False,
-    )
-
-
 def market_data_to_jsonable(data):
     return {
         key: value.to_dict() if hasattr(value, "to_dict") else value
@@ -276,16 +249,7 @@ class MarketDataHandler(BaseHandler):
         count = int(data.get('count', '-1'))
         fields_list = [f.strip() for f in fields.split(',')] if fields else []
         stock_list = [s.strip() for s in stock_code.split(',')] if stock_code else []
-        ret = load_market_data_ex(
-            self.ctx(),
-            fields_list,
-            stock_list,
-            period,
-            start_time,
-            end_time,
-            count,
-            dividend_type,
-        )
+        ret = safe_call(self.ctx().get_market_data_ex, fields=fields_list, stock_code=stock_list, period=period, start_time=start_time, end_time=end_time, count=count, dividend_type=dividend_type, fill_data=True, subscribe=False)
         if ret is None:
             raise HTTPError(500, "获取行情数据失败")
         self.write(json.dumps({"data": market_data_to_jsonable(ret)}, ensure_ascii=False, default=str))
@@ -303,16 +267,7 @@ class MarketDataExHandler(BaseHandler):
         dividend_type = data.get('dividend_type', 'follow')
         fields_list = [f.strip() for f in fields.split(',')] if fields else []
         stock_list = [s.strip() for s in stock_code.split(',')] if stock_code else []
-        ret = load_market_data_ex(
-            self.ctx(),
-            fields_list,
-            stock_list,
-            period,
-            start_time,
-            end_time,
-            count,
-            dividend_type,
-        )
+        ret = safe_call(self.ctx().get_market_data_ex, fields=fields_list, stock_code=stock_list, period=period, start_time=start_time, end_time=end_time, count=count, dividend_type=dividend_type, fill_data=True, subscribe=False)
         if ret is None:
             raise HTTPError(500, "获取扩展行情失败")
         self.write(json.dumps({"data": market_data_to_jsonable(ret)}, ensure_ascii=False, default=str))

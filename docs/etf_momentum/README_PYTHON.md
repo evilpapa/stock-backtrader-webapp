@@ -1,6 +1,6 @@
 # ETF 动量轮动策略 - Python 版本
 
-Python 版本已使用本项目的 `xtdata` 客户端获取本机 miniQMT 历史行情。
+Python 版本通过本项目的 QMT API 客户端获取历史行情。
 
 ## 快速开始
 
@@ -19,9 +19,9 @@ uv run python examples/etf_momentum/backtest_etf_momentum.py
 
 ## 数据源
 
-- 数据来自 `utils.xtdata_client.fetch_history_ohlcv`。
+- 数据来自 `utils.qmt_client.fetch_history_ohlcv`。
 - 脚本通过 `to_title_case_ohlcv()` 转换为 Backtrader 需要的 `Open/High/Low/Close/Volume` 列。
-- 运行前需确保本机 miniQMT/xtdata 数据服务可用，且对应 ETF 历史数据已能读取。
+- 运行前需确保 QMT API 服务可用，且对应 ETF 历史数据可查询。
 
 默认标的位于 `examples/etf_momentum/backtest_etf_momentum.py`：
 
@@ -61,12 +61,12 @@ ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
 
 - `examples/etf_momentum/backtest_etf_momentum.py`：独立回测脚本。
 - `strategy/etf_momentum.py`：集成到 Backtrader/Streamlit 的策略类。
-- `utils/xtdata_client.py`：miniQMT xtdata 客户端。
+- `utils/qmt_client.py`：QMT API 客户端。
 - `tests/etf_momentum_test.py`：单元测试。
 - `config/strategy.yaml`：策略参数 UI 配置。
 
 ## 注意事项
 
-- ETF 代码使用 xtdata/miniQMT 可识别的本地代码格式，例如 `510300`。
-- xtdata 读取的是本机 miniQMT 数据服务，数据完整性取决于本地数据下载与服务状态。
+- ETF 代码使用 QMT 可识别的格式，例如 `510300`。
+- 数据完整性取决于 QMT 行情权限和 API 返回的历史数据。
 - 当前回测未单独建模滑点；实盘收益可能低于回测。

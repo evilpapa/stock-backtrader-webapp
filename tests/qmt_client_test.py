@@ -60,7 +60,7 @@ class QmtClientTest(unittest.TestCase):
         self.assertEqual(frame["date"].dt.strftime("%Y%m%d").tolist(), ["20240102", "20240103"])
         self.assertEqual(frame["close"].tolist(), [10.8, 11.2])
 
-    def test_fetch_history_posts_qmt_proxy_request_and_normalizes(self):
+    def test_fetch_history_posts_qmt_api_request_and_normalizes(self):
         calls = []
 
         def fake_urlopen(req, timeout):

@@ -14,7 +14,7 @@ from strategy.analyzer import CustomAnalyzer
 from strategy.equal_weight import EqualWeightStrategy
 from strategy.just_buy_hold import JustBuyHoldStrategy
 from strategy.performance_calculator import PerformanceCalculator
-from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
+from utils.qmt_client import fetch_history_ohlcv, to_title_case_ohlcv
 from utils.commission import ChinaStockCommission
 from utils.schemas import DataSourceParams
 
@@ -28,7 +28,7 @@ def prepare_price_data(
 ) -> dict[str, pd.DataFrame]:
 	# 拉取行情，并整理为 Backtrader 可直接使用的 OHLCV 数据。
 	data_source_params = data_source_params or DataSourceParams()
-	print(f"正在从 {data_source_params.data_source} 获取{strategy_name}历史数据...")
+	print(f"正在通过 QMT API 获取{strategy_name}历史数据...")
 	prepared: dict[str, pd.DataFrame] = {}
 
 	for symbol in symbols:
@@ -39,10 +39,9 @@ def prepare_price_data(
 					start_date,
 					end_date,
 					dividend_type=data_source_params.dividend_type,
-					data_source=data_source_params.data_source,
-					qmt_base_url=data_source_params.qmt_base_url,
-					qmt_token=data_source_params.qmt_token,
-					qmt_timeout=data_source_params.qmt_timeout,
+					base_url=data_source_params.qmt_base_url,
+					token=data_source_params.qmt_token,
+					timeout=data_source_params.qmt_timeout,
 				)
 			)
 		except Exception as exc:

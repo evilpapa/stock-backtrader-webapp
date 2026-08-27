@@ -8,7 +8,7 @@
 
 ### 核心特性
 
-- **数据获取** - 通过基于国金证券 QMT 交易端的 miniqmt 结合迅投 xtquant.xtdata 模块实时获取A股市场数据
+- **数据获取** - 通过 QMT Python API 获取 A 股市场数据
 - **策略回测** - 利用 Backtrader 框架测试交易策略表现
 - **结果可视化** - 使用 Pyecharts 生成专业图表展示
 - **交互界面** - 基于 Streamlit 构建友好的 Web 操作环境
@@ -18,7 +18,7 @@
 | 组件           | 功能                   | 链接                                                                       |
 |----------------|------------------------|----------------------------------------------------------------------------|
 | **Streamlit**  | 构建交互式数据应用界面 | [官方仓库](https://github.com/streamlit/streamlit)                         |
-| **xtquant**    | 获取金融市场数据       | [官方仓库](https://dict.thinktrader.net/nativeApi/xtdata.html?id=x16fBN)   |
+| **QMT Python API** | 获取金融市场数据 | [官方文档](https://qmt.ptradeapi.com/QMT_Python_API_Doc.html) |
 | **Backtrader** | 执行量化交易策略回测   | [官方仓库](https://github.com/mementum/backtrader)                         |
 | **Pyecharts**  | 生成专业金融数据图表   | [官方仓库](https://github.com/pyecharts/pyecharts)                         |
 
@@ -57,7 +57,7 @@ uv sync
 
 ## 参数配置指南
 
-### xtquant 数据参数
+### QMT 数据参数
 
 | 参数           | 说明                                |
 |----------------|-------------------------------------|

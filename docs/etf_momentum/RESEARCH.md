@@ -41,16 +41,16 @@
 
 ## 5. 数据与回测实现
 
-Python 版本的数据获取已经切换为项目内的 xtdata 客户端：
+Python 版本通过项目内的 QMT API 客户端获取数据：
 
 ```python
-from utils.xtdata_client import fetch_history_ohlcv, to_title_case_ohlcv
+from utils.qmt_client import fetch_history_ohlcv, to_title_case_ohlcv
 
 df = to_title_case_ohlcv(fetch_history_ohlcv(ticker, BACKTEST_START, BACKTEST_END))
 df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
 ```
 
-运行前需要确保本机 miniQMT/xtdata 数据服务可用，并且标的历史行情已准备好。
+运行前需要确保 QMT 策略 `QMT.py` 正在运行，且 API 能返回标的历史行情。
 
 回测部分使用 Backtrader：
 
@@ -65,5 +65,5 @@ df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
 - 动量策略在市场快速反转时可能出现回撤。
 - 高频调仓会放大交易成本影响。
 - 当前回测未单独建模滑点。
-- xtdata 数据质量依赖本机 miniQMT 数据下载与服务状态。
+- 数据可用性取决于 QMT 账户的行情权限与 QMT API 返回结果。
 - 参数如动量窗口、手续费、标的池需要定期复核。

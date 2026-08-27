@@ -1,4 +1,4 @@
-"""HTTP client for the QMT.py proxy market-data API."""
+"""HTTP client for the QMT Python API market-data bridge."""
 
 from __future__ import annotations
 
@@ -9,20 +9,47 @@ from urllib.error import HTTPError, URLError
 
 import pandas as pd
 
-from .xtdata_client import (
-    DEFAULT_OHLCV_FIELDS,
-    _normalize_time_values,
-    format_xt_date,
-    normalize_dividend_type,
-    normalize_xt_symbol,
-)
+DEFAULT_OHLCV_FIELDS = ["open", "high", "low", "close", "volume"]
 
 
 UrlOpen = Callable[[request.Request, float], Any]
 
 
-class QmtProxyError(RuntimeError):
-    """Raised when the QMT HTTP proxy cannot return usable OHLCV data."""
+class QmtApiError(RuntimeError):
+    """Raised when the QMT API bridge cannot return usable OHLCV data."""
+
+
+def normalize_qmt_symbol(symbol: str) -> str:
+    """Convert common ticker formats to the QMT ``code.market`` format."""
+    symbol = symbol.strip().upper()
+    if symbol.endswith(".SS"):
+        return symbol[:-3] + ".SH"
+    if symbol.endswith((".SH", ".SZ", ".BJ")):
+        return symbol
+    if len(symbol) == 6 and symbol.startswith(("5", "6", "9")):
+        return symbol + ".SH"
+    if len(symbol) == 6 and symbol.startswith(("0", "1", "2", "3")):
+        return symbol + ".SZ"
+    if len(symbol) == 6 and symbol.startswith(("4", "8")):
+        return symbol + ".BJ"
+    return symbol
+
+
+def format_qmt_date(value: Any) -> str:
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y%m%d")
+    return str(value).replace("-", "")
+
+
+def normalize_dividend_type(value: str | None) -> str:
+    mapping = {
+        None: "none", "": "none", "none": "none", "qfq": "front", "hfq": "back",
+        "front": "front", "back": "back", "front_ratio": "front_ratio", "back_ratio": "back_ratio",
+    }
+    key = value.lower() if isinstance(value, str) else value
+    if key not in mapping:
+        raise QmtApiError(f"Unsupported QMT dividend_type: {value}")
+    return mapping[key]
 
 
 def fetch_history_ohlcv(
@@ -38,13 +65,13 @@ def fetch_history_ohlcv(
     urlopen_func: UrlOpen | None = None,
 ) -> pd.DataFrame:
     """Fetch OHLCV data through the QMT.py HTTP proxy."""
-    xt_symbol = normalize_xt_symbol(symbol)
-    start_time = format_xt_date(start_date)
-    end_time = format_xt_date(end_date)
+    qmt_symbol = normalize_qmt_symbol(symbol)
+    start_time = format_qmt_date(start_date)
+    end_time = format_qmt_date(end_date)
     field_list = fields or DEFAULT_OHLCV_FIELDS
     payload = {
         "fields": ",".join(field_list),
-        "stock_code": xt_symbol,
+        "stock_code": qmt_symbol,
         "start_time": start_time,
         "end_time": end_time,
         "period": period,
@@ -59,8 +86,8 @@ def fetch_history_ohlcv(
         urlopen_func=urlopen_func,
     )
     if "error" in response:
-        raise QmtProxyError(str(response["error"]))
-    return market_data_payload_to_ohlcv(response.get("data"), xt_symbol, field_list)
+        raise QmtApiError(str(response["error"]))
+    return market_data_payload_to_ohlcv(response.get("data"), qmt_symbol, field_list)
 
 
 def _post_json(
@@ -85,18 +112,18 @@ def _post_json(
             body = resp.read().decode("utf-8")
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise QmtProxyError(f"QMT proxy HTTP {exc.code}: {detail}") from exc
+        raise QmtApiError(f"QMT API HTTP {exc.code}: {detail}") from exc
     except URLError as exc:
-        raise QmtProxyError(f"QMT proxy connection failed: {exc.reason}") from exc
+        raise QmtApiError(f"QMT API connection failed: {exc.reason}") from exc
     except OSError as exc:
-        raise QmtProxyError(f"QMT proxy request failed: {exc}") from exc
+        raise QmtApiError(f"QMT API request failed: {exc}") from exc
 
     try:
         parsed = json.loads(body)
     except json.JSONDecodeError as exc:
-        raise QmtProxyError("QMT proxy returned invalid JSON") from exc
+        raise QmtApiError("QMT API returned invalid JSON") from exc
     if not isinstance(parsed, dict):
-        raise QmtProxyError("QMT proxy response is not a JSON object")
+        raise QmtApiError("QMT API response is not a JSON object")
     return parsed
 
 
@@ -104,7 +131,7 @@ def market_data_payload_to_ohlcv(data: Any, symbol: str, fields: list[str] | Non
     """Normalize common QMT DataFrame.to_dict payloads into date/open/high/low/close/volume."""
     field_list = fields or DEFAULT_OHLCV_FIELDS
     if data is None:
-        raise QmtProxyError("QMT proxy response missing data")
+        raise QmtApiError("QMT API response missing data")
 
     if isinstance(data, dict):
         if {"index", "columns", "data"}.issubset(data):
@@ -126,7 +153,7 @@ def market_data_payload_to_ohlcv(data: Any, symbol: str, fields: list[str] | Non
     if isinstance(data, list):
         return _frame_to_ohlcv(pd.DataFrame(data), field_list)
 
-    raise QmtProxyError("Unsupported QMT market data payload shape")
+    raise QmtApiError("Unsupported QMT market data payload shape")
 
 
 def _field_payload_to_series(value: Any, symbol: str) -> pd.Series:
@@ -173,9 +200,38 @@ def _frame_to_ohlcv(frame: pd.DataFrame, fields: list[str]) -> pd.DataFrame:
 
     missing = [field for field in fields if field not in column_map]
     if missing:
-        raise QmtProxyError(f"QMT proxy response missing fields: {', '.join(missing)}")
+        raise QmtApiError(f"QMT API response missing fields: {', '.join(missing)}")
     for field in fields:
         frame[field] = pd.to_numeric(frame[column_map[field]], errors="coerce")
 
     frame = frame.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)
     return frame[["date", *fields]]
+
+
+def to_chinese_ohlcv(data_frame: pd.DataFrame) -> pd.DataFrame:
+    frame = data_frame.copy()
+    frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
+    return frame.rename(columns={"date": "日期", "open": "开盘", "close": "收盘", "high": "最高", "low": "最低", "volume": "成交量"})[
+        ["日期", "开盘", "收盘", "最高", "最低", "成交量"]
+    ]
+
+
+def to_title_case_ohlcv(data_frame: pd.DataFrame) -> pd.DataFrame:
+    frame = data_frame.copy()
+    if "date" in frame.columns:
+        frame.index = pd.to_datetime(frame["date"])
+    return frame.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"})[
+        ["Open", "High", "Low", "Close", "Volume"]
+    ]
+
+
+def _normalize_time_values(values: pd.Series) -> pd.Series:
+    raw = values.astype(str).str.replace(r"\.0$", "", regex=True)
+    lengths = raw.str.len()
+    if lengths.ge(13).all():
+        return pd.to_datetime(raw.astype("int64"), unit="ms", errors="coerce")
+    if lengths.eq(8).all():
+        return pd.to_datetime(raw, format="%Y%m%d", errors="coerce")
+    if lengths.eq(14).all():
+        return pd.to_datetime(raw, format="%Y%m%d%H%M%S", errors="coerce")
+    return pd.to_datetime(raw, errors="coerce")

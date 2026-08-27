@@ -156,4 +156,4 @@ __marimo__
 # agents
 .claude/
 .omx/
-xtquant/
+*.log
