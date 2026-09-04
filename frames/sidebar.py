@@ -1,4 +1,5 @@
 import datetime
+import os
 
 import streamlit as st
 
@@ -12,26 +13,25 @@ def market_data_source_ui(prefix: str = "") -> DataSourceParams:
 		f"{label_prefix}dividend type",
 		("front", "back", "none", "front_ratio", "back_ratio"),
 	)
-	qmt_base_url = "http://127.0.0.1:10086"
-	qmt_token = "123456789"
-	qmt_timeout = 10.0
-	qmt_base_url = st.sidebar.text_input(f"{label_prefix}QMT API url", value=qmt_base_url)
-	qmt_token = st.sidebar.text_input(f"{label_prefix}QMT token", value=qmt_token, type="password")
-	qmt_timeout = st.sidebar.number_input(f"{label_prefix}QMT timeout", min_value=1.0, max_value=60.0, value=qmt_timeout, step=1.0)
+	bigqmt_account_id = st.sidebar.text_input(
+		f"{label_prefix}Big QMT account ID", value=os.getenv("BIGQMT_ACCOUNT_ID", "")
+	)
+	bigqmt_timeout = st.sidebar.number_input(
+		f"{label_prefix}Big QMT RPC timeout", min_value=1.0, max_value=60.0, value=10.0, step=1.0
+	)
 	return DataSourceParams(
 		dividend_type=dividend_type,
-		qmt_base_url=qmt_base_url,
-		qmt_token=qmt_token,
-		qmt_timeout=float(qmt_timeout),
+		bigqmt_account_id=bigqmt_account_id,
+		bigqmt_timeout=float(bigqmt_timeout),
 	)
 
 
 def market_data_selector_ui() -> MarketDataParams:
-	"""QMT API market-data parameters.
+	"""Big QMT RPC market-data parameters.
 
 	:return: MarketDataParams
 	"""
-	st.sidebar.markdown("# QMT Data Config")
+	st.sidebar.markdown("# Big QMT Data Config")
 	symbol = st.sidebar.text_input("symbol", value="000001.SZ")
 	period = st.sidebar.selectbox("period", ("1d", "1w", "1mon"))
 	start_date = st.sidebar.date_input("start date", datetime.date(2010, 1, 1))

@@ -5,16 +5,15 @@ from pydantic import BaseModel
 
 
 class DataSourceParams(BaseModel):
-    """QMT API market-data settings."""
+    """Big QMT RPC market-data settings."""
 
     dividend_type: str = "front"
-    qmt_base_url: str = "http://127.0.0.1:10086"
-    qmt_token: str = "123456789"
-    qmt_timeout: float = 10.0
+    bigqmt_account_id: str = ""
+    bigqmt_timeout: float = 10.0
 
 
 class MarketDataParams(DataSourceParams):
-    """Single-symbol QMT market-data request."""
+    """Single-symbol Big QMT market-data request."""
 
     symbol: str         # 股票代码，如 "000001"（需要加上交易所后缀，如 "000001.SZ"）
     period: str         # 数据周期，如 "1d"（日线）、"1h"（小时线）等

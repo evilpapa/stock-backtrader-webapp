@@ -13,7 +13,7 @@ from examples.turtle_trading.backtest_turtle_trading import (
 	build_trade_frame,
 	save_outputs,
 )
-from examples.rotation_backtest_common import prepare_price_data, run_strategy_backtest
+from examples.backtest_common import prepare_price_data, run_strategy_backtest
 from strategy.performance_calculator import PerformanceCalculator
 from strategy.turtle_trading import TurtleTradingStrategy
 from utils.schemas import DataSourceParams

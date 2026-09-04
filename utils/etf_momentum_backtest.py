@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from examples.rotation_backtest_common import (
+from examples.backtest_common import (
 	align_series,
 	build_cumulative_frame,
 	build_drawdown_frame,

@@ -9,9 +9,9 @@ class ChinaStockCommission(bt.CommInfoBase):
     万 0.0875（即 0.0000875），最低 5 元
     """
     params = (
-        ('stocklike', True),           # 股票类型
+        ('stocklike', True),                     # 股票类型
         ('commtype', bt.CommInfoBase.COMM_PERC), # 按百分比(比例)计费
-        ('percabs', True),             # 比例使用绝对值表示
+        ('percabs', True),                       # 比例使用绝对值表示
         
         # --- 在这里设置新的默认值 ---
         ('commission', 0.0000854),     # 默认万 0.854

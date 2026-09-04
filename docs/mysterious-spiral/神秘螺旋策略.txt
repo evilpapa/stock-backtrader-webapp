@@ -1,0 +1,360 @@
+https://mp.weixin.qq.com/s/8K8Y0rA7XXCqsu8s87Hrzw
+
+# 神秘螺旋选股策略
+
+底层逻辑其实是欧奈尔 RPS 选股搭配 TD序列择时。
+
+先看回测结果：
+
+```txt
+==============================================
+Performance Analysis Summary
+==============================================
+Period: 2020-01-02 to 2024-12-30
+Total Return: 101.54%
+Annual Return: 15.71%
+Max Drawdown: -38.51%
+Sharpe Ratio: 0.33
+Daily Win Rate: 49.26%
+Total Trades: 151
+==============================================
+```
+
+为了对比下策略的绩效，回测了等权重组合的业绩作为对比：
+
+```txt
+==============================================
+Performance Analysis Summary
+==============================================
+Period: 2020-01-02 to 2024-12-30
+Total Return: 51.93%
+Annual Return: 9.1%
+Max Drawdown: -49.58%
+Sharpe Ratio: 0.2
+Daily Win Rate: 49.09%
+Total Trades: 260
+==============================================
+```
+
+神秘螺旋组合五年翻了一倍，年化 15.7%，最大回撤 38.5%，卡玛比率很低。
+不过，跟等权买入持有对比，策略超额收益明显——等权基准同期约 43.98% 总回报，策略多出来将近 58 个百分点。
+当然，钨业股 2020–2021 年有一波行情，这个时间段里任何强势筛选策略都会受益，这是需要点明的背景。
+但 TD 的节奏过滤确实在几个关键回调点上起到了降低追高概率的作用。
+
+说说我回测的过程，老规矩，后面附上详细代码。
+
+## 基础知识
+
+先普及下什么叫TD序列和RPS指标。
+
+### 1. TD 序列是什么？
+
+TD 序列的全名叫 Tom DeMark Sequential，由华尔街技术分析大师**汤姆·迪马克（Tom DeMark）**于 1970 年代研发，1994 年在《The New Science of Technical Analysis》中系统公开。
+
+迪马克这个人有点传奇色彩——1947 年生，被市场称为"拐点预言帝"，曾为索罗斯、都铎·琼斯及高盛、花旗等顶级机构提供策略咨询，彭博、路透、TradingView 都内置了他的指标体系。
+
+他的核心观点只有一句话：
+
+> 市场波动有节律，拐点可以量化，技术分析的核心是客观规则，而非主观预判。
+
+这和大多数技术分析工具的逻辑相反，大部分趋势类因子只能告诉我们"现在是涨的"，未来大概率涨，但并不知道趋势上涨的尽头在哪里。而 TD 序列是预判型指标，它试图在趋势反转发生之前识别衰竭点。
+
+### 2. TD 序列的择时原理
+
+汤姆·迪玛克把金融市场的趋势划分为两个阶段：
+
+#### 第一阶段：TD Setup
+
+就是我们通常说的九转序列，顾名思义它由连续数 9 根 K 线组成，根据形态又可以分为两类：
+
+- 卖出Setup（高九转）：每日收盘价>4日前收盘价，连续9日
+- 买入Setup（低九转）：每日收盘价<4日前收盘价，连续9日
+
+同时还有验证条件：第8日或第9日K线的极值必须超过第6和7日，否则 Setup 无效重置。
+
+序列走9之后，意味着趋势动量走了9个脉冲周期，进入衰竭区。但这只是必要非充分条件，不直接交易。
+
+#### 第二阶段：TD Countdown（倒计时）
+
+从 Setup 第 9 根开始计数，再数 13 根为倒计时阶段序列，根据趋势形态同样分为两类：
+
+- 卖出 Countdown（高 13）：收盘价 ≥ 2日前线最高价
+- 买入 Countdown（低 13）：收盘价 ≤ 2日前最低价
+
+序列走到13意味着趋势极致衰竭，高概率反转信号。
+实战中 13 的有效性远高于 9，这才是 TD 序列真正的核心确认点。
+期间若出现反向 Setup，Countdown 立即重置，重新来过。
+这里参数 13和 9都很玄乎，不知道怎么来的，我们可以把这两个参数作为优化目标之一。
+手搓 TD 序列有点麻烦，C调用了 github 上一个开源软件包 eTTR 包来计算 TD 序列：
+
+计算汤姆・迪马克（Tom DeMark）的 TD 序列：
+
+```r
+# 加载 eTTR 包
+library(eTTR)
+
+# 加载内置数据
+data("ettr_stocks")   # AAPL/TSLA/NVDA/MSFT/AMZN 2020-2024
+
+# Step 1: TD Setup 
+df <- add_td_setup(ettr_stocks, close_col = "close")
+
+# 查看多头 Setup 完成（= 9）的记录
+bull_done <- df[df$td_setup_bull == 9,
+                c("date", "code", "close", "td_setup_bull", "td_setup_bear")]
+head(bull_done, 10)
+
+# 查看空头 Setup 完成（= 9）的记录
+bear_done <- df[df$td_setup_bear == 9,
+                c("date", "code", "close", "td_setup_bull", "td_setup_bear")]
+head(bear_done, 10)
+
+# Step 2: TD Countdown 
+df <- add_td_countdown(df, close_col = "close")
+
+# 空头 Countdown 完成（= 13），底部确认信号
+bottom_signals <- df[df$td_countdown_bear == 13,
+                     c("date", "code", "close", "td_countdown_bear")]
+print(bottom_signals)
+
+# 多头 Countdown 完成（= 13），顶部确认信号
+top_signals <- df[df$td_countdown_bull == 13,
+                  c("date", "code", "close", "td_countdown_bull")]
+print(top_signals)
+
+# Step 3: 完整流水线 
+df_full <- ettr_stocks |>
+  add_td_setup(close_col = "close") |>
+  add_td_countdown(close_col = "close")
+
+# 某只股票的完整序列
+nvda <- df_full[df_full$code == "NVDA",
+                c("date", "close", "td_setup_bull", "td_setup_bear",
+                  "td_countdown_bull", "td_countdown_bear")]
+
+# 找关键节点：Setup 完成后 Countdown 启动的位置
+nvda[nvda$td_setup_bear == 9 && nvda$td_countdown_bear == 13, ]
+```
+
+### 3. 欧奈尔 RPS 指标
+
+RPS 指标的发明人是 《笑傲股市》的作者威廉·欧奈尔（William O'Neil）。
+
+RPS 的全名叫“Relative Price Strength”，翻译为中文是相对价格强度。
+
+某只股票的 RPS 指标得分衡量的是过去N个交易日，这只股票的涨幅超过了全市场多少比例的股票，本质上是一个动量指标的横截面分位数。
+
+根据 N 的取值不同，有不同的 RPS 得分，常用的 RPS 周期包括：
+
+- RPS250（1 年期）：最核心，≥ 90 表示跑赢了市场 90% 的股票
+- RPS120（半年期）：中期强度参考
+- RPS50（约 2 个月）：短期强度参考
+
+欧奈尔的核心观点：大牛股启动前，RPS250 基本都 ≥ 87–90。
+
+在投资时，我们只做 RPS250 大于90 的股票，这样趋势投资的胜率更高。
+
+调用了 eClassic包计算 RPS 指标。
+
+```r
+# 加载 eClassic 包
+library(eClassic)
+
+# 用 global_core_assets（沪深300/纳斯达克/黄金ETF）
+data("global_core_assets")
+
+rps_etf <- add_rps(global_core_assets,
+                   close_col = "adjusted",
+                   n         = c(20, 60, 120))
+
+# RPS >= 80 的强势期
+strong <- rps_etf[!is.na(rps_etf$rps_60) & rps_etf$rps_60 >= 80,
+                  c("date", "code", "name", "rps_20", "rps_60", "rps_120")]
+
+# 查看 RPS 排序结果
+head(strong[order(strong$date, decreasing = TRUE), ], 10)
+```
+
+## 神秘螺旋
+
+神秘螺旋的选股逻辑非常朴素：
+
+- 筛选 RPS 指标大于90的强势股：也就是找到趋势强度位于市场10%的强势股
+- 结合 TD Setup/Countdown 找低吸点：等强势股回调、喘气时，再买入，是一个 Buy thd dip 策略。
+
+RPS 指标负责选股，TD 序列负责择时，算是合适的搭配。
+
+## 回测神秘螺旋
+
+使用的是 eTTR包和 eClassic包。先看下内置示例：
+
+```
+library(eTTR)
+library(eClassic)
+
+data("ettr_stocks")
+
+df <- ettr_stocks |>
+  add_rps(close_col = "close", n = c(50, 120, 250)) |>
+  add_td_setup(close_col = "close") |>
+  add_td_countdown(close_col = "close")
+
+# 信号1：强势股（RPS250 >= 90）出现空头 Setup 完成 → 回调低吸
+signal_buy <- df[
+  !is.na(df$rps_250) & df$rps_250 >= 90 & df$td_setup_bear == 9,
+  c("date", "code", "close", "rps_50", "rps_250", "td_setup_bear")
+]
+signal_buy[order(signal_buy$date, decreasing = TRUE), ]
+
+# 信号2：强势股出现空头 Countdown = 13 → 底部确认
+signal_bottom <- df[
+  !is.na(df$rps_250) & df$rps_250 >= 90 & df$td_countdown_bear == 13,
+  c("date", "code", "close", "rps_250", "td_countdown_bear")
+]
+print(signal_bottom)
+
+# 信号3：强势股出现多头 Countdown = 13 → 顶部止盈
+signal_top <- df[
+  !is.na(df$rps_250) & df$rps_250 >= 90 & df$td_countdown_bull == 13,
+  c("date", "code", "close", "rps_250", "td_countdown_bull")
+]
+print(signal_top)
+```
+
+看一眼结果，按照时间顺序返回了RPS250最大且可能TD序列可能反转的日期：
+
+```txt
+# A tibble: 11 × 5
+   date       code  close rps_250 td_countdown_bull
+   <date>     <chr> <dbl>   <dbl>             <int>
+ 1 2021-02-19 TSLA  260.      100                13
+ 2 2021-07-27 TSLA  215.      100                13
+ 3 2021-12-08 NVDA   31.8     100                13
+ 4 2022-05-05 TSLA  291.      100                13
+ 5 2022-08-31 TSLA  276.      100                13
+ 6 2023-03-24 NVDA   26.8     100                13
+ 7 2023-05-04 NVDA   27.6     100                13
+ 8 2023-12-29 NVDA   49.5     100                13
+ 9 2024-04-02 NVDA   89.5     100                13
+10 2024-07-17 NVDA  118.      100                13
+11 2024-09-27 NVDA  121.      100                13
+```
+
+以五只钨业股（厦门钨业、章源钨业、中钨高新、瑞华泰、中国稀土）作为标的池，时间范围选择为2020 年初到 2024 年底，设计了一个再平衡周期为月度策略：
+以 rps_60（近 60 日相对强度）为底分，近 15 个交易日内出现过空头 TD Setup = 9，额外加 25 分（回调节拍完成，低吸加权），每月末按分数选前 2 名持仓，等权配置
+费率 0.03%，印花税 0.1%，按开盘价执行。
+
+```r
+library(eFactorCraft)
+library(eClassic)
+library(eTTR)
+library(eBacktestCraft)
+library(ggplot2)
+library(patchwork)
+
+# 1. 定义标的池并获取数据 
+universe <- data.frame(
+  code = c("600549.SS", "002378.SZ", "000657.SZ", "002997.SZ", "688779.SS"),
+  name = c("厦门钨业",  "章源钨业",  "中钨高新",  "瑞华泰",    "中国稀土"),
+  stringsAsFactors = FALSE
+)
+mkt <- get_data(universe, start_date = "2020-01-01", end_date = "2024-12-31")
+
+# 2. 添加 RPS ，TD_setup 和 TD_countdown 因子 
+df <- mkt |>
+  add_rps(close_col = "adjusted", n = c(60, 250)) |>
+  add_td_setup(close_col = "adjusted") |>
+  add_td_countdown(close_col = "adjusted")
+
+# 3. 近15日内空头 Setup=9 
+df <- df[order(df$code, df$date), ]
+df$td_bear_recent <- 0L
+for (cd in unique(df$code)) {
+  idx  <- which(df$code == cd)
+  bear <- df$td_setup_bear[idx]
+  rec  <- integer(length(bear))
+  for (i in seq_along(bear)) {
+    w <- max(1, i - 14):i
+    rec[i] <- as.integer(any(bear[w] == 9))
+  }
+  df$td_bear_recent[idx] <- rec
+}
+
+# 4. 信号
+df$score <- df$rps_60 + ifelse(df$td_bear_recent == 1, 25, 0)
+
+dfC <- df |>
+  add_rank_signal(rank_col = "score", top_n = 2, signal_name = "sig") |>
+  add_equal_weight(signal_col = "sig", weight_name = "weight")
+
+# 5. 回测
+cfg <- default_backtest_config() |>
+  set_weight_col("weight") |>
+  set_exec_price_col("open") |>
+  set_eval_price_col("adjusted") |>
+  set_init_capital(1000000) |>
+  set_fee_rate(0.0003) |>
+  set_stamp_tax(0.001) |>
+  set_lot_size(100) |>
+  set_rebalance_mode("calendar") |>
+  set_rebalance_cycle("monthly")
+
+resC  <- run_backtest(cfg, dfC)
+bench <- run_benchmark_ew(mkt, config = cfg)
+
+# 6. 业绩 
+print(performance_analysis(resC, what = "metrics"))
+
+# 6. 可视化 
+get_cum <- function(r, label) {
+  d <- performance_analysis(r, what = "cum_return")
+  data.frame(date = d$date, nav = d$nav, 策略 = label)
+}
+get_dd <- function(r, label) {
+  d <- performance_analysis(r, what = "drawdown")
+  data.frame(date = d$date, drawdown = d$drawdown, 策略 = label)
+}
+
+cum <- rbind(
+  get_cum(resC,  "轮动策略"),
+  get_cum(bench, "等权基准")
+)
+dd <- rbind(
+  get_dd(resC,  "轮动策略"),
+  get_dd(bench, "等权基准")
+)
+
+p1 <- ggplot(cum, aes(x = date, y = nav, color = 策略, linetype = 策略)) +
+  geom_line(linewidth = 1) +
+  geom_hline(yintercept = 1, linewidth = 0.3, color = "gray60") +
+  scale_color_manual(values = c("轮动策略" = "#22c55e", "等权基准" = "#94a3b8")) +
+  scale_linetype_manual(values = c("轮动策略" = "solid", "等权基准" = "dashed")) +
+  scale_y_continuous(labels = scales::percent_format(scale = 100)) +
+  labs(title    = "钨业股池：RPS60 + TD Sequential 轮动",
+       x = NULL, y = "累计净值", color = NULL, linetype = NULL) +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "bottom", panel.grid.minor = element_blank())
+
+p2 <- ggplot(dd, aes(x = date, y = drawdown * 100, color = 策略, fill = 策略)) +
+  geom_area(alpha = 0.15, position = "identity") +
+  geom_line(linewidth = 0.7) +
+  scale_color_manual(values = c("轮动策略" = "#22c55e", "等权基准" = "#94a3b8")) +
+  scale_fill_manual(values  = c("轮动策略" = "#22c55e", "等权基准" = "#94a3b8")) +
+  scale_y_continuous(labels = scales::label_percent(scale = 1)) +
+  labs(x = "日期", y = "回撤", subtitle = "最大回撤对比",
+       color = NULL, fill = NULL) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "bottom", panel.grid.minor = element_blank())
+
+p1 / p2 + plot_layout(heights = c(3, 1.5))
+```
+
+神秘螺旋累计收益率及最大回撤图
+
+## 最后说几句
+
+TD 序列 + RPS 这套组合，逻辑上相当自洽：强势股不是一直涨的，它会喘气；TD 帮你数那口气，数够了才动手。
+
+当然，钨业股这个样本背后有板块主题驱动因素，回测结果不能直接外推。
+
+这套代码更多是给你一个可落地的分析框架，帮你在海量 K 线里快速定位值得重点关注的时间窗口，具体判断还需要结合基本面和市场环境。

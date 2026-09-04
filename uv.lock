@@ -2233,6 +2233,15 @@ wheels = [
 ]
 
 [[package]]
+name = "redis"
+version = "8.1.0"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/a8/99/604f0b666d4c616d891cf77ebb9db6bb21601344c051aebf1b72b9ff915f/redis-8.1.0.tar.gz", hash = "sha256:6e1a19beef9225c83efd689c7e6b7da2d5215b1f42cd13b7fc3714d0a09c7b25", size = 5254356, upload-time = "2026-07-30T08:51:00.269Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/66/9d/c5731f6e3608663d4d3656fd8d3aecee8b509c3082818f5a13eae925baea/redis-8.1.0-py3-none-any.whl", hash = "sha256:a4fe1aac3d3b3cc791d4b3d5931c5a956045dc951ee74d1c913ee3ac4d2ee9fb", size = 560618, upload-time = "2026-07-30T08:50:58.497Z" },
+]
+
+[[package]]
 name = "referencing"
 version = "0.37.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
@@ -2545,9 +2554,11 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyecharts" },
     { name = "pyyaml" },
+    { name = "redis" },
     { name = "streamlit" },
     { name = "streamlit-echarts" },
     { name = "tabulate" },
+    { name = "xtquant-big-convert", extra = ["redis"] },
 ]
 
 [package.dev-dependencies]
@@ -2574,9 +2585,11 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.11.3" },
     { name = "pyecharts", specifier = "==2.0.8" },
     { name = "pyyaml", specifier = "==6.0.2" },
+    { name = "redis", specifier = ">=8.1.0" },
     { name = "streamlit", specifier = "==1.44.1" },
     { name = "streamlit-echarts", specifier = "==0.4.0" },
     { name = "tabulate", specifier = ">=0.10.0" },
+    { name = "xtquant-big-convert", extras = ["redis"], specifier = "==0.3.14" },
 ]
 
 [package.metadata.requires-dev]
@@ -3315,4 +3328,21 @@ source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/b3/8f/705086c9d734d3b663af0e9bb3d4de6578d08f46b1b101c2442fd9aecaa2/win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0", size = 4867, upload-time = "2024-12-07T15:28:28.314Z" }
 wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/e1/07/c6fe3ad3e685340704d314d765b7912993bcb8dc198f0e7a89382d37974b/win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390", size = 4083, upload-time = "2024-12-07T15:28:26.465Z" },
+]
+
+[[package]]
+name = "xtquant-big-convert"
+version = "0.3.14"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+dependencies = [
+    { name = "pyzmq" },
+]
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/a6/64/51bca217bb934a7d28047f34608341f6de22a5171622fa28a6b77a54e4e7/xtquant_big_convert-0.3.14.tar.gz", hash = "sha256:e7c3853b51db157a73b09b89f4af4e77ef7ebba613353f7b6a43576dc42f7475", size = 389420, upload-time = "2026-09-02T06:43:58.064Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/6c/8f/71fd114d6486422da52dcf9b31c2f5821ebecdcc621e94423fd140736891/xtquant_big_convert-0.3.14-py3-none-any.whl", hash = "sha256:384dd1c20ffb9426006bd9509722af3dbd2353ae82e5e0960d4255e46b4698ca", size = 346718, upload-time = "2026-09-02T06:43:44.615Z" },
+]
+
+[package.optional-dependencies]
+redis = [
+    { name = "redis" },
 ]

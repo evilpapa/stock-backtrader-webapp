@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from .logs import logger
-from .qmt_client import fetch_history_ohlcv, to_chinese_ohlcv
+from .bigqmt_client import fetch_history_ohlcv, to_chinese_ohlcv
 from .schemas import BacktraderParams, MarketDataParams, StrategyBase
 
 logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR)
@@ -21,7 +21,7 @@ def gen_stock_df(market_data_params: MarketDataParams) -> pd.DataFrame:
     """生成股票数据
 
     Args:
-        market_data_params (MarketDataParams): QMT API 参数
+        market_data_params (MarketDataParams): Big QMT RPC 参数
 
     Returns:
         pd.DataFrame: 股票历史数据
@@ -32,9 +32,8 @@ def gen_stock_df(market_data_params: MarketDataParams) -> pd.DataFrame:
         start_date=market_data_params.start_date,
         end_date=market_data_params.end_date,
         dividend_type=market_data_params.dividend_type,
-        base_url=market_data_params.qmt_base_url,
-        token=market_data_params.qmt_token,
-        timeout=market_data_params.qmt_timeout,
+        account_id=market_data_params.bigqmt_account_id,
+        timeout=market_data_params.bigqmt_timeout,
     )
     if not df.empty:
         return to_chinese_ohlcv(df)
