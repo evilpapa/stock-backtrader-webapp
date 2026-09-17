@@ -9,7 +9,7 @@ import pandas as pd
 import backtrader as bt
 import numpy as np
 
-from strategy.etf_momentum import EtfMomentumStrategy
+from src.strategy import EtfMomentumStrategy
 
 
 class EtfMomentumTest(unittest.TestCase):
@@ -141,7 +141,7 @@ class EtfMomentumTest(unittest.TestCase):
 		# 添加策略
 		cerebro.addstrategy(EtfMomentumStrategy,
 							momentum_window=20,
-							printlog=False)
+							print_log=False)
 
 		cerebro.broker.setcash(100000.0)
 

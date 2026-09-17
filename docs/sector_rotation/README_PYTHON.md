@@ -1,8 +1,8 @@
 # 行业动量轮动策略 - Python 版本
 
-`SectorRotation` 是 `R/sector_rotation/sector_rotation.r` 的 Python 落地版本，分为两部分：
+`SectorRotation` 是 `../../r/sector_rotation/sector_rotation.r` 的 Python 落地版本，分为两部分：
 
-- 应用内策略：`strategy/sector_rotation.py`
+- 应用内策略：`../../src/strategy/sector_rotation.py`
 - 独立脚本：`examples/sector_rotation/backtest_sector_rotation.py`
 
 ## 策略规则

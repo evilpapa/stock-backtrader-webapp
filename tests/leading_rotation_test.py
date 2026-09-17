@@ -3,10 +3,11 @@ import unittest
 import backtrader as bt
 import pandas as pd
 
-from strategy.leading_rotation import LeadingRotationStrategy
+from src.strategy import LeadingRotationStrategy
 
 
 def make_feed(closes: list[float]) -> bt.feeds.PandasData:
+	"""根据收盘价序列构造 Backtrader 测试数据源。"""
 	dates = pd.date_range("2024-01-01", periods=len(closes), freq="D")
 	rows = []
 	prev_close = closes[0]
@@ -27,7 +28,10 @@ def make_feed(closes: list[float]) -> bt.feeds.PandasData:
 
 
 class LeadingRotationStrategyTest(unittest.TestCase):
+	"""龙头动量轮动策略的单元测试。"""
+
 	def _run(self, feeds: list[tuple[str, bt.feeds.PandasData]], **params):
+		"""用给定数据源和参数运行一次龙头轮动回测。"""
 		cerebro = bt.Cerebro()
 		for name, feed in feeds:
 			cerebro.adddata(feed, name=name)
@@ -39,6 +43,7 @@ class LeadingRotationStrategyTest(unittest.TestCase):
 		return results[0], cerebro.broker.getvalue()
 
 	def test_selects_top_positive_momentum_assets(self):
+		"""验证策略会选择动量为正且排名靠前的资产。"""
 		leader_a = [100.0 + i * 1.0 for i in range(30)]
 		leader_b = [100.0 + i * 0.6 for i in range(30)]
 		laggard = [100.0 - i * 0.4 for i in range(30)]
@@ -65,6 +70,7 @@ class LeadingRotationStrategyTest(unittest.TestCase):
 		self.assertGreater(final_value, 100000.0)
 
 	def test_skips_negative_or_zero_momentum_assets(self):
+		"""验证负动量或零动量资产不会进入目标组合。"""
 		flat = [100.0] * 25
 		down = [100.0 - i * 0.3 for i in range(25)]
 		up = [100.0 + i * 0.5 for i in range(25)]
@@ -87,6 +93,7 @@ class LeadingRotationStrategyTest(unittest.TestCase):
 		self.assertEqual(last_snapshot["target_weights_by_name"]["Down"], 0.0)
 
 	def test_parameter_injection(self):
+		"""验证策略参数能正确注入 Backtrader 实例。"""
 		strategy, _ = self._run(
 			[("OnlyOne", make_feed([100.0 + i * 0.2 for i in range(25)]))],
 			momentum_window=10,

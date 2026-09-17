@@ -3,12 +3,15 @@ import unittest
 
 import pandas as pd
 
-from utils.processing import run_backtrader
-from utils.schemas import BacktraderParams, StrategyBase
+from src.utils import run_backtrader
+from src.utils.schemas import BacktraderParams, StrategyBase
 
 
 class ProcessingMetricsTest(unittest.TestCase):
+    """回测处理层输出指标的单元测试。"""
+
     def test_run_backtrader_includes_summary_metric_columns(self):
+        """验证回测结果包含累计收益和卡玛比率等汇总列。"""
         dates = pd.date_range("2024-01-01", periods=45, freq="D")
         close = [100.0 + index * 0.4 for index in range(len(dates))]
         frame = pd.DataFrame(
@@ -42,4 +45,3 @@ class ProcessingMetricsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

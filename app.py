@@ -1,13 +1,14 @@
 import datetime
 import math
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 from streamlit_echarts import st_pyecharts
 
-from charts import draw_multi_line, draw_pro_kline, draw_result_bar, draw_weight_area
-from frames import backtrader_selector_ui, market_data_selector_ui, market_data_source_ui, params_selector_ui
-from utils.etf_momentum_backtest import (
+from src.charts import draw_multi_line, draw_pro_kline, draw_result_bar, draw_weight_area
+from src.frames import backtrader_selector_ui, market_data_selector_ui, market_data_source_ui, params_selector_ui
+from src.utils.etf_momentum_backtest import (
 	BENCHMARK_NAME as ETF_BENCHMARK_NAME,
 	DEFAULT_ASSETS as ETF_DEFAULT_ASSETS,
 	DEFAULT_OUTPUT_DIR as ETF_OUTPUT_DIR,
@@ -16,10 +17,10 @@ from utils.etf_momentum_backtest import (
 	normalize_assets as normalize_etf_assets,
 	run_etf_momentum_backtest,
 )
-from utils.load import load_strategy
-from utils.logs import logger
-from utils.processing import gen_stock_df, run_backtrader
-from utils.rotation_backtest import (
+from src.utils.load import load_strategy
+from src.utils.logs import logger
+from src.utils.processing import gen_stock_df, run_backtrader
+from src.utils.rotation_backtest import (
 	ROTATION_SPECS,
 	RotationFrames,
 	RotationSpec,
@@ -27,8 +28,9 @@ from utils.rotation_backtest import (
 	normalize_assets as normalize_rotation_assets,
 	run_rotation_backtest,
 )
-from utils.schemas import StrategyBase
-from utils.turtle_backtest import (
+from src.strategy import QbEtfMomentumStrategy
+from src.utils.schemas import StrategyBase
+from src.utils.turtle_backtest import (
 	DEFAULT_ALLOW_SHORT,
 	DEFAULT_ATR_PERIOD,
 	DEFAULT_ENTRY_PERIOD,
@@ -86,6 +88,7 @@ SUMMARY_CARD_CSS = """
 
 
 def _number_or_none(value) -> float | None:
+    """将输入安全转换为有限浮点数，无法转换时返回空值。"""
     if value is None:
         return None
     try:
@@ -98,6 +101,7 @@ def _number_or_none(value) -> float | None:
 
 
 def _row_value(row: pd.Series | dict, names: list[str]) -> float | None:
+    """按候选字段名从指标行中取出第一个有效数值。"""
     for name in names:
         if name in row:
             value = _number_or_none(row[name])
@@ -107,6 +111,7 @@ def _row_value(row: pd.Series | dict, names: list[str]) -> float | None:
 
 
 def _annual_return_from_row(row: pd.Series | dict) -> float | None:
+    """从不同来源的指标字段中解析年化收益率。"""
     value = _row_value(row, ["年化收益率", "annual_return", "annualized_return"])
     if value is not None:
         return value
@@ -115,10 +120,12 @@ def _annual_return_from_row(row: pd.Series | dict) -> float | None:
 
 
 def _cumulative_return_from_row(row: pd.Series | dict) -> float | None:
+    """从指标行中解析累计收益率。"""
     return _row_value(row, ["累计收益率", "total_return", "cumulative_return"])
 
 
 def _max_drawdown_from_row(row: pd.Series | dict) -> float | None:
+    """从指标行中解析最大回撤，并统一为负数展示。"""
     value = _row_value(row, ["最大回撤", "max_drawdown"])
     if value is not None:
         return -abs(value)
@@ -127,16 +134,19 @@ def _max_drawdown_from_row(row: pd.Series | dict) -> float | None:
 
 
 def _ratio_from_row(row: pd.Series | dict, names: list[str]) -> float | None:
+    """按候选字段名读取夏普、卡玛等比率类指标。"""
     return _row_value(row, names)
 
 
 def _format_percent(value: float | None) -> str:
+    """将小数形式的收益或回撤格式化为百分比文本。"""
     if value is None:
         return "N/A"
     return f"{value * 100:.2f}%"
 
 
 def _format_ratio(value: float | None) -> str:
+    """将比率类数值格式化为固定精度文本。"""
     if value is None:
         return "N/A"
     return f"{value:.3f}"
@@ -149,6 +159,7 @@ def render_performance_summary(
     sharpe_ratio: float | None,
     calmar_ratio: float | None,
 ) -> None:
+    """渲染顶部绩效摘要卡片。"""
     st.markdown(SUMMARY_CARD_CSS, unsafe_allow_html=True)
     left, dd_col, sharpe_col, calmar_col = st.columns([2.2, 1, 1, 1])
     with left:
@@ -180,6 +191,7 @@ def render_performance_summary(
 
 
 def render_summary_from_metric_row(row: pd.Series | dict, cumulative_return: float | None = None) -> None:
+    """从一行绩效指标中抽取摘要字段并渲染指标卡片。"""
     render_performance_summary(
         annual_return=_annual_return_from_row(row),
         cumulative_return=cumulative_return if cumulative_return is not None else _cumulative_return_from_row(row),
@@ -190,6 +202,7 @@ def render_summary_from_metric_row(row: pd.Series | dict, cumulative_return: flo
 
 
 def cumulative_return_from_frame(cumulative: pd.DataFrame, strategy_name: str) -> float | None:
+    """从累计净值表中计算指定策略最终累计收益率。"""
     if strategy_name not in cumulative.columns or cumulative.empty:
         return None
     value = _number_or_none(cumulative[strategy_name].iloc[-1])
@@ -197,6 +210,7 @@ def cumulative_return_from_frame(cumulative: pd.DataFrame, strategy_name: str) -
 
 
 def render_strategy_result_frames(frames: EtfMomentumFrames | RotationFrames) -> None:
+	"""渲染 ETF 动量和轮动策略共用的结果区。"""
 	if not frames.metrics.empty:
 		strategy_row = frames.metrics.iloc[0]
 		strategy_name = str(strategy_row.get("策略", ""))
@@ -220,6 +234,7 @@ def render_strategy_result_frames(frames: EtfMomentumFrames | RotationFrames) ->
 		optional_frames.append(("入选频率", frames.selection_frequency))
 	if getattr(frames, "rebalance_details", None) is not None:
 		optional_frames.append(("调仓明细", frames.rebalance_details))
+	# 基础结果固定展示四个标签页，扩展结果按数据对象能力追加。
 	tabs = st.tabs(tab_names + [name for name, _ in optional_frames])
 	with tabs[0]:
 		st.dataframe(frames.returns, use_container_width=True)
@@ -234,15 +249,23 @@ def render_strategy_result_frames(frames: EtfMomentumFrames | RotationFrames) ->
 			st.dataframe(frame, use_container_width=True)
 
 
-def render_etf_momentum_page() -> None:
-	st.subheader("ETF Momentum")
-	st.sidebar.markdown("# ETF Momentum Config")
+def render_etf_momentum_page(qb_strategy: bool = False) -> None:
+	"""渲染标准或 qb ETF 动量策略的配置、回测触发和结果展示页面。"""
+	strategy_name = "QB ETF Momentum" if qb_strategy else "ETF Momentum"
+	output_dir = Path("examples") / ("qb_etf_momentum" if qb_strategy else "etf_momentum")
+	st.subheader(strategy_name)
+	st.sidebar.markdown(f"# {strategy_name} Config")
 	data_source_params = market_data_source_ui("ETF")
 	start_date = st.sidebar.date_input("ETF start date", datetime.date(2025, 1, 1))
 	end_date = st.sidebar.date_input("ETF end date", datetime.datetime.today())
 	initial_cash = st.sidebar.number_input("ETF start cash", min_value=0.0, value=100000.0, step=10000.0)
-	momentum_window = st.sidebar.number_input("momentum window", min_value=1, value=20, step=1)
-	rebalance_days = st.sidebar.number_input("rebalance days", min_value=1, value=5, step=1)
+	if qb_strategy:
+		period = st.sidebar.number_input("ROC period", min_value=1, value=5, step=1)
+		rebalance_weekday = st.sidebar.number_input("rebalance weekday (1=Mon, 5=Fri)", min_value=1, max_value=5, value=1, step=1)
+		top_n = st.sidebar.number_input("top N", min_value=1, value=5, step=1)
+	else:
+		momentum_window = st.sidebar.number_input("momentum window", min_value=1, value=20, step=1)
+		rebalance_days = st.sidebar.number_input("rebalance days", min_value=1, value=5, step=1)
 	benchmark_symbol = st.sidebar.text_input("benchmark symbol", value="510300")
 	benchmark_name = st.sidebar.text_input("benchmark name", value=ETF_BENCHMARK_NAME)
 
@@ -255,9 +278,10 @@ def render_etf_momentum_page() -> None:
 	)
 	assets = normalize_etf_assets(assets_df)
 
-	if st.button("重新运行 ETF Momentum 回测", type="primary"):
+	if st.button(f"重新运行 {strategy_name} 回测", type="primary"):
 		try:
-			with st.spinner("正在运行 ETF Momentum 回测..."):
+			# 回测失败时回退到已有 CSV 结果，保证页面仍可展示历史数据。
+			with st.spinner(f"正在运行 {strategy_name} 回测..."):
 				frames = run_etf_momentum_backtest(
 					assets=assets,
 					benchmark_symbol=benchmark_symbol.strip(),
@@ -265,25 +289,37 @@ def render_etf_momentum_page() -> None:
 					start_date=start_date.isoformat(),
 					end_date=end_date.isoformat(),
 					initial_cash=float(initial_cash),
-					momentum_window=int(momentum_window),
-					rebalance_days=int(rebalance_days),
+					momentum_window=int(period) if qb_strategy else int(momentum_window),
+					rebalance_days=1 if qb_strategy else int(rebalance_days),
+					output_dir=output_dir,
 					data_source_params=data_source_params,
+					strategy_class=QbEtfMomentumStrategy if qb_strategy else None,
+					strategy_params=(
+						{
+							"period": int(period),
+							"rebalance_weekday": int(rebalance_weekday),
+							"top_n": int(top_n),
+						}
+						if qb_strategy
+						else None
+					),
 				)
-			st.success(f"ETF Momentum 结果已更新: {ETF_OUTPUT_DIR}")
+			st.success(f"{strategy_name} 结果已更新: {output_dir}")
 		except Exception as exc:
-			logger.exception("ETF Momentum backtest failed")
-			st.error(f"ETF Momentum 回测失败: {exc}")
-			frames = load_etf_momentum_results()
+			logger.exception("%s backtest failed", strategy_name)
+			st.error(f"{strategy_name} 回测失败: {exc}")
+			frames = load_etf_momentum_results(output_dir)
 	else:
-		frames = load_etf_momentum_results()
+		frames = load_etf_momentum_results(output_dir)
 
 	if frames is None:
-		st.info(f"未找到完整 ETF Momentum 结果，请点击重新回测生成 {ETF_OUTPUT_DIR} 下的 CSV。")
+		st.info(f"未找到完整 {strategy_name} 结果，请点击重新回测生成 {output_dir} 下的 CSV。")
 		return
 	render_strategy_result_frames(frames)
 
 
 def render_rotation_page(spec: RotationSpec) -> None:
+	"""根据轮动策略规格渲染对应的配置和结果页面。"""
 	st.subheader(spec.title)
 	st.sidebar.markdown(f"# {spec.title} Config")
 	data_source_params = market_data_source_ui(spec.key)
@@ -320,6 +356,7 @@ def render_rotation_page(spec: RotationSpec) -> None:
 
 	if st.button(f"重新运行 {spec.title} 回测", type="primary"):
 		try:
+			# spec 中封装了不同轮动策略的默认参数和输出目录。
 			with st.spinner(f"正在运行 {spec.title} 回测..."):
 				frames = run_rotation_backtest(
 					spec=spec,
@@ -349,6 +386,7 @@ def render_rotation_page(spec: RotationSpec) -> None:
 
 
 def render_turtle_frames(frames: TurtleFrames) -> None:
+	"""渲染海龟交易策略的指标、图表和明细表。"""
 	st.subheader("海龟交易结果")
 	equity = frames.equity.copy()
 	equity["date"] = pd.to_datetime(equity["date"])
@@ -356,6 +394,7 @@ def render_turtle_frames(frames: TurtleFrames) -> None:
 	if not frames.metrics.empty:
 		render_summary_from_metric_row(frames.metrics.iloc[0])
 
+	# pyecharts 通用折线图要求日期列命名为 Date。
 	price_value = equity.rename(columns={"date": "Date", "close": "Close", "value": "Equity"})[
 		["Date", "Close", "Equity"]
 	]
@@ -376,6 +415,7 @@ def render_turtle_frames(frames: TurtleFrames) -> None:
 
 
 def render_turtle_page() -> None:
+	"""渲染海龟交易策略配置、回测触发和结果展示页面。"""
 	st.subheader("Turtle Trading")
 	st.sidebar.markdown("# Turtle Trading Config")
 	data_source_params = market_data_source_ui("Turtle")
@@ -393,6 +433,7 @@ def render_turtle_page() -> None:
 
 	if st.button("重新运行 Turtle Trading 回测", type="primary"):
 		try:
+			# 海龟策略参数来自侧边栏，提交前统一转换为回测函数需要的类型。
 			with st.spinner("正在运行 Turtle Trading 回测..."):
 				frames = run_turtle_backtest(
 					symbol=symbol.strip(),
@@ -423,6 +464,7 @@ def render_turtle_page() -> None:
 
 
 def render_single_symbol_strategy(name: str) -> None:
+	"""渲染单标的 Backtrader 策略的数据选择、参数扫描和结果图表。"""
 	market_data_params = market_data_selector_ui()
 	bt_params = backtrader_selector_ui()
 	if not market_data_params.symbol:
@@ -444,6 +486,7 @@ def render_single_symbol_strategy(name: str) -> None:
 
 	logger.info(f"qmt market data: {market_data_params}")
 	logger.info(f"backtrader: {bt_params}")
+	# Backtrader 数据源使用英文 OHLCV 字段名，这里在入参前统一映射。
 	stock_df = stock_df.rename(
 		columns={
 			"日期": "date",
@@ -465,9 +508,13 @@ def render_single_symbol_strategy(name: str) -> None:
 
 
 def main():
+	"""根据侧边栏选择分发到对应策略页面。"""
 	name = st.sidebar.selectbox("strategy", list(strategy_dict.keys()))
 	if name == "EtfMomentum":
 		render_etf_momentum_page()
+		return
+	if name == "QbEtfMomentum":
+		render_etf_momentum_page(qb_strategy=True)
 		return
 	if name in ROTATION_SPECS:
 		render_rotation_page(ROTATION_SPECS[name])
@@ -478,7 +525,7 @@ def main():
 	render_single_symbol_strategy(name)
 
 
-strategy_dict = load_strategy("./config/strategy.yaml")
+strategy_dict = load_strategy("src/config/strategy.yaml")
 
 if __name__ == "__main__":
 	main()

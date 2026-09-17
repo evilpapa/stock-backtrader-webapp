@@ -10,13 +10,13 @@ import numpy as np
 import pandas as pd
 from matplotlib.gridspec import GridSpec
 
-from strategy.analyzer import CustomAnalyzer
-from strategy.equal_weight import EqualWeightStrategy
-from strategy.just_buy_hold import JustBuyHoldStrategy
-from strategy.performance_calculator import PerformanceCalculator
-from utils.bigqmt_client import fetch_history_ohlcv, to_title_case_ohlcv
-from utils.commission import ChinaStockCommission
-from utils.schemas import DataSourceParams
+from src.strategy import CustomAnalyzer
+from src.strategy import EqualWeightStrategy
+from src.strategy import JustBuyHoldStrategy
+from src.strategy import PerformanceCalculator
+from src.utils.bigqmt_client import fetch_history_ohlcv, to_title_case_ohlcv
+from src.utils.commission import ChinaStockCommission
+from src.utils.schemas import DataSourceParams
 
 
 def prepare_price_data(
@@ -26,7 +26,8 @@ def prepare_price_data(
 	strategy_name: str,
 	data_source_params: DataSourceParams | None = None,
 ) -> dict[str, pd.DataFrame]:
-	# 拉取行情，并整理为 Backtrader 可直接使用的 OHLCV 数据。
+	"""拉取并清洗多标的行情数据，返回可用于 Backtrader 的价格表。"""
+	# 拉取行情，并整理为回测引擎可直接使用的开高低收量数据。
 	data_source_params = data_source_params or DataSourceParams()
 	print(f"正在通过 Big QMT RPC 获取{strategy_name}历史数据...")
 	prepared: dict[str, pd.DataFrame] = {}
@@ -52,8 +53,8 @@ def prepare_price_data(
 			print(f"  SKIP {symbol}: 缺少必要列")
 			continue
 
-		# 仅保留必要行情列，并删除不完整或无效价格记录。Backtrader 的
-		# PctChange 指标会以此前收盘价为除数，因此 Close=0 会在预计算阶段
+		# 仅保留必要行情列，并删除不完整或无效价格记录。回测引擎的
+		# 百分比变化指标会以此前收盘价为除数，因此收盘价为 0 会在预计算阶段
 		# 触发 ZeroDivisionError；其余 OHLC 非正值同样不构成有效 K 线。
 		df = df[required].apply(pd.to_numeric, errors="coerce").dropna().sort_index()
 		duplicate_count = int(df.index.duplicated(keep="last").sum())
@@ -74,11 +75,12 @@ def prepare_price_data(
 
 
 def build_cerebro(initial_cash: float) -> bt.Cerebro:
+	"""创建带统一初始资金、佣金模型和分析器的回测引擎。"""
 	# 统一初始化回测引擎，保证策略、基准和等权组合使用相同资金与手续费。
 	cerebro = bt.Cerebro()
 	# 设置初始资金
 	cerebro.broker.setcash(initial_cash)
-	# 直接实例化，自动启用万 0.854、最低 5 元的默认配置，加载到 broker 中
+	# 直接实例化，自动启用万 0.854、最低 5 元的默认配置，加载到经纪商对象中。
 	comminfo = ChinaStockCommission()
 	cerebro.broker.addcommissioninfo(comminfo)
 	# 添加自定义分析器，用于提取每日收益率和交易日期
@@ -92,7 +94,8 @@ def add_named_price_data(
 	symbols: list[str],
 	names: list[str],
 ) -> int:
-	# 将可用行情按名称注册到 Backtrader，返回实际添加的数据源数量。
+	"""按标的名称把可用行情数据注册到回测引擎。"""
+	# 将可用行情按名称注册到回测引擎，返回实际添加的数据源数量。
 	data_count = 0
 	for symbol, name in zip(symbols, names):
 		data = price_data.get(symbol)
@@ -113,6 +116,7 @@ def run_strategy_backtest(
 	initial_cash: float,
 	strategy_kwargs: dict | None = None,
 ):
+	"""运行普通多标的策略回测并返回策略实例。"""
 	print(f"\n==> 运行{strategy_display_name}回测...")
 	cerebro = build_cerebro(initial_cash)
 	data_count = add_named_price_data(cerebro, price_data, symbols, names)
@@ -139,11 +143,12 @@ def run_rotation_strategy_backtest(
 	rebalance_days: int,
 	top_l: int,
 ):
+	"""运行带基准索引参数的轮动策略回测。"""
 	print(f"\n==> 运行{strategy_display_name}回测...")
 	cerebro = build_cerebro(initial_cash)
 	add_named_price_data(cerebro, price_data, symbols, names)
 
-	# 策略内部需要知道基准数据在 cerebro.datas 中的位置，用于相对动量等计算。
+	# 策略内部需要知道基准数据在数据列表中的位置，用于相对动量等计算。
 	benchmark_index = next(
 		(index for index, data in enumerate(cerebro.datas) if data._name == benchmark_name),
 		None,
@@ -167,6 +172,7 @@ def run_benchmark_backtest(
 	benchmark_name: str,
 	initial_cash: float,
 ):
+	"""运行单一基准标的的买入持有回测。"""
 	print(f"\n==> 运行基准策略回测: {benchmark_name}")
 	cerebro = build_cerebro(initial_cash)
 	data = price_data[benchmark_symbol]
@@ -187,6 +193,7 @@ def run_equal_weight_backtest(
 	equal_weight_name: str,
 	exclude_names: set[str] | None = None,
 ):
+	"""运行等权组合回测，可排除基准或不参与配置的标的。"""
 	print(f"\n==> 运行{equal_weight_name}回测")
 	cerebro = build_cerebro(initial_cash)
 	# 可排除基准或不参与等权配置的标的，只保留组合资产池。
@@ -211,6 +218,7 @@ def run_equal_weight_backtest(
 
 
 def build_return_series(result) -> pd.Series:
+	"""从策略分析器结果中提取清洗后的日收益率序列。"""
 	# 从自定义分析器中提取日收益率，并清理无穷值和缺失值。
 	dates = pd.to_datetime(result.analyzers.custom.dates)
 	returns = pd.Series(result.analyzers.custom.returns, index=dates, dtype=float)
@@ -218,6 +226,7 @@ def build_return_series(result) -> pd.Series:
 
 
 def align_series(*series: pd.Series) -> list[pd.Series]:
+	"""将多个收益序列按共同交易日对齐。"""
 	# 多个策略收益序列按共同交易日对齐，确保后续绩效指标可横向比较。
 	# 防御性地合并重复日期：外部策略或分析器也可能提供日内多条记录，
 	# 最后一条代表该交易日的日终收益。
@@ -236,6 +245,7 @@ def build_metrics(
 	benchmark_name: str,
 	equal_weight_name: str,
 ) -> pd.DataFrame:
+	"""构建策略、基准和等权组合的绩效指标表。"""
 	# 汇总三组收益序列的核心绩效指标，输出为便于保存和打印的表格。
 	calc = PerformanceCalculator()
 	rows = []
@@ -263,6 +273,7 @@ def build_metrics(
 
 
 def format_metrics_for_console(metrics_df: pd.DataFrame) -> pd.DataFrame:
+	"""将绩效指标表格式化为控制台友好的展示文本。"""
 	# 控制台展示时将比例和倍数指标格式化为更易读的字符串。
 	formatted = metrics_df.copy()
 	for column in ["年化收益率", "年化波动率", "最大回撤", "胜率"]:
@@ -273,6 +284,7 @@ def format_metrics_for_console(metrics_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_weight_frame(strategy_result) -> pd.DataFrame:
+	"""把策略调仓历史转换为每日权重宽表。"""
 	# 将每次调仓后的目标权重展开为宽表，便于查看每日组合配置。
 	rows = []
 	for snapshot in strategy_result.rebalance_history:
@@ -284,7 +296,8 @@ def build_weight_frame(strategy_result) -> pd.DataFrame:
 
 
 def build_trade_log_weight_frame(trade_log: list[dict], names: list[str]) -> pd.DataFrame:
-	# 兼容只记录 date/weights 的策略日志，生成和轮动结果一致的权重宽表。
+	"""把交易日志中的权重记录转换为轮动结果一致的宽表。"""
+	# 兼容只记录日期和权重的策略日志，生成和轮动结果一致的权重宽表。
 	rows = []
 	for snapshot in trade_log:
 		weights = snapshot.get("weights")
@@ -299,6 +312,7 @@ def build_trade_log_weight_frame(trade_log: list[dict], names: list[str]) -> pd.
 
 
 def build_rebalance_detail_frame(strategy_result, asset_label: str) -> pd.DataFrame:
+	"""构建每次调仓的入选状态、目标权重和动量得分明细。"""
 	# 输出每次调仓时各标的是否入选、目标权重以及动量得分。
 	rows = []
 	for snapshot in strategy_result.rebalance_history:
@@ -319,6 +333,7 @@ def build_rebalance_detail_frame(strategy_result, asset_label: str) -> pd.DataFr
 
 
 def build_selection_frequency_frame(strategy_result, asset_label: str) -> pd.DataFrame:
+	"""统计各标的在回测期内被选中的次数。"""
 	# 统计每个标的在调仓历史中被选中的次数，用于观察轮动偏好。
 	counts: dict[str, int] = {}
 	for snapshot in strategy_result.rebalance_history:
@@ -339,6 +354,7 @@ def build_returns_frame(
 	benchmark_name: str,
 	equal_weight_name: str,
 ) -> pd.DataFrame:
+	"""构建每日收益率明细表。"""
 	# 合并每日收益率，作为后续分析和 CSV 导出的基础明细表。
 	return pd.DataFrame(
 		{
@@ -358,6 +374,7 @@ def build_cumulative_frame(
 	benchmark_name: str,
 	equal_weight_name: str,
 ) -> pd.DataFrame:
+	"""构建累计净值曲线数据表。"""
 	# 将每日收益率累乘为累计净值曲线。
 	return pd.DataFrame(
 		{
@@ -377,6 +394,7 @@ def build_drawdown_frame(
 	benchmark_name: str,
 	equal_weight_name: str,
 ) -> pd.DataFrame:
+	"""构建各策略的回撤曲线数据表。"""
 	# 计算各策略回撤序列，用于绘制净值下方的风险区间。
 	calc = PerformanceCalculator()
 	return pd.DataFrame(
@@ -398,6 +416,7 @@ def plot_compare(
 	output_dir: Path,
 	filename: str,
 ) -> None:
+	"""绘制策略与参照组合的累计净值和回撤对比图。"""
 	# 绘制两条累计净值曲线及对应回撤，便于策略和基准/等权组合对比。
 	fig = plt.figure(figsize=(12, 8))
 	grid = GridSpec(2, 1, height_ratios=[2, 1], hspace=0.05)
@@ -419,7 +438,7 @@ def plot_compare(
 	ax_bottom.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
 	ax_bottom.grid(alpha=0.3)
 
-	# GridSpec 与 tight_layout 不兼容，直接由 Figure 调整边距可避免布局警告。
+	# 网格布局与自动紧凑布局不兼容，直接由图像对象调整边距可避免布局警告。
 	fig.subplots_adjust(left=0.09, right=0.97, top=0.94, bottom=0.1)
 	output_dir.mkdir(parents=True, exist_ok=True)
 	fig.savefig(output_dir / filename, dpi=250, format="png")
@@ -427,6 +446,7 @@ def plot_compare(
 
 
 def plot_weights(weights_df: pd.DataFrame, strategy_name: str, output_dir: Path) -> None:
+	"""绘制组合每日目标权重的堆叠面积图。"""
 	# 将调仓权重画成堆叠面积图，展示组合仓位随时间的变化。
 	if weights_df.empty:
 		return
@@ -460,6 +480,7 @@ def save_results(
 	selection_frequency_df: pd.DataFrame | None = None,
 	rebalance_detail_df: pd.DataFrame | None = None,
 ) -> None:
+	"""保存回测结果、收益、回撤、权重和可选调仓明细文件。"""
 	# 将绩效、收益、回撤、权重和调仓明细统一导出为 UTF-8 BOM CSV，方便 Excel 打开。
 	os.makedirs(output_dir, exist_ok=True)
 	metrics_df.to_csv(output_dir / "performance_metrics.csv", index=False, encoding="utf-8-sig")

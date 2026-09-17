@@ -201,14 +201,14 @@ cerebro.addstrategy(
 策略内部根据 `rebalance_days` 控制再平衡：
 
 ```python
-self.rebalance_counter += 1
-if self.rebalance_counter < self.params.rebalance_days:
+self._rebalance_counter += 1
+if self._rebalance_counter < self._params.rebalance_days:
     return
 
-self.rebalance_counter = 0
+self._rebalance_counter = 0
 ```
 
-`config/strategy.yaml` 中 `EtfMomentum.rebalance_days` 的 UI 范围也已扩展到 `1 ~ 60`，方便在 Streamlit 中测试低频调仓。
+`../../src/config/strategy.yaml` 中 `EtfMomentum.rebalance_days` 的 UI 范围也已扩展到 `1 ~ 60`，方便在 Streamlit 中测试低频调仓。
 
 ## 初始建议
 

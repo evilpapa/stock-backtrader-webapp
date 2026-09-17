@@ -3,10 +3,11 @@ import unittest
 import backtrader as bt
 import pandas as pd
 
-from strategy.sector_rotation import SectorRotationStrategy
+from src.strategy import SectorRotationStrategy
 
 
 def make_feed(closes: list[float]) -> bt.feeds.PandasData:
+	"""根据收盘价序列构造行业轮动策略测试数据源。"""
 	dates = pd.date_range("2024-01-01", periods=len(closes), freq="D")
 	rows = []
 	prev_close = closes[0]
@@ -26,7 +27,10 @@ def make_feed(closes: list[float]) -> bt.feeds.PandasData:
 
 
 class SectorRotationStrategyTest(unittest.TestCase):
+	"""行业动量轮动策略的单元测试。"""
+
 	def _run(self, feeds: list[tuple[str, bt.feeds.PandasData]], **params):
+		"""用给定行业 ETF 数据源运行一次策略回测。"""
 		cerebro = bt.Cerebro()
 		for name, feed in feeds:
 			cerebro.adddata(feed, name=name)
@@ -38,6 +42,7 @@ class SectorRotationStrategyTest(unittest.TestCase):
 		return results[0], cerebro.broker.getvalue()
 
 	def test_selects_top_positive_sector_etfs(self):
+		"""验证策略会选出正动量排名靠前的行业 ETF。"""
 		ai = [100.0 + i * 1.0 for i in range(30)]
 		chip = [100.0 + i * 0.7 for i in range(30)]
 		real_estate = [100.0 - i * 0.4 for i in range(30)]
@@ -64,6 +69,7 @@ class SectorRotationStrategyTest(unittest.TestCase):
 		self.assertGreater(final_value, 100000.0)
 
 	def test_parameter_injection(self):
+		"""验证行业轮动策略参数能正确注入实例。"""
 		strategy, _ = self._run(
 			[("人工智能ETF", make_feed([100.0 + i * 0.2 for i in range(25)]))],
 			momentum_window=10,
@@ -72,10 +78,10 @@ class SectorRotationStrategyTest(unittest.TestCase):
 			min_trade_value_pct=0.02,
 		)
 
-		self.assertEqual(strategy.params.momentum_window, 10)
-		self.assertEqual(strategy.params.rebalance_days, 3)
-		self.assertEqual(strategy.params.top_l, 1)
-		self.assertEqual(strategy.params.min_trade_value_pct, 0.02)
+		self.assertEqual(strategy._params.momentum_window, 10)
+		self.assertEqual(strategy._params.rebalance_days, 3)
+		self.assertEqual(strategy._params.top_l, 1)
+		self.assertEqual(strategy._params.min_trade_value_pct, 0.02)
 
 
 if __name__ == "__main__":

@@ -6,9 +6,9 @@ import backtrader as bt
 import backtrader.analyzers as btanalyzers
 import pandas as pd
 
-from strategy.base import BaseStrategy
-from utils.load import load_strategy
-from utils.bigqmt_client import fetch_history_ohlcv
+from src.strategy._base import BaseStrategy
+from src.utils.load import load_strategy
+from src.utils.bigqmt_client import fetch_history_ohlcv
 
 
 class StrategyTest(unittest.TestCase):
@@ -55,13 +55,13 @@ class StrategyTest(unittest.TestCase):
 def run_back_trader(cerebro: bt.Cerebro, strategy: Type[BaseStrategy], **kwargs) -> pd.DataFrame:
 	"""运行回测
 
-	Args:
-		cerebro (bt.Cerebro): 回测引擎
-		strategy (Type[BaseStrategy]): 策略类
+	参数:
+		cerebro: 回测引擎
+		strategy: 策略类
 		**kwargs: 策略参数
 
-	Returns:
-		pd.DataFrame: 回测结果
+	返回:
+		回测结果数据表
 	"""
 	# 添加优化策略
 	cerebro.optstrategy(strategy, **kwargs)

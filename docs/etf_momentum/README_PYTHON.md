@@ -12,7 +12,7 @@ uv run python examples/etf_momentum/backtest_etf_momentum.py
 如需在 Web 应用中运行：
 
 ```bash
-.venv/Scripts/python.exe -m streamlit run app.py
+python -m streamlit run app.py
 ```
 
 然后在界面中选择 `EtfMomentum` 策略。
@@ -60,10 +60,10 @@ ETF_NAMES = ["纳指ETF", "沪深300ETF", "黄金ETF"]
 ## 相关文件
 
 - `examples/etf_momentum/backtest_etf_momentum.py`：独立回测脚本。
-- `strategy/etf_momentum.py`：集成到 Backtrader/Streamlit 的策略类。
-- `utils/qmt_client.py`：QMT API 客户端。
+- `../../src/strategy/etf_momentum.py`：集成到 Backtrader/Streamlit 的策略类。
+- `../../src/utils/qmt_client.py`：QMT API 客户端。
 - `tests/etf_momentum_test.py`：单元测试。
-- `config/strategy.yaml`：策略参数 UI 配置。
+- `../../src/config/strategy.yaml`：策略参数 UI 配置。
 
 ## 注意事项
 

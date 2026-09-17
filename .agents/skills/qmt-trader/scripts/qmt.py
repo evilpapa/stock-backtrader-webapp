@@ -783,13 +783,13 @@ def cmd_rpc(args):
     """
     tr, _, _ = _init()
     params = {}
-    if args.params:
+    if args._params:
         try:
-            params = json.loads(args.params)
+            params = json.loads(args._params)
             if not isinstance(params, dict):
-                _err("params 必须是 JSON 对象（如 '{\"key\":\"value\"}'）", code="PARAM_ERROR")
+                _err("_params 必须是 JSON 对象（如 '{\"key\":\"value\"}'）", code="PARAM_ERROR")
         except json.JSONDecodeError as e:
-            _err("params JSON 解析失败", detail=str(e), code="PARAM_ERROR")
+            _err("_params JSON 解析失败", detail=str(e), code="PARAM_ERROR")
     try:
         result = tr.client.call(args.method, params)
     except Exception as e:
@@ -991,7 +991,7 @@ def build_parser():
     # rpc — 通用 RPC 调用（兜底所有白名单方法）
     sp = sub.add_parser("rpc", help="通用 RPC 调用（任意白名单方法 + JSON 参数）")
     sp.add_argument("method", help="方法名，如 get_holidays / get_stock_name / bsm_price")
-    sp.add_argument("params", nargs="?", default=None, help='JSON 参数，如 \'{"stock":"600000.SH"}\'')
+    sp.add_argument("_params", nargs="?", default=None, help='JSON 参数，如 \'{"stock":"600000.SH"}\'')
     sp.set_defaults(func=cmd_rpc)
 
     # ---- 高频快捷命令（转发到 xtdata 对应方法） ----

@@ -2,11 +2,14 @@ import unittest
 
 import pandas as pd
 
-from utils.bigqmt_client import fetch_history_ohlcv, market_data_payload_to_ohlcv
+from src.utils.bigqmt_client import fetch_history_ohlcv, market_data_payload_to_ohlcv
 
 
 class BigQmtClientTest(unittest.TestCase):
+    """Big QMT 行情客户端转换与 RPC 参数组装测试。"""
+
     def test_normalizes_bigqmt_dataframe_payload(self):
+        """验证 Big QMT DataFrame 载荷会被规范化为 OHLCV 表。"""
         payload = {
             "__bigqmt_type__": "DataFrame",
             "records": [
@@ -22,9 +25,11 @@ class BigQmtClientTest(unittest.TestCase):
         self.assertEqual(frame["close"].tolist(), [10.8, 11.2])
 
     def test_fetch_history_uses_bigqmt_rpc_contract(self):
+        """验证历史行情接口按 Big QMT RPC 协议组装请求参数。"""
         calls = []
 
         def fake_rpc(client, account_id, method, params, timeout_seconds):
+            """记录 RPC 调用参数，并返回最小可解析的行情载荷。"""
             calls.append((client, account_id, method, params, timeout_seconds))
             return {
                 "ok": True,

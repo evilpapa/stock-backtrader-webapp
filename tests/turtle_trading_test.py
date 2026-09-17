@@ -3,11 +3,12 @@ import unittest
 import backtrader as bt
 import pandas as pd
 
-from strategy.turtle_trading import TurtleTradingStrategy
-from examples.turtle_trading.backtest_turtle_trading import TurtleBacktestConfig, parse_args, run_backtest
+from src.strategy import TurtleTradingStrategy
+from examples.turtle_trading import TurtleBacktestConfig, parse_args, run_backtest
 
 
 def make_feed(closes: list[float], signal_bar: int | None = None, signal_side: str | None = None) -> bt.feeds.PandasData:
+	"""构造可触发突破信号的 Backtrader 海龟测试数据源。"""
 	dates = pd.date_range("2024-01-01", periods=len(closes), freq="D")
 	rows = []
 	prev_close = closes[0]
@@ -41,6 +42,7 @@ def make_feed(closes: list[float], signal_bar: int | None = None, signal_side: s
 
 
 def make_title_case_ohlcv(closes: list[float], signal_bar: int | None = None) -> pd.DataFrame:
+	"""构造示例回测入口使用的首字母大写 OHLCV 数据表。"""
 	dates = pd.date_range("2024-01-01", periods=len(closes), freq="D")
 	rows = []
 	prev_close = closes[0]
@@ -63,7 +65,10 @@ def make_title_case_ohlcv(closes: list[float], signal_bar: int | None = None) ->
 
 
 class TurtleTradingStrategyTest(unittest.TestCase):
+	"""海龟交易策略和示例入口的单元测试。"""
+
 	def _run(self, feed: bt.feeds.PandasData, **params):
+		"""用给定数据源和参数运行一次海龟策略回测。"""
 		cerebro = bt.Cerebro()
 		cerebro.adddata(feed)
 		cerebro.broker.setcash(100000.0)
@@ -73,6 +78,7 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		return results[0], cerebro.broker.getvalue()
 
 	def test_long_breakout_and_pyramiding(self):
+		"""验证向上突破后会开多并按规则加仓。"""
 		closes = [100.0] * 20 + [103.0, 104.0, 105.0, 106.0, 107.0, 108.0]
 		strategy, final_value = self._run(
 			make_feed(closes, signal_bar=20, signal_side="up"),
@@ -91,6 +97,7 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		self.assertGreater(final_value, 100000.0)
 
 	def test_short_breakout(self):
+		"""验证允许做空时向下突破会产生空头交易。"""
 		closes = [100.0] * 20 + [97.0, 96.0, 95.0, 94.0, 93.0]
 		strategy, final_value = self._run(
 			make_feed(closes, signal_bar=20, signal_side="down"),
@@ -108,6 +115,7 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		self.assertGreater(final_value, 100000.0)
 
 	def test_stop_exit_resets_position_state(self):
+		"""验证止损离场后仓位状态会被清空。"""
 		closes = [100.0] * 20 + [103.0, 104.0, 98.0, 97.0, 97.0]
 		strategy, _ = self._run(
 			make_feed(closes, signal_bar=20, signal_side="up"),
@@ -126,6 +134,7 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		self.assertIsNone(strategy.stop_price)
 
 	def test_channel_exit_resets_position_state(self):
+		"""验证通道离场后仓位和加仓计数会复位。"""
 		closes = [100.0] * 20 + [103.0, 104.0, 105.0, 103.0, 102.0, 101.0, 101.0]
 		strategy, _ = self._run(
 			make_feed(closes, signal_bar=20, signal_side="up"),
@@ -143,6 +152,7 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		self.assertEqual(strategy.unit_count, 0)
 
 	def test_ambiguous_breakout_bar_is_skipped(self):
+		"""验证同一根 K 线同时突破上下轨时会跳过交易。"""
 		closes = [100.0] * 20 + [100.0, 100.0, 100.0]
 		strategy, final_value = self._run(
 			make_feed(closes, signal_bar=20, signal_side="both"),
@@ -159,6 +169,7 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		self.assertEqual(final_value, 100000.0)
 
 	def test_example_cli_defaults_to_tradeable_lot_size(self):
+		"""验证示例 CLI 默认使用可成交的最小交易单位。"""
 		config = parse_args([])
 		self.assertEqual(config.lot_size, 1)
 
@@ -167,6 +178,7 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		self.assertEqual(config.symbol, "000001")
 
 	def test_example_backtest_with_default_lot_size_trades_high_price_symbol(self):
+		"""验证默认手数也能让高价标的示例产生交易。"""
 		closes = [1800.0] * 20 + [1875.0, 1885.0, 1895.0, 1905.0]
 		config = TurtleBacktestConfig(
 			symbol="TEST",
@@ -186,6 +198,7 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 		self.assertNotEqual(strategy.position.size, 0)
 
 	def test_parameter_injection(self):
+		"""验证海龟策略参数能正确注入实例。"""
 		strategy, _ = self._run(
 			make_feed([100.0] * 30),
 			entry_period=25,
@@ -195,10 +208,10 @@ class TurtleTradingStrategyTest(unittest.TestCase):
 			lot_size=1,
 		)
 
-		self.assertEqual(strategy.params.entry_period, 25)
-		self.assertEqual(strategy.params.exit_period, 15)
-		self.assertEqual(strategy.params.atr_period, 10)
-		self.assertEqual(strategy.params.max_units, 2)
+		self.assertEqual(strategy._params.entry_period, 25)
+		self.assertEqual(strategy._params.exit_period, 15)
+		self.assertEqual(strategy._params.atr_period, 10)
+		self.assertEqual(strategy._params.max_units, 2)
 
 
 if __name__ == "__main__":

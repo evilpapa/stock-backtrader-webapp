@@ -1,8 +1,8 @@
 # 龙头动量轮动策略 - Python版本
 
-`LeadingRotation` 是 `R/leading_rotation/leading_rotation.r` 的 Python 落地版本，分为两部分：
+`LeadingRotation` 是 `../../r/leading_rotation/leading_rotation.r` 的 Python 落地版本，分为两部分：
 
-- 应用内策略：`strategy/leading_rotation.py`
+- 应用内策略：`../../src/strategy/leading_rotation.py`
 - 独立脚本：`examples/leading_rotation/backtest_leading_rotation.py`
 
 ## 策略规则

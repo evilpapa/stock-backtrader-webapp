@@ -44,7 +44,7 @@
 Python 版本通过项目内的 QMT API 客户端获取数据：
 
 ```python
-from utils.qmt_client import fetch_history_ohlcv, to_title_case_ohlcv
+from src.utils import fetch_history_ohlcv, to_title_case_ohlcv
 
 df = to_title_case_ohlcv(fetch_history_ohlcv(ticker, BACKTEST_START, BACKTEST_END))
 df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()

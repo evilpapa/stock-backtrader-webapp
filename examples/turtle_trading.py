@@ -1,42 +1,39 @@
 """
 海龟交易策略回测脚本
 使用:
-	uv run python examples/turtle_trading/backtest_turtle_trading.py
+	uv run python examples/turtle_trading.py
 """
 
 from __future__ import annotations
 
+import sys
 import argparse
-import runpy
 from dataclasses import dataclass
 from pathlib import Path
-from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import pandas as pd
 
-_bootstrap = runpy.run_path(str(Path(__file__).resolve().parents[1] / "bootstrap.py"))
-project_root = _bootstrap["project_root"]
-project_path = _bootstrap["project_path"]
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from charts import configure_matplotlib_chinese_font
+from src.charts import configure_matplotlib_chinese_font
+from src._constants import INITIAL_CASH, default_backtest_end
 from examples.backtest_common import (
 	prepare_price_data,
 	run_strategy_backtest,
 )
-from strategy.turtle_trading import TurtleTradingStrategy
+from src.strategy import TurtleTradingStrategy
 
-OUTPUT_DIR = project_path("examples", "turtle_trading")
+OUTPUT_DIR = Path(__file__).parent.absolute().joinpath("turtle_trading")
 STRATEGY_NAME = "海龟交易策略"
 SYMBOL = "600519"
 BACKTEST_START = "2021-01-01"
-BACKTEST_END = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+BACKTEST_END = default_backtest_end()
 ENTRY_PERIOD = 20
 EXIT_PERIOD = 10
 ATR_PERIOD = 20
 MAX_UNITS = 4
 RISK_PCT = 0.01
 LOT_SIZE = 1
-INITIAL_CASH = 100000.0
 ALLOW_SHORT = True
 
 configure_matplotlib_chinese_font()
@@ -44,6 +41,8 @@ configure_matplotlib_chinese_font()
 
 @dataclass(frozen=True)
 class TurtleBacktestConfig:
+	"""海龟交易示例的命令行配置。"""
+
 	symbol: str = SYMBOL
 	start_date: str = BACKTEST_START
 	end_date: str = BACKTEST_END
@@ -59,6 +58,7 @@ class TurtleBacktestConfig:
 
 
 def parse_args(argv: list[str] | None = None) -> TurtleBacktestConfig:
+	"""解析海龟交易示例的命令行参数。"""
 	parser = argparse.ArgumentParser(description="运行海龟交易策略回测")
 	parser.add_argument("--symbol", default=SYMBOL, help="股票代码，例如 600519")
 	parser.add_argument("--start-date", default=BACKTEST_START, help="回测开始日期 YYYY-MM-DD")
@@ -92,11 +92,13 @@ def parse_args(argv: list[str] | None = None) -> TurtleBacktestConfig:
 
 
 def fetch_data(config: TurtleBacktestConfig) -> pd.DataFrame:
+	"""根据配置拉取单标的行情数据。"""
 	price_data = prepare_price_data([config.symbol], config.start_date, config.end_date, STRATEGY_NAME)
 	return price_data.get(config.symbol, pd.DataFrame())
 
 
 def run_backtest(df: pd.DataFrame, config: TurtleBacktestConfig) -> TurtleTradingStrategy:
+	"""使用给定行情和配置运行海龟策略回测。"""
 	return run_strategy_backtest(
 		{config.symbol: df},
 		[config.symbol],
@@ -117,10 +119,12 @@ def run_backtest(df: pd.DataFrame, config: TurtleBacktestConfig) -> TurtleTradin
 
 
 def build_trade_frame(strategy: TurtleTradingStrategy) -> pd.DataFrame:
+	"""将策略成交日志转换为 DataFrame。"""
 	return pd.DataFrame(strategy.trade_log)
 
 
 def build_equity_frame(strategy: TurtleTradingStrategy) -> pd.DataFrame:
+	"""根据策略净值历史构建权益、收益率和回撤数据表。"""
 	frame = pd.DataFrame(strategy.value_history)
 	frame["date"] = pd.to_datetime(frame["date"])
 	frame["returns"] = frame["value"].pct_change().fillna(0.0)
@@ -130,6 +134,7 @@ def build_equity_frame(strategy: TurtleTradingStrategy) -> pd.DataFrame:
 
 
 def print_stats(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
+	"""打印海龟策略回测的核心绩效指标。"""
 	start_value = equity_df["value"].iloc[0]
 	end_value = equity_df["value"].iloc[-1]
 	total_return = end_value / start_value - 1.0
@@ -160,6 +165,7 @@ def print_stats(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
 
 
 def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame, config: TurtleBacktestConfig) -> None:
+	"""保存海龟策略的权益、成交和图表输出。"""
 	config.output_dir.mkdir(parents=True, exist_ok=True)
 	equity_df.to_csv(config.output_dir / "equity_curve.csv", index=False, encoding="utf-8-sig")
 	trades_df.to_csv(config.output_dir / "trade_log.csv", index=False, encoding="utf-8-sig")
@@ -196,6 +202,7 @@ def save_outputs(equity_df: pd.DataFrame, trades_df: pd.DataFrame, config: Turtl
 
 
 def main(argv: list[str] | None = None) -> None:
+	"""执行海龟交易策略示例回测。"""
 	config = parse_args(argv)
 	print("=" * 60)
 	print("海龟交易策略回测 (Python版本)")

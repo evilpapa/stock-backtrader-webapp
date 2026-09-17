@@ -5,11 +5,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from utils.rotation_backtest import ROTATION_SPECS, run_rotation_backtest
-from utils.turtle_backtest import run_turtle_backtest
+from src.utils.rotation_backtest import ROTATION_SPECS, run_rotation_backtest
+from src.utils.turtle_backtest import run_turtle_backtest
 
 
 def make_price_frame(closes: list[float]) -> pd.DataFrame:
+	"""根据收盘价序列构造服务层测试用的 OHLCV 表。"""
 	dates = pd.date_range("2024-01-01", periods=len(closes), freq="D")
 	close = np.array(closes, dtype=float)
 	return pd.DataFrame(
@@ -25,7 +26,10 @@ def make_price_frame(closes: list[float]) -> pd.DataFrame:
 
 
 class RotationAndTurtleBacktestServiceTest(unittest.TestCase):
+	"""轮动与海龟回测服务输出文件和结果表的测试。"""
+
 	def test_leading_rotation_service_builds_optional_result_frames(self):
+		"""验证龙头轮动服务会生成可选的选股频率和调仓明细。"""
 		spec = ROTATION_SPECS["LeadingRotation"]
 		spec = spec.__class__(**{**spec.__dict__, "output_dir": Path(tempfile.mkdtemp())})
 		assets = [
@@ -60,6 +64,7 @@ class RotationAndTurtleBacktestServiceTest(unittest.TestCase):
 		self.assertTrue((spec.output_dir / "rebalance_details.csv").exists())
 
 	def test_sector_rotation_service_excludes_benchmark_from_equal_weight(self):
+		"""验证行业轮动等权组合会排除基准标的。"""
 		spec = ROTATION_SPECS["SectorRotation"]
 		spec = spec.__class__(**{**spec.__dict__, "output_dir": Path(tempfile.mkdtemp())})
 		assets = [
@@ -92,6 +97,7 @@ class RotationAndTurtleBacktestServiceTest(unittest.TestCase):
 		self.assertTrue((spec.output_dir / "daily_weights.csv").exists())
 
 	def test_turtle_service_builds_equity_and_trade_outputs(self):
+		"""验证海龟服务会生成权益曲线、交易日志和绩效表。"""
 		with tempfile.TemporaryDirectory() as tmp:
 			output_dir = Path(tmp)
 			price_data = {
@@ -128,4 +134,3 @@ class RotationAndTurtleBacktestServiceTest(unittest.TestCase):
 
 if __name__ == "__main__":
 	unittest.main()
-

@@ -25,7 +25,7 @@ Backtrader 执行回测，并通过 `xtquant-big-convert` 的 Big QMT RPC 桥接
 
 ### 1. 安装项目依赖
 
-项目已锁定 `xtquant-big-convert[redis]==0.3.14`。在项目根目录执行：
+项目已锁定 `xtquant-big-convert[redis]==0.3.45`。在项目根目录执行：
 
 ```powershell
 uv sync

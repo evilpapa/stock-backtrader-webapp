@@ -29,6 +29,7 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
+qb/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -97,9 +98,9 @@ ENV/
 # Operating System Files
 # =========================
 
-# OSX
+# OSX or CachyOS
 # =========================
-
+.directory
 .DS_Store
 .AppleDouble
 .LSOverride

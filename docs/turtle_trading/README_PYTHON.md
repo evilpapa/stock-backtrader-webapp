@@ -1,8 +1,8 @@
 # Turtle Trading - Python版本
 
-`TurtleTrading` 是对 `R/turtle_trading/turtle_trading.r` 的 Python 落地版本，分为两部分：
+`TurtleTrading` 是对 `../../r/turtle_trading/turtle_trading.r` 的 Python 落地版本，分为两部分：
 
-- 应用内策略：`strategy/turtle_trading.py`
+- 应用内策略：`../../src/strategy/turtle_trading.py`
 - 独立脚本：`examples/turtle_trading/backtest_turtle_trading.py`
 
 ## 策略规则

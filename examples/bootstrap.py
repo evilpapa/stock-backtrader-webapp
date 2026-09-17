@@ -11,4 +11,5 @@ if project_root_str not in sys.path:
 
 
 def project_path(*parts: str) -> Path:
+	"""返回项目根目录下的指定路径。"""
 	return project_root.joinpath(*parts)

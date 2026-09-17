@@ -6,6 +6,7 @@ from examples import backtest_common as backtest_common
 
 
 def test_prepare_price_data_removes_non_positive_ohlc_rows(monkeypatch):
+    """验证行情准备逻辑会剔除非正 OHLC 记录并合并重复日期。"""
     raw_data = pd.DataFrame(
         {
             "Open": [0.0, 10.0, 0.0],
@@ -26,6 +27,7 @@ def test_prepare_price_data_removes_non_positive_ohlc_rows(monkeypatch):
 
 
 def test_align_series_uses_last_value_for_duplicate_dates():
+    """验证收益序列对齐前会使用重复日期的最后一条记录。"""
     first = pd.Series([0.1, 0.2, 0.3], index=pd.to_datetime(["2025-01-01", "2025-01-01", "2025-01-02"]))
     second = pd.Series([0.4, 0.5], index=pd.to_datetime(["2025-01-01", "2025-01-02"]))
 
@@ -36,6 +38,7 @@ def test_align_series_uses_last_value_for_duplicate_dates():
 
 
 def test_plot_weights_writes_png_without_tight_layout_warning(tmp_path):
+    """验证权重图能写出 PNG，且不再依赖会报警的 tight_layout。"""
     weights_df = pd.DataFrame(
         {
             "Date": pd.to_datetime(["2025-01-01", "2025-01-02"]),
