@@ -8,7 +8,7 @@ from typing import Any
 import backtrader as bt
 import pandas as pd
 
-from src.strategy.small2 import Small2PandasData, Small2Strategy
+from src.strategy.small_cap import SmallCapPandasData, SmallCapStrategy
 
 from .qmt_universe import QmtUniverseClient, StockUniverseSnapshot
 
@@ -47,7 +47,7 @@ def run_small2_backtest(
     initial_cash: float,
     strategy_params: dict[str, Any] | None = None,
     market_factors: pd.DataFrame | None = None,
-) -> Small2Strategy:
+) -> SmallCapStrategy:
     """使用已下载的行情与快照运行 Small2，返回策略实例供读取调仓记录。"""
     if not snapshots:
         raise ValueError("Small2 回测至少需要一个股票池快照")
@@ -57,11 +57,11 @@ def run_small2_backtest(
         if not required.issubset(frame.columns):
             continue
         data_frame = frame.copy().set_index(pd.to_datetime(frame["date"]))
-        cerebro.adddata(Small2PandasData(dataname=data_frame), name=code)
+        cerebro.adddata(SmallCapPandasData(dataname=data_frame), name=code)
     if not cerebro.datas:
         raise ValueError("Small2 回测没有可用的含 amount 日线数据")
     cerebro.broker.setcash(initial_cash)
     params = dict(strategy_params or {})
     params.update({"universe_snapshots": snapshots, "market_factors": market_factors})
-    cerebro.addstrategy(Small2Strategy, **params)
+    cerebro.addstrategy(SmallCapStrategy, **params)
     return cerebro.run()[0]

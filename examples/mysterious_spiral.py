@@ -19,8 +19,8 @@ from __future__ import annotations
 import pandas as pd
 from tabulate import tabulate
 
-from bootstrap import project_path
-from backtest_common import (
+from examples.bootstrap import project_path
+from examples.backtest_common import (
 	add_named_price_data,
 	build_cerebro,
 	build_return_series,

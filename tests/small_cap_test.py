@@ -5,11 +5,11 @@ import unittest
 import backtrader as bt
 import pandas as pd
 
-from src.strategy import Small2PandasData, Small2Strategy
+from src.strategy import SmallCapPandasData, SmallCapStrategy
 from src.utils.qmt_universe import StockUniverseSnapshot
 
 
-def make_feed(base: float, daily_return: float, amount: float = 10_000_000) -> Small2PandasData:
+def make_feed(base: float, daily_return: float, amount: float = 10_000_000) -> SmallCapPandasData:
 	"""生成不触发涨跌停过滤的合成日线。"""
 	dates = pd.date_range("2024-01-01", periods=50, freq="D")
 	closes = [base * (1 + daily_return) ** index for index in range(len(dates))]
@@ -24,10 +24,10 @@ def make_feed(base: float, daily_return: float, amount: float = 10_000_000) -> S
 		},
 		index=dates,
 	)
-	return Small2PandasData(dataname=frame)
+	return SmallCapPandasData(dataname=frame)
 
 
-class Small2StrategyTest(unittest.TestCase):
+class SmallCapStrategyTest(unittest.TestCase):
 	def _snapshot(self) -> StockUniverseSnapshot:
 		return StockUniverseSnapshot(
 			pd.Timestamp("2024-02-19"),
@@ -53,7 +53,7 @@ class Small2StrategyTest(unittest.TestCase):
 			"avoid_months": (),
 		}
 		strategy_params.update(params)
-		cerebro.addstrategy(Small2Strategy, **strategy_params)
+		cerebro.addstrategy(SmallCapStrategy, **strategy_params)
 		return cerebro.run()[0]
 
 	def test_selects_lowest_scoring_eligible_stock(self):

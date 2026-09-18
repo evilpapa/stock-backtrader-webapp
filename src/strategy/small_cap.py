@@ -13,14 +13,14 @@ from src.utils.qmt_universe import StockUniverseSnapshot
 from ._base import BaseStrategy
 
 
-class Small2PandasData(bt.feeds.PandasData):
+class SmallCapPandasData(bt.feeds.PandasData):
 	"""增加 ``amount`` 行的 QMT 日线数据源。"""
 
 	lines = ("amount",)
 	params = (("amount", -1),)  # Pandas DataFrame 中成交额列的映射位置
 
 
-class Small2Strategy(BaseStrategy):
+class SmallCapStrategy(BaseStrategy):
 	"""按小流通市值、反转、流动性和 K 线形态评分的全市场选股策略。
 
 	``universe_snapshot`` 必须由 :class:`QmtUniverseClient` 在回测起点或每次
@@ -74,7 +74,7 @@ class Small2Strategy(BaseStrategy):
 		snapshot = self.p.universe_snapshot
 		self.snapshots = self._normalize_snapshots(self.p.universe_snapshots)
 		if not self.snapshots and not isinstance(snapshot, StockUniverseSnapshot):
-			raise ValueError("Small2Strategy 需要 universe_snapshot 或按调仓日提供的 universe_snapshots")
+			raise ValueError("SmallCapStrategy 需要 universe_snapshot 或按调仓日提供的 universe_snapshots")
 		self.snapshot = snapshot
 		self.data_by_name = {data._name: data for data in self.datas}
 		self._tradable_names = set(snapshot.stocks["code"]) if isinstance(snapshot, StockUniverseSnapshot) else set()

@@ -9,7 +9,7 @@ from tabulate import tabulate
 
 from examples.backtest_common import format_metrics_for_console, plot_compare, plot_weights
 from src.charts import configure_matplotlib_chinese_font
-from src._constants import (
+from src.constants import (
 	BENCHMARK_COLOR,
 	DEFAULT_MOMENTUM_WINDOW,
 	DEFAULT_REBALANCE_DAYS,

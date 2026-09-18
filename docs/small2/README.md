@@ -1,6 +1,6 @@
 # Small2 小市值策略迁移
 
-`src/strategy/small2.py` 将 `qb/small2/small2.py` 迁移为 Backtrader 策略；QMT 查询与策略逻辑分离，策略不会执行网络请求或实盘下单。
+`src/strategy/small_cap.py` 将 `qb/small2/small2.py` 迁移为 Backtrader 策略；QMT 查询与策略逻辑分离，策略不会执行网络请求或实盘下单。
 
 ## QMT 数据映射
 

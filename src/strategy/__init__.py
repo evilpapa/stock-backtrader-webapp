@@ -9,7 +9,7 @@ from .etf_momentum import EtfMomentumStrategy
 from .qb_etf_momentum import QbEtfMomentumStrategy
 from .leading_rotation import LeadingRotationStrategy
 from .sector_rotation import SectorRotationStrategy
-from .small2 import Small2PandasData, Small2Strategy
+from .small_cap import SmallCapPandasData, SmallCapStrategy
 from .mysterious_spiral import MysteriousSpiralStrategy
 from .turtle_trading import TurtleTradingStrategy
 
@@ -25,8 +25,8 @@ __all__ = [
 	"JustBuyHoldStrategy",
 	"LeadingRotationStrategy",
 	"SectorRotationStrategy",
-	"Small2PandasData",
-	"Small2Strategy",
+	"SmallCapPandasData",
+	"SmallCapStrategy",
 	"MysteriousSpiralStrategy",
 	"TurtleTradingStrategy",
 ]

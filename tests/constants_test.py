@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from src._constants import (
+from src.constants import (
 	BENCHMARK_COLOR,
 	DEFAULT_MOMENTUM_WINDOW,
 	DEFAULT_REBALANCE_DAYS,

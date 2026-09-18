@@ -6,17 +6,14 @@
 
 from __future__ import annotations
 
-import sys
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from src.charts import configure_matplotlib_chinese_font
-from src._constants import INITIAL_CASH, default_backtest_end
+from src.constants import INITIAL_CASH, default_backtest_end
 from examples.backtest_common import (
 	prepare_price_data,
 	run_strategy_backtest,
