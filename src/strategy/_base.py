@@ -10,26 +10,38 @@ class BaseStrategy(bt.Strategy):
 
 	_name = "base"
 	# ``params`` 是 Backtrader 的参数注册接口，不能改为私有名称。
-	params = (("print_log", False),)
+	params = (("print_log", False),)  # 是否输出策略运行日志
 
 	def __init__(self):
 		"""初始化订单、成交价格和手续费等通用状态。"""
-		self._bar_executed = None
-		self._buy_comm = None
-		self._buy_price = None
-		self._order = None
-		self._bought = False
-		self._rebalance_counter = 0
+		self.bar_executed = None
+		self.buy_comm = None
+		self.buy_price = None
+		self.order = None
+		self.pending_orders: dict[int, bt.OrderBase] = {}
+		self.bought = False
+		self.rebalance_counter = 0
 
 	def log(self, txt: str, dt: Optional[bt.datetime.date] = None, do_print: bool = False) -> None:
 		"""按策略配置输出带交易日期的日志。"""
-		if self.params.print_log or do_print:
+		if self.p.print_log or do_print:
 			dt = dt or self.datas[0].datetime.date(0)
 			logger.info("%s, %s" % (dt.isoformat(), txt))
 
+	def _track_order(self, order: bt.OrderBase | None) -> bt.OrderBase | None:
+		"""登记订单，防止策略在订单进入终态前重复提交调仓请求。"""
+		if order is not None:
+			self.order = order
+			self.pending_orders[order.ref] = order
+		return order
+
+	def _has_pending_orders(self) -> bool:
+		"""返回当前是否仍有等待经纪商处理的订单。"""
+		return bool(self.pending_orders)
+
 	def notify_order(self, order: bt.OrderBase) -> None:
 		"""处理订单生命周期通知，并记录成交价、手续费和订单状态。"""
-		if order.status in [order.Submitted, order.Accepted]:
+		if order.status in [order.Submitted, order.Accepted, order.Partial]:
 			# 订单已提交或已被经纪商接受，等待后续成交结果。
 			return
 
@@ -41,21 +53,23 @@ class BaseStrategy(bt.Strategy):
 					% (order.executed.price, order.executed.value, order.executed.comm)
 				)
 
-				self._buy_price = order.executed.price
-				self._buy_comm = order.executed.comm
+				self.buy_price = order.executed.price
+				self.buy_comm = order.executed.comm
 			else:  # 卖单成交
 				self.log(
 					"SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f"
 					% (order.executed.price, order.executed.value, order.executed.comm)
 				)
 
-			self._bar_executed = len(self)
+			self.bar_executed = len(self)
 
-		elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+		elif order.status in [order.Canceled, order.Margin, order.Rejected, order.Expired]:
 			self.log("Order Canceled/Margin/Rejected")
 
-		# 当前订单已进入终态，清空挂单引用。
-		self._order = None
+		# 当前订单已进入终态，仅清理对应订单，不能误清理其他数据源的挂单。
+		self.pending_orders.pop(order.ref, None)
+		if order is self.order:
+			self.order = None
 
 	def notify_trade(self, trade: bt.Trade) -> None:
 		"""在交易闭合后记录毛利润和扣费后净利润。"""
@@ -70,7 +84,7 @@ class BaseStrategy(bt.Strategy):
 
 	def stop(self) -> None:
 		"""回测结束时输出策略参数和期末资产。"""
-		params = [f"{k}_{v}" for k, v in self.params._getkwargs().items() if k != "print_log"]
+		params = [f"{k}_{v}" for k, v in self.p._getkwargs().items() if k != "print_log"]
 		self.log(
 			"(%s %s) Ending Value %.2f" % (self._name, " ".join(params), self.broker.getvalue()),
 			do_print=True,

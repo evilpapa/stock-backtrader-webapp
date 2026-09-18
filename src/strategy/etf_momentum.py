@@ -38,9 +38,9 @@ class EtfMomentumStrategy(BaseStrategy):
 
 	_name = "EtfMomentum"
 	params = (
-		("momentum_window", 20),  # 动量计算窗口
+		("momentum_window", 5),  # 动量计算窗口
 		("rebalance_days", 1),  # 再平衡频率（天）
-		("print_log", False),
+		("print_log", False),  # 是否输出策略运行日志
 	)
 
 	def __init__(self):
@@ -57,7 +57,7 @@ class EtfMomentumStrategy(BaseStrategy):
 		self.rebalance_history = []
 
 		# 追踪所有数据源
-		self.data_closes = [d.close for d in self.datas]
+		self.dataclose = [d.close for d in self.datas]
 
 		# 为每个数据源计算收益率
 		for data in self.datas:
@@ -68,31 +68,33 @@ class EtfMomentumStrategy(BaseStrategy):
 		# 原示例未单独遍历收益率列表，这里沿用当前缩进结构。
 			# 计算滚动平均收益率（动量）
 			self.momentum.append(
-				bt.indicators.SimpleMovingAverage(ret, period=self.params.momentum_window)
+				bt.indicators.SimpleMovingAverage(ret, period=self.p.momentum_window)
 			)
 			# 计算滚动标准差（波动率）
 			self.volatility.append(
-				bt.indicators.StandardDeviation(ret, period=self.params.momentum_window)
+				bt.indicators.StandardDeviation(ret, period=self.p.momentum_window)
 			)
 
 		self.log("ETF动量策略初始化完成", do_print=True)
-		self.log(f"参数: 动量窗口={self.params.momentum_window}, "
-				 f"再平衡频率={self.params.rebalance_days}天", do_print=True)
+		self.log(f"参数: 动量窗口={self.p.momentum_window}, "
+				 f"再平衡频率={self.p.rebalance_days}天", do_print=True)
 
 	def next(self):
 		"""每个交易日检查是否需要再平衡，并计算目标 ETF 权重。"""
+		if self._has_pending_orders():
+			return
+		if any(len(data) < self.p.momentum_window for data in self.datas):
+			return
 
 		# 检查是否到达再平衡日
-		self._rebalance_counter += 1
-		if self._rebalance_counter < self.params.rebalance_days:
+		self.rebalance_counter += 1
+		if self.rebalance_counter < self.p.rebalance_days:
 			return
 
 		# 重置计数器
-		self._rebalance_counter = 0
+		self.rebalance_counter = 0
 
 		# 检查是否有足够的数据
-		if len(self.datas[0]) < self.params.momentum_window:
-			return
 
 		# 计算所有标的的风险调整动量
 		adj_momentum_values = []
@@ -136,7 +138,7 @@ class EtfMomentumStrategy(BaseStrategy):
 		)
 
 		# 记录权重信息
-		if self.params.print_log:
+		if self.p.print_log:
 			weight_info = ", ".join([f"ETF{i}: {w:.2%}" for i, w in enumerate(target_weights)])
 			self.log(f"再平衡权重: {weight_info}")
 
@@ -174,45 +176,19 @@ class EtfMomentumStrategy(BaseStrategy):
 
 				if size > 0:
 					self.log(f"ETF{i} 买入: {size}股 @ {current_price:.2f}")
-					self.buy(data=data, size=size)
+					self._track_order(self.buy(data=data, size=size))
 				elif size < 0:
 					self.log(f"ETF{i} 卖出: {-size}股 @ {current_price:.2f}")
-					self.sell(data=data, size=-size)
+					self._track_order(self.sell(data=data, size=-size))
 
 	def notify_order(self, order):
-		"""处理订单状态通知，并记录买入或卖出成交信息。"""
-		if order.status in [order.Submitted, order.Accepted]:
-			return
-
-		if order.status in [order.Completed]:
-			if order.isbuy():
-				self.log(
-					f"买入执行: 价格={order.executed.price:.2f}, "
-					f"成本={order.executed.value:.2f}, "
-					f"手续费={order.executed.comm:.2f}"
-				)
-			else:
-				self.log(
-					f"卖出执行: 价格={order.executed.price:.2f}, "
-					f"成本={order.executed.value:.2f}, "
-					f"手续费={order.executed.comm:.2f}"
-				)
-		elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-			self.log("订单取消/保证金不足/拒绝")
-
-		self._order = None
-
-	def notify_trade(self, trade):
-		"""在交易闭合后记录本次交易利润。"""
-		if not trade.isclosed:
-			return
-
-		self.log(f"交易利润: 毛利={trade.pnl:.2f}, 净利={trade.pnlcomm:.2f}")
+		"""复用基类的订单状态机和成交记录。"""
+		super().notify_order(order)
 
 	def stop(self):
 		"""策略结束时输出关键参数和期末资产。"""
 		self.log(
-			f"(ETF动量策略 动量窗口={self.params.momentum_window}) "
+			f"(ETF动量策略 动量窗口={self.p.momentum_window}) "
 			f"期末价值 {self.broker.getvalue():.2f}",
 			do_print=True
 		)

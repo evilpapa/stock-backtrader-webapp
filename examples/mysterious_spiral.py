@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import pandas as pd
+from tabulate import tabulate
 
 from bootstrap import project_path
 from backtest_common import (
@@ -68,9 +69,10 @@ def run_backtest() -> MysteriousSpiralStrategy:
 		]
 	)
 	print("\n神秘螺旋回测结果")
-	print(metrics.to_string(index=False, formatters={"年化收益率": "{:.2%}".format, "最大回撤": "{:.2%}".format}))
+	print(tabulate(metrics, headers="keys", tablefmt="grid", showindex=False))
+	# print(metrics.to_string(index=False, formatters={"年化收益率": "{:.2%}".format, "最大回撤": "{:.2%}".format}))
 
-	output_dir = project_path("examples", "mysterious-spiral")
+	output_dir = project_path("examples", "mysterious_spiral")
 	output_dir.mkdir(exist_ok=True)
 	metrics.to_csv(output_dir / "performance_metrics.csv", index=False, encoding="utf-8-sig")
 	pd.DataFrame(result.rebalance_history).to_json(

@@ -13,13 +13,13 @@ class MysteriousSpiralStrategy(BaseStrategy):
 
 	_name = "MysteriousSpiral"
 	params = (
-		("rps_window", 60),
-		("td_lookback", 15),
-		("td_bonus", 25.0),
-		("top_n", 2),
-		("require_perfected_setup", True),
-		("min_trade_value_pct", 0.001),
-		("print_log", False),
+		("rps_window", 60),  # RPS 相对强弱收益率计算窗口
+		("td_lookback", 15),  # 回看 TD 买入 Setup 的交易日数
+		("td_bonus", 25.0),  # 出现 TD 买入 Setup 时增加的排名分数
+		("top_n", 2),  # 月度等权持仓数量
+		("require_perfected_setup", True),  # 是否要求 TD Setup 满足 perfection 条件
+		("min_trade_value_pct", 0.001),  # 最小调仓金额占总资产比例
+		("print_log", False),  # 是否输出策略运行日志
 	)
 
 	def __init__(self) -> None:
@@ -30,7 +30,7 @@ class MysteriousSpiralStrategy(BaseStrategy):
 
 	def next_open(self) -> None:
 		"""月首交易日开盘，根据前一个交易日收盘信号调仓。"""
-		if not self._has_enough_history():
+		if self._has_pending_orders() or not self._has_enough_history():
 			return
 		today = self.datas[0].datetime.date(0)
 		previous_day = self.datas[0].datetime.date(-1)
@@ -39,7 +39,7 @@ class MysteriousSpiralStrategy(BaseStrategy):
 			return
 
 		scores, rps_by_name, td_by_name = self._build_scores(signal_offset=-1)
-		selected = sorted(scores, key=scores.__getitem__, reverse=True)[: self.params.top_n]
+		selected = sorted(scores, key=scores.__getitem__, reverse=True)[: self.p.top_n]
 		target_weights = {
 			data._name: (1.0 / len(selected) if selected and data._name in selected else 0.0)
 			for data in self.datas
@@ -66,11 +66,11 @@ class MysteriousSpiralStrategy(BaseStrategy):
 			)
 
 	def _has_enough_history(self) -> bool:
-		minimum_bars = max(self.params.rps_window + 1, self.params.td_lookback + 13) + 1
+		minimum_bars = max(self.p.rps_window + 1, self.p.td_lookback + 13) + 1
 		return all(len(data) >= minimum_bars for data in self.datas)
 
 	def _build_scores(self, signal_offset: int) -> tuple[dict[str, float], dict[str, float], dict[str, bool]]:
-		returns = {data._name: self._return_over_window(data, signal_offset, self.params.rps_window) for data in self.datas}
+		returns = {data._name: self._return_over_window(data, signal_offset, self.p.rps_window) for data in self.datas}
 		valid_returns = {name: value for name, value in returns.items() if np.isfinite(value)}
 		if not valid_returns:
 			return {}, {}, {}
@@ -80,7 +80,7 @@ class MysteriousSpiralStrategy(BaseStrategy):
 			for name, current in valid_returns.items()
 		}
 		td_by_name = {data._name: self._has_recent_bear_setup(data, signal_offset) for data in self.datas}
-		scores = {name: rps_by_name[name] + (self.params.td_bonus if td_by_name[name] else 0.0) for name in valid_returns}
+		scores = {name: rps_by_name[name] + (self.p.td_bonus if td_by_name[name] else 0.0) for name in valid_returns}
 		return scores, rps_by_name, td_by_name
 
 	@staticmethod
@@ -89,24 +89,24 @@ class MysteriousSpiralStrategy(BaseStrategy):
 		return end_close / start_close - 1.0 if end_close > 0 and start_close > 0 else float("nan")
 
 	def _has_recent_bear_setup(self, data: bt.LineSeries, end: int) -> bool:
-		return any(self._is_bear_setup_complete(data, end - days_ago) for days_ago in range(self.params.td_lookback))
+		return any(self._is_bear_setup_complete(data, end - days_ago) for days_ago in range(self.p.td_lookback))
 
 	def _is_bear_setup_complete(self, data: bt.LineSeries, end: int) -> bool:
 		if any(float(data.close[end - step]) >= float(data.close[end - step - 4]) for step in range(9)):
 			return False
-		if not self.params.require_perfected_setup:
+		if not self.p.require_perfected_setup:
 			return True
 		return min(float(data.low[end - 1]), float(data.low[end])) < min(float(data.low[end - 3]), float(data.low[end - 2]))
 
 	def _rebalance(self, target_weights: dict[str, float]) -> None:
 		portfolio_value = self.broker.getvalue()
-		minimum_change = portfolio_value * self.params.min_trade_value_pct
+		minimum_change = portfolio_value * self.p.min_trade_value_pct
 		for data in self.datas:
 			current_value = self.getposition(data).size * data.open[0]
 			if target_weights[data._name] == 0.0 and abs(current_value) >= minimum_change:
-				self.order_target_percent(data=data, target=0.0)
+				self._track_order(self.order_target_percent(data=data, target=0.0))
 		for data in self.datas:
 			target_value = portfolio_value * target_weights[data._name]
 			current_value = self.getposition(data).size * data.open[0]
 			if target_weights[data._name] > 0.0 and abs(target_value - current_value) >= minimum_change:
-				self.order_target_percent(data=data, target=target_weights[data._name])
+				self._track_order(self.order_target_percent(data=data, target=target_weights[data._name]))

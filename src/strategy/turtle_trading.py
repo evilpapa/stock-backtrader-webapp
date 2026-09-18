@@ -12,23 +12,23 @@ class TurtleTradingStrategy(BaseStrategy):
 
 	_name = "TurtleTrading"
 	params = (
-		("entry_period", 20),
-		("exit_period", 10),
-		("atr_period", 20),
-		("max_units", 4),
-		("risk_pct", 0.01),
-		("add_unit_atr", 0.5),
-		("stop_atr", 2.0),
-		("allow_short", True),
-		("lot_size", 100),
-		("print_log", False),
+		("entry_period", 20),  # 唐奇安通道入场周期
+		("exit_period", 10),  # 唐奇安通道退出周期
+		("atr_period", 20),  # ATR 波动率计算周期
+		("max_units", 4),  # 单方向最大加仓单元数
+		("risk_pct", 0.01),  # 单个单位的账户风险比例
+		("add_unit_atr", 0.5),  # 每次加仓所需的 ATR 价格间隔
+		("stop_atr", 2.0),  # 初始止损距离（ATR 倍数）
+		("allow_short", True),  # 是否允许建立空头仓位
+		("lot_size", 100),  # 下单数量的最小整手单位
+		("print_log", False),  # 是否输出策略运行日志
 	)
 
 	def __init__(self) -> None:
 		"""初始化海龟通道、ATR 指标、加仓状态和交易记录。"""
 		super().__init__()
 		self.data_closes = self.datas[0].close
-		self._order: bt.OrderBase | None = None
+		self.order = None
 		self.pending_order_meta: dict[str, float | int | str] | None = None
 		self.unit_count = 0
 		self.last_entry_price: float | None = None
@@ -36,12 +36,12 @@ class TurtleTradingStrategy(BaseStrategy):
 		self.trade_log: list[dict[str, float | int | str]] = []
 		self.value_history: list[dict[str, float | object]] = []
 
-		self.entry_high = bt.ind.Highest(self.datas[0].high(-1), period=self.params.entry_period)
-		self.entry_low = bt.ind.Lowest(self.datas[0].low(-1), period=self.params.entry_period)
-		self.exit_high = bt.ind.Highest(self.datas[0].high(-1), period=self.params.exit_period)
-		self.exit_low = bt.ind.Lowest(self.datas[0].low(-1), period=self.params.exit_period)
-		self.atr = bt.ind.AverageTrueRange(self.datas[0], period=self.params.atr_period)
-		self.min_bars = max(self.params.entry_period, self.params.exit_period, self.params.atr_period) + 1
+		self.entry_high = bt.ind.Highest(self.datas[0].high(-1), period=self.p.entry_period)
+		self.entry_low = bt.ind.Lowest(self.datas[0].low(-1), period=self.p.entry_period)
+		self.exit_high = bt.ind.Highest(self.datas[0].high(-1), period=self.p.exit_period)
+		self.exit_low = bt.ind.Lowest(self.datas[0].low(-1), period=self.p.exit_period)
+		self.atr = bt.ind.AverageTrueRange(self.datas[0], period=self.p.atr_period)
+		self.min_bars = max(self.p.entry_period, self.p.exit_period, self.p.atr_period) + 1
 
 	def next(self) -> None:
 		"""逐根 K 线记录资产，并处理入场、止损、出场和加仓逻辑。"""
@@ -55,7 +55,7 @@ class TurtleTradingStrategy(BaseStrategy):
 		)
 		self.log(f"Close, {self.data_closes[0]:.2f}")
 
-		if len(self) < self.min_bars or self._order or math.isnan(self.atr[0]) or self.atr[0] <= 0:
+		if len(self) < self.min_bars or self.order or math.isnan(self.atr[0]) or self.atr[0] <= 0:
 			return
 
 		if not self.position:
@@ -82,7 +82,7 @@ class TurtleTradingStrategy(BaseStrategy):
 			if self.pending_order_meta["type"] == "entry":
 				self.unit_count += 1
 				self.last_entry_price = float(order.executed.price)
-				stop_offset = float(self.pending_order_meta["atr"]) * self.params.stop_atr
+				stop_offset = float(self.pending_order_meta["atr"]) * self.p.stop_atr
 				direction = int(self.pending_order_meta["direction"])
 				self.stop_price = (
 					self.last_entry_price - stop_offset
@@ -123,7 +123,7 @@ class TurtleTradingStrategy(BaseStrategy):
 
 		if long_breakout:
 			self._submit_entry(size=unit_size, direction=1)
-		elif short_breakout and self.params.allow_short:
+		elif short_breakout and self.p.allow_short:
 			self._submit_entry(size=unit_size, direction=-1)
 
 	def _handle_long_position(self) -> None:
@@ -138,10 +138,10 @@ class TurtleTradingStrategy(BaseStrategy):
 			self._submit_flatten()
 			return
 
-		if self.unit_count >= self.params.max_units or self.last_entry_price is None:
+		if self.unit_count >= self.p.max_units or self.last_entry_price is None:
 			return
 
-		add_price = self.last_entry_price + self.params.add_unit_atr * self.atr[0]
+		add_price = self.last_entry_price + self.p.add_unit_atr * self.atr[0]
 		if self.datas[0].high[0] >= add_price:
 			unit_size = self._calculate_unit_size()
 			if unit_size > 0:
@@ -160,10 +160,10 @@ class TurtleTradingStrategy(BaseStrategy):
 			self._submit_flatten()
 			return
 
-		if self.unit_count >= self.params.max_units or self.last_entry_price is None:
+		if self.unit_count >= self.p.max_units or self.last_entry_price is None:
 			return
 
-		add_price = self.last_entry_price - self.params.add_unit_atr * self.atr[0]
+		add_price = self.last_entry_price - self.p.add_unit_atr * self.atr[0]
 		if self.datas[0].low[0] <= add_price:
 			unit_size = self._calculate_unit_size()
 			if unit_size > 0:
@@ -174,10 +174,10 @@ class TurtleTradingStrategy(BaseStrategy):
 		"""按方向提交入场或加仓订单，并保存订单元数据。"""
 		if direction > 0:
 			self.log(f"BUY CREATE, {self.data_closes[0]:.2f}")
-			self._order = self.buy(size=size)
+			self._track_order(self.buy(data=self.datas[0], size=size))
 		else:
 			self.log(f"SELL CREATE, {self.data_closes[0]:.2f}")
-			self._order = self.sell(size=size)
+			self._track_order(self.sell(data=self.datas[0], size=size))
 
 		self.pending_order_meta = {
 			"type": "entry",
@@ -187,15 +187,15 @@ class TurtleTradingStrategy(BaseStrategy):
 
 	def _submit_flatten(self) -> None:
 		"""提交平仓订单，并标记本次挂单为退出类型。"""
-		self._order = self.close()
+		self._track_order(self.close(data=self.datas[0]))
 		self.pending_order_meta = {"type": "exit"}
 
 	def _calculate_unit_size(self) -> int:
 		"""按账户风险比例、ATR 和最小交易单位计算单次建仓数量。"""
-		capital_at_risk = self.broker.getvalue() * self.params.risk_pct
+		capital_at_risk = self.broker.getvalue() * self.p.risk_pct
 		raw_size = capital_at_risk / self.atr[0]
 		unit_size = int(raw_size)
-		lot_size = max(int(self.params.lot_size), 1)
+		lot_size = max(int(self.p.lot_size), 1)
 		if lot_size > 1:
 			unit_size = (unit_size // lot_size) * lot_size
 		return max(unit_size, 0)

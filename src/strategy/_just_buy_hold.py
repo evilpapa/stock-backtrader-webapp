@@ -10,7 +10,7 @@ class JustBuyHoldStrategy(BaseStrategy):
 
 	_name = "JustBuyHold"
 	params = (
-		("print_log", False),
+		("print_log", False),  # 是否输出策略运行日志
 	)
 
 	def __init__(self):
@@ -18,26 +18,21 @@ class JustBuyHoldStrategy(BaseStrategy):
 		super().__init__()
 
 	def notify_order(self, order):
-		"""处理买入订单通知，并在成交后标记已建仓。"""
-		if order.status in [order.Completed]:
-			if order.isbuy():
-				self.log(f'买入执行, 价格: {order.executed.price:.2f}, '
-						 f'数量: {order.executed.size:.2f}, '
-						 f'手续费: {order.executed.comm:.2f}')
-				self._bought = True
-		elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-			self.log(f'订单被取消/拒绝: {order.status}')
-
-		self._order = None
+		"""等待订单终态；买单实际成交后才标记已建仓。"""
+		if order.status in [order.Submitted, order.Accepted, order.Partial]:
+			return
+		if order.status == order.Completed and order.isbuy():
+			self.bought = True
+		super().notify_order(order)
 
 	def next(self):
 		"""在尚未持仓时使用大部分现金一次性买入。"""
 		# 避免重复下单
-		if self._order:
+		if self.order:
 			return
 
 		# 只在未买入时执行
-		if not self._bought:
+		if not self.bought:
 			# 获取当前可用资金
 			cash = self.broker.getcash()
 			price = self.datas[0].close[0]
@@ -46,13 +41,13 @@ class JustBuyHoldStrategy(BaseStrategy):
 			size = int((cash * 0.99) / price)
 
 			if size > 0:
-				self._order = self.buy(size=size)
+				self._track_order(self.buy(data=self.datas[0], size=size))
 				self.log(f'提交买单, 价格: {price:.2f}, 数量: {size}')
 			else:
 				self.log(f'资金不足，无法买入 (现金: {cash:.2f}, 价格: {price:.2f})')
 
 	def log(self, txt, dt=None, do_print=False):
 		"""日志函数"""
-		if self.params.print_log or do_print:
+		if self.p.print_log or do_print:
 			dt = dt or self.datas[0].datetime.date(0)
 			print(f'{dt.isoformat()} {txt}')

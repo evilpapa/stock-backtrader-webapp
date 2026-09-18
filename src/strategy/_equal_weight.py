@@ -6,7 +6,7 @@ class EqualWeightStrategy(BaseStrategy):
 
 	_name = "EqualWeight"
 	params = (
-		("print_log", False),
+		("print_log", False),  # 是否输出策略运行日志
 	)
 
 	def __init__(self):
@@ -15,11 +15,11 @@ class EqualWeightStrategy(BaseStrategy):
 
 	def next(self):
 		"""首个可交易日按等权方式买入所有数据源。"""
-		if not self._bought:
-			# 初始买入：等权重分配
-			total_value = self.broker.getvalue()
-			for data in self.datas:
-				target_value = total_value / len(self.datas)
-				size = int(target_value / data.close[0])
-				self.buy(data=data, size=size)
-			self._bought = True
+		if self.bought or self._has_pending_orders():
+			return
+		# 预留现金缓冲，避免次日成交价或佣金导致后续等权订单被拒绝。
+		target_weight = 0.99 / len(self.datas)
+		for data in self.datas:
+			if data.close[0] > 0:
+				self._track_order(self.order_target_percent(data=data, target=target_weight))
+		self.bought = True

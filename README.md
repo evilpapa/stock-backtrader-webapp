@@ -3,6 +3,8 @@
 基于 Python 的 A 股策略回测应用。应用通过 Streamlit 提供交互界面，使用
 Backtrader 执行回测，并通过 `xtquant-big-convert` 的 Big QMT RPC 桥接服务获取行情。
 
+门槛：你需要了解什么是「迅投 qmt」,并找你的券商帮你开通。或者你自己找 AI 帮你改造成 AKShare。
+
 ![demo](demo.gif)
 
 ## 核心特性
@@ -122,6 +124,11 @@ uv run python -m pytest tests/bigqmt_client_test.py -q
 
 - **MA 策略**：基于单一移动平均线的趋势跟踪策略。
 - **MACross 策略**：基于快慢双均线交叉的交易策略。
+- **ETF 动量策略**
+- **行业 ETF 轮动策略**
+- **龙头动量轮动策略**
+- **海龟交易法则策略**：写着玩，无用途
+- **神秘螺旋**
 
 ## 常见问题
 

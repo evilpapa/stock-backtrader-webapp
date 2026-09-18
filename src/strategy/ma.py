@@ -8,8 +8,8 @@ class MaStrategy(BaseStrategy):
 
 	_name = "Ma"
 	params = (
-		("maperiod", 15),
-		("print_log", False),
+		("maperiod", 15),  # 简单移动平均线周期
+		("print_log", False),  # 是否输出策略运行日志
 	)
 
 	def __init__(self) -> None:
@@ -19,7 +19,7 @@ class MaStrategy(BaseStrategy):
 		self.data_closes = self.datas[0].close
 
 		# 添加简单移动平均线指标。
-		self.sma = bt.indicators.SMA(self.datas[0], period=self.params.maperiod)
+		self.sma = bt.indicators.SMA(self.datas[0], period=self.p.maperiod)
 
 	def next(self) -> None:
 		"""按收盘价与均线的相对位置生成买卖信号。"""
@@ -27,7 +27,7 @@ class MaStrategy(BaseStrategy):
 		self.log(f"Close, {self.data_closes[0]:.2f}")
 
 		# 已有挂单时等待订单完成，避免重复提交。
-		if self._order:
+		if self.order:
 			return
 
 		# 空仓时等待收盘价站上均线；持仓时等待收盘价跌破均线。
@@ -35,9 +35,9 @@ class MaStrategy(BaseStrategy):
 			if self.data_closes[0] > self.sma[0]:
 				self.log(f"BUY CREATE, {self.data_closes[0]:.2f}")
 				# 保存新建订单引用，后续由订单回调清空。
-				self._order = self.buy()
+				self._track_order(self.buy(data=self.datas[0]))
 		else:
 			if self.data_closes[0] < self.sma[0]:
 				self.log(f"SELL CREATE, {self.data_closes[0]:.2f}")
 				# 保存新建订单引用，后续由订单回调清空。
-				self._order = self.sell()
+				self._track_order(self.close(data=self.datas[0]))
