@@ -1,11 +1,11 @@
 {
-    "schema_version": 1,
-    "commit": "",
-    "indexed_at": "2026-07-04T12:22:57Z",
-    "project": "E-fin-quant-stock-backtrader-webapp",
-    "nodes": 1042,
-    "edges": 2477,
-    "original_size": 3211264,
-    "compressed_size": 573250,
+    "schema_version": 2,
+    "commit": "fdd513bb13a114a4742c7b2060125f662e7d2da5",
+    "indexed_at": "2026-09-20T05:52:16Z",
+    "project": "stock-backtrader-webapp",
+    "nodes": 611,
+    "edges": 2312,
+    "original_size": 3801088,
+    "compressed_size": 619514,
     "compression_level": 9
 }

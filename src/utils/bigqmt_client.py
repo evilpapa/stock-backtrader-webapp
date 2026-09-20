@@ -127,23 +127,43 @@ def _call_redis_rpc(*args: Any, **kwargs: Any) -> dict[str, Any]:
 def market_data_payload_to_ohlcv(data: Any, symbol: str, fields: list[str] | None = None) -> pd.DataFrame:
     """将大 QMT RPC 返回的多种行情载荷格式统一转换为标准 OHLCV 列。"""
     field_list = fields or DEFAULT_OHLCV_FIELDS
+    return market_data_payload_to_frame(data, symbol, field_list, numeric_fields=field_list)
+
+
+def market_data_payload_to_frame(
+    data: Any,
+    symbol: str,
+    fields: list[str],
+    *,
+    numeric_fields: list[str] | None = None,
+) -> pd.DataFrame:
+    """将 QMT 行情载荷转换为任意字段组成的时间序列表。
+
+    日线 OHLCV 和分钟/tick 行情共用同一套 QMT 返回载荷格式；该函数把
+    原先仅支持 OHLCV 的解析逻辑抽象出来，允许 KDB-X 保存盘口字段。
+    """
+    field_list = list(fields)
     if data is None:
         raise BigQmtApiError("Big QMT RPC response missing data")
     if isinstance(data, dict):
         if data.get("__bigqmt_type__") == "DataFrame":
-            return _frame_to_ohlcv(pd.DataFrame(data.get("records", [])), field_list)
+            return _frame_to_fields(pd.DataFrame(data.get("records", [])), field_list, numeric_fields)
         if {"index", "columns", "data"}.issubset(data):
-            return _frame_to_ohlcv(pd.DataFrame(data["data"], index=data["index"], columns=data["columns"]), field_list)
+            return _frame_to_fields(
+                pd.DataFrame(data["data"], index=data["index"], columns=data["columns"]),
+                field_list,
+                numeric_fields,
+            )
         if all(field in data for field in field_list):
             frame = pd.DataFrame({field: _field_payload_to_series(data[field], symbol) for field in field_list})
             frame.index.name = "date"
-            return _frame_to_ohlcv(frame.reset_index(), field_list)
+            return _frame_to_fields(frame.reset_index(), field_list, numeric_fields)
         if symbol in data:
-            return market_data_payload_to_ohlcv(data[symbol], symbol, field_list)
+            return market_data_payload_to_frame(data[symbol], symbol, field_list, numeric_fields=numeric_fields)
         if _looks_like_index_orient(data, field_list):
-            return _frame_to_ohlcv(pd.DataFrame.from_dict(data, orient="index"), field_list)
+            return _frame_to_fields(pd.DataFrame.from_dict(data, orient="index"), field_list, numeric_fields)
     if isinstance(data, list):
-        return _frame_to_ohlcv(pd.DataFrame(data), field_list)
+        return _frame_to_fields(pd.DataFrame(data), field_list, numeric_fields)
     raise BigQmtApiError("Unsupported Big QMT market data payload shape")
 
 
@@ -161,8 +181,12 @@ def _looks_like_index_orient(data: dict[str, Any], fields: list[str]) -> bool:
     return bool(data) and isinstance(next(iter(data.values())), dict) and any(field in next(iter(data.values())) for field in fields)
 
 
-def _frame_to_ohlcv(frame: pd.DataFrame, fields: list[str]) -> pd.DataFrame:
-    """将已构造的 DataFrame 清洗为按日期排序的 OHLCV 数据。"""
+def _frame_to_fields(
+    frame: pd.DataFrame,
+    fields: list[str],
+    numeric_fields: list[str] | None = None,
+) -> pd.DataFrame:
+    """将已构造的 DataFrame 清洗为按时间排序的行情字段数据。"""
     if frame.empty:
         return pd.DataFrame(columns=["date", *fields])
     frame = frame.copy()
@@ -170,11 +194,17 @@ def _frame_to_ohlcv(frame: pd.DataFrame, fields: list[str]) -> pd.DataFrame:
     column_map = {column.lower(): column for column in frame.columns}
     date_column = next((column_map[name] for name in ("date", "datetime", "time", "timetag", "index") if name in column_map), None)
     frame["date"] = _normalize_time_values(frame[date_column] if date_column else pd.Series(frame.index, index=frame.index))
-    missing = [field for field in fields if field not in column_map]
+    field_columns = {field: column_map.get(field.lower()) for field in fields}
+    missing = [field for field, column in field_columns.items() if column is None]
     if missing:
         raise BigQmtApiError(f"Big QMT RPC response missing fields: {', '.join(missing)}")
-    for field in fields:
-        frame[field] = pd.to_numeric(frame[column_map[field]], errors="coerce")
+    numeric_fields = numeric_fields or fields
+    for field in numeric_fields:
+        if field in field_columns:
+            frame[field] = pd.to_numeric(frame[field_columns[field]], errors="coerce")
+    for field, column in field_columns.items():
+        if field not in frame.columns:
+            frame[field] = frame[column]
     return frame.dropna(subset=["date"]).sort_values("date").reset_index(drop=True)[["date", *fields]]
 
 

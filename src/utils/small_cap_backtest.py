@@ -13,19 +13,24 @@ from src.strategy.small_cap import SmallCapPandasData, SmallCapStrategy
 from .qmt_universe import QmtUniverseClient, StockUniverseSnapshot
 
 
-def build_small2_snapshots(
+def build_small_cap_snapshots(
     client: QmtUniverseClient,
     rebalance_dates: list[date | str | pd.Timestamp],
     sector_name: str = "沪深A股",
+    codes: list[str] | None = None,
 ) -> dict[pd.Timestamp, StockUniverseSnapshot]:
-    """按调仓日构建并返回股票池快照；调用方可将结果持久化以复用 QMT 请求。"""
+    """按调仓日构建并返回股票池快照。
+
+    ``codes`` 可限制为研究样本；传入 ``None`` 时读取完整板块股票池。调用方可将
+    快照持久化以复用高成本的 QMT 全市场元数据请求。
+    """
     return {
-        pd.Timestamp(day).normalize(): client.snapshot(day, sector_name)
+        pd.Timestamp(day).normalize(): client.snapshot(day, sector_name, codes=codes)
         for day in rebalance_dates
     }
 
 
-def prepare_small2_price_data(
+def prepare_small_cap_price_data(
     client: QmtUniverseClient,
     snapshots: dict[pd.Timestamp, StockUniverseSnapshot],
     start_date: date | str | pd.Timestamp,
@@ -41,7 +46,7 @@ def prepare_small2_price_data(
     return client.daily_bars(sorted(codes), start, end_date)
 
 
-def run_small2_backtest(
+def run_small_cap_backtest(
     price_data: dict[str, pd.DataFrame],
     snapshots: dict[pd.Timestamp, StockUniverseSnapshot],
     initial_cash: float,

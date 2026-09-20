@@ -2,6 +2,7 @@
 
 基于 Python 的 A 股策略回测应用。应用通过 Streamlit 提供交互界面，使用
 Backtrader 执行回测，并通过 `xtquant-big-convert` 的 Big QMT RPC 桥接服务获取行情。
+QMT 的日线数据会同步到 `duckdb` 中，tick 数据使用 `kdb-x` 存储。
 
 门槛：你需要了解什么是「迅投 qmt」,并找你的券商帮你开通。或者你自己找 AI 帮你改造成 AKShare。
 
@@ -13,6 +14,7 @@ Backtrader 执行回测，并通过 `xtquant-big-convert` 的 Big QMT RPC 桥接
 - **策略回测**：使用 Backtrader 测试交易策略表现。
 - **结果可视化**：使用 Pyecharts 展示行情与回测结果。
 - **交互界面**：使用 Streamlit 配置数据源、策略参数和回测参数。
+- **数据维护**: 使用 duckdb 存储日线数据，包括股票、etf 等数据；tick 使用 kdb-x 存储。
 
 ## 技术架构
 
@@ -27,7 +29,7 @@ Backtrader 执行回测，并通过 `xtquant-big-convert` 的 Big QMT RPC 桥接
 
 ### 1. 安装项目依赖
 
-项目已锁定 `xtquant-big-convert[redis]==0.3.45`。在项目根目录执行：
+在项目根目录执行：
 
 ```powershell
 uv sync

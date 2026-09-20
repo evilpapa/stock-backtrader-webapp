@@ -1,6 +1,6 @@
 """神秘螺旋：RPS60 + TD Sequential 月度轮动示例。
 
-本实现复现 ``docs/mysterious-spiral/神秘螺旋策略.txt`` 中的回测口径：
+本实现复现 ``docs/mysterious_spiral/神秘螺旋策略.txt`` 中的回测口径：
 
 * 钨业五股票池；
 * 以 RPS60 为基础分，近 15 个交易日完成 TD 买入 Setup（低九转）加 25 分；

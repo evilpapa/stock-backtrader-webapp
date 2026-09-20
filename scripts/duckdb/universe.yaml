@@ -1,0 +1,19 @@
+# QMT 板块名称会随券商和 QMT 版本变化。先运行：
+# python -m scripts.duckdb.sync list-sectors
+# 再按实际返回值调整此文件。
+asset_groups:
+  stock:
+    - 沪深A股
+    - 北证A股
+  index:
+    - 沪深指数
+  fund:
+    - 沪深基金
+  bond:
+    - 沪深债券
+  repo:
+    - 沪深回购
+  warrant:
+    - 沪深权证
+  etf:
+    - 沪深ETF

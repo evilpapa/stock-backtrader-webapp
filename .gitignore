@@ -30,6 +30,9 @@ var/
 .installed.cfg
 *.egg
 qb/
+r/
+data/*.duckdb
+data/*.duckdb.wal
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
