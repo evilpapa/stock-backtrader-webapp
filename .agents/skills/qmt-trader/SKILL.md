@@ -97,10 +97,20 @@ QMT 策略编辑器里**只加载运行 `BIGQMT_REDIS_DRYRUN.py` 一个文件**�
 
 客户端用环境变量（或 `bigqmt_signal_trader_client_config.py`）指向同一套 Redis/账号：
 
+for windows powershell:
 ```powershell
 $env:BIGQMT_ACCOUNT_ID="资金账号"
 $env:BIGQMT_REDIS_HOST="Redis地址"; $env:BIGQMT_REDIS_PORT="6379"
 $env:BIGQMT_REDIS_DB="5"; $env:BIGQMT_REDIS_PASSWORD="Redis密码"
+```
+
+for fish shell
+```fish
+set -x BIGQMT_ACCOUNT_ID "资金账号"
+set -x BIGQMT_REDIS_HOST "Redis地址"
+set -x BIGQMT_REDIS_PORT "6379"
+set -x BIGQMT_REDIS_DB "5"
+set -x BIGQMT_REDIS_PASSWORD "Redis密码"
 ```
 
 然后验证（redis ~3ms / zmq+drain ~16ms 为正常，实测口径见 README 传输对比表）：

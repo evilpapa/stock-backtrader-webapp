@@ -15,7 +15,7 @@
 ```bash
 uv run python -m scripts.duckdb.sync check
 uv run python -m scripts.duckdb.sync list-sectors
-uv run python -m scripts.duckdb.sync sync --start 20160101 --end 20260920 --allow-partial
+uv run python -m scripts.duckdb.sync sync --targets duckdb --peroid 1d --start 20160101 --end 20260920 --allow-partial
 ```
 
 模块职责如下：

@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
@@ -60,68 +60,44 @@ def fetch_history_ohlcv(
     fields: list[str] | None = None,
     account_id: str | None = None,
     timeout: float = 10.0,
-    redis_client: Any | None = None,
-    rpc_call: Callable[..., dict[str, Any]] | None = None,
+    xtdata_client: Any | None = None,
 ) -> pd.DataFrame:
-    """通过 Big QMT Redis RPC 代理获取标准 OHLCV 行情数据。
-
-    Redis 连接设置通过  ``BIGQMT_REDIS_*`` 环境变量读取；
-    账户 ID 在未提供时通过 ``BIGQMT_ACCOUNT_ID`` 读取。
-    """
+    """通过 ``bigqmt_signal_trader.xtquant_compat.xtdata`` 获取标准 OHLCV。"""
     qmt_symbol = normalize_qmt_symbol(symbol)
     account_id = account_id or os.getenv("BIGQMT_ACCOUNT_ID", "")
     if not account_id:
         raise BigQmtApiError("BIGQMT_ACCOUNT_ID is required for the Big QMT bridge")
 
     field_list = fields or DEFAULT_OHLCV_FIELDS
-    call = rpc_call or _call_redis_rpc
-    client = redis_client or _create_redis_client()
+    xtdata = xtdata_client or get_xtdata(account_id=account_id, timeout=timeout)
     try:
-        response = call(
-            client,
-            account_id,
-            "get_market_data_ex",
-            {
-                "field_list": field_list,
-                "stock_list": [qmt_symbol],
-                "period": period,
-                "start_time": format_qmt_date(start_date),
-                "end_time": format_qmt_date(end_date),
-                "count": -1,
-                "dividend_type": normalize_dividend_type(dividend_type),
-            },
+        response = xtdata.get_market_data_ex(
+            field_list=field_list,
+            stock_list=[qmt_symbol],
+            period=period,
+            start_time=format_qmt_date(start_date),
+            end_time=format_qmt_date(end_date),
+            count=-1,
+            dividend_type=normalize_dividend_type(dividend_type),
+            fill_data=True,
             timeout_seconds=timeout,
         )
     except Exception as exc:
-        raise BigQmtApiError(f"Big QMT RPC request failed: {exc}") from exc
-
-    if not response.get("ok"):
-        raise BigQmtApiError(str(response.get("error") or "Big QMT RPC request failed"))
-    return market_data_payload_to_ohlcv(response.get("data"), qmt_symbol, field_list)
+        raise BigQmtApiError(f"Big QMT market data request failed: {exc}") from exc
+    return market_data_payload_to_ohlcv(response, qmt_symbol, field_list)
 
 
-def _create_redis_client() -> Any:
-    """根据环境变量创建连接大 QMT 桥接服务的 Redis 客户端。"""
+def get_xtdata(*, account_id: str | None = None, timeout: float | None = None) -> Any:
+    """初始化并返回 Big QMT 的 MiniQMT 兼容行情对象。"""
     try:
-        import redis
-    except ImportError as exc:  # pragma: no cover - 依赖缺失保护
-        raise BigQmtApiError("xtquant-big-convert[redis] is required") from exc
-    return redis.Redis(
-        host=os.getenv("BIGQMT_REDIS_HOST", "127.0.0.1"),
-        port=int(os.getenv("BIGQMT_REDIS_PORT", "6379")),
-        db=int(os.getenv("BIGQMT_REDIS_DB", "5")),
-        username=os.getenv("BIGQMT_REDIS_USERNAME") or None,
-        password=os.getenv("BIGQMT_REDIS_PASSWORD") or None,
-    )
-
-
-def _call_redis_rpc(*args: Any, **kwargs: Any) -> dict[str, Any]:
-    """延迟导入桥接库并发起 Redis RPC 调用，便于测试时替换调用函数。"""
-    try:
-        from bigqmt_signal_trader.redis_rpc import call_redis_rpc
+        from bigqmt_signal_trader.xtquant_compat import configure
     except ImportError as exc:  # pragma: no cover - 依赖缺失保护
         raise BigQmtApiError("xtquant-big-convert is required") from exc
-    return call_redis_rpc(*args, **kwargs)
+    try:
+        _, xtdata = configure(account_id=account_id, timeout_seconds=timeout)
+    except Exception as exc:
+        raise BigQmtApiError(f"Big QMT xtquant_compat 配置失败: {exc}") from exc
+    return xtdata
 
 
 def market_data_payload_to_ohlcv(data: Any, symbol: str, fields: list[str] | None = None) -> pd.DataFrame:
@@ -145,6 +121,8 @@ def market_data_payload_to_frame(
     field_list = list(fields)
     if data is None:
         raise BigQmtApiError("Big QMT RPC response missing data")
+    if isinstance(data, pd.DataFrame):
+        return _frame_to_fields(data, field_list, numeric_fields)
     if isinstance(data, dict):
         if data.get("__bigqmt_type__") == "DataFrame":
             return _frame_to_fields(pd.DataFrame(data.get("records", [])), field_list, numeric_fields)
@@ -227,10 +205,15 @@ def _normalize_time_values(values: pd.Series) -> pd.Series:
     """识别毫秒时间戳、日期串和普通时间文本，并统一转换为 pandas 时间类型。"""
     raw = values.astype(str).str.replace(r"\.0$", "", regex=True)
     lengths = raw.str.len()
-    if lengths.ge(13).all():
-        return pd.to_datetime(raw.astype("int64"), unit="ms", errors="coerce")
     if lengths.eq(8).all():
         return pd.to_datetime(raw, format="%Y%m%d", errors="coerce")
     if lengths.eq(14).all():
         return pd.to_datetime(raw, format="%Y%m%d%H%M%S", errors="coerce")
+    numeric = pd.to_numeric(raw, errors="coerce")
+    if numeric.notna().all() and not numeric.empty:
+        magnitude = numeric.abs().median()
+        if magnitude >= 1e11:
+            return pd.to_datetime(numeric, unit="ms", errors="coerce")
+        if magnitude >= 1e9:
+            return pd.to_datetime(numeric, unit="s", errors="coerce")
     return pd.to_datetime(raw, errors="coerce")

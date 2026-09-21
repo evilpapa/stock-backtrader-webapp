@@ -31,8 +31,7 @@ var/
 *.egg
 qb/
 r/
-data/*.duckdb
-data/*.duckdb.wal
+data/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

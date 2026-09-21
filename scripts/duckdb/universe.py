@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
-from src.utils.bigqmt_client import normalize_qmt_symbol
+from src.utils.bigqmt_client import get_xtdata, normalize_qmt_symbol
 
 
 ASSET_PRIORITY = {
@@ -34,27 +34,19 @@ class UniverseDiscovery:
 
     def __init__(
         self,
-        rpc_call: Callable[..., dict[str, Any]],
-        client: Any,
         account_id: str,
         timeout: float = 30.0,
+        xtdata_client: Any | None = None,
     ) -> None:
-        self.rpc_call = rpc_call
-        self.client = client
         self.account_id = account_id
         self.timeout = timeout
+        self.xtdata = xtdata_client or get_xtdata(account_id=account_id, timeout=timeout)
 
     def _call(self, method: str, params: dict[str, Any]) -> Any:
-        response = self.rpc_call(
-            self.client,
-            self.account_id,
-            method,
-            params,
-            timeout_seconds=self.timeout,
-        )
-        if not response.get("ok"):
-            raise RuntimeError(str(response.get("error") or f"QMT {method} 请求失败"))
-        return response.get("data")
+        try:
+            return getattr(self.xtdata, method)(**params)
+        except Exception as exc:
+            raise RuntimeError(f"QMT {method} 请求失败: {exc}") from exc
 
     def list_sectors(self) -> list[str]:
         data = self._call("get_sector_list", {})

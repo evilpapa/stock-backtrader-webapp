@@ -39,14 +39,14 @@ class DuckDbSyncTest(unittest.TestCase):
                 store.close()
 
     def test_universe_deduplicates_and_prefers_etf_classification(self):
-        def fake_rpc(_client, _account, method, params, timeout_seconds):
-            responses = {
-                ("get_stock_list_in_sector", "沪深A股"): ["600000.SH", "510300.SH"],
-                ("get_stock_list_in_sector", "沪深基金"): ["510300.SH", "159919.SZ"],
-            }
-            return {"ok": True, "data": responses[(method, params["sector_name"])]}
+        class FakeXtdata:
+            def get_stock_list_in_sector(self, sector_name):
+                return {
+                    "沪深A股": ["600000.SH", "510300.SH"],
+                    "沪深基金": ["510300.SH", "159919.SZ"],
+                }[sector_name]
 
-        discovery = UniverseDiscovery(fake_rpc, object(), "account")
+        discovery = UniverseDiscovery("account", xtdata_client=FakeXtdata())
         frame, failures = discovery.discover({"stock": ["沪深A股"], "etf": ["沪深基金"]})
 
         self.assertEqual(failures, [])
@@ -56,17 +56,15 @@ class DuckDbSyncTest(unittest.TestCase):
     def test_qmt_daily_bars_keeps_batch_when_amount_is_missing(self):
         calls = []
 
-        def fake_rpc(_client, _account, method, params, timeout_seconds):
-            calls.append((method, params))
-            return {
-                "ok": True,
-                "data": {
+        class FakeXtdata:
+            def get_market_data_ex(self, **params):
+                calls.append(("get_market_data_ex", params))
+                return {
                     "600000.SH": [{"time": "20240102", "open": 10, "high": 11, "low": 9, "close": 10.5, "volume": 100}],
                     "000001.SZ": [{"time": "20240102", "open": 8, "high": 9, "low": 7, "close": 8.5, "volume": 200, "amount": 1700}],
-                },
-            }
+                }
 
-        client = QmtRpc("account", redis_client=object(), rpc_call=fake_rpc)
+        client = QmtRpc("account", xtdata_client=FakeXtdata())
         result = client.daily_bars(["600000.SH", "000001.SZ"], "20240101", "20240103")
 
         self.assertEqual(set(result), {"600000.SH", "000001.SZ"})
@@ -74,24 +72,54 @@ class DuckDbSyncTest(unittest.TestCase):
         self.assertEqual(result["000001.SZ"]["amount"].iloc[0], 1700)
         self.assertEqual(calls[0][0], "get_market_data_ex")
 
+    def test_qmt_download_missing_uses_supported_download_params(self):
+        calls = []
+
+        class FakeXtdata:
+            def get_market_data_ex(self, **params):
+                calls.append(("get_market_data_ex", params))
+                if len([item for item in calls if item[0] == "get_market_data_ex"]) == 1:
+                    return {"000001.SZ": []}
+                return {
+                    "000001.SZ": [{
+                        "time": "20240102", "open": 8, "high": 9, "low": 7,
+                        "close": 8.5, "volume": 200, "amount": 1700,
+                    }],
+                }
+
+            def download_history_data2(self, **params):
+                calls.append(("download_history_data2", params))
+                return None
+
+        client = QmtRpc("account", xtdata_client=FakeXtdata())
+        result = client.daily_bars(
+            ["000001.SZ"], "20240101", "20240103", download_missing=True,
+        )
+
+        self.assertEqual(len(result["000001.SZ"]), 1)
+        self.assertEqual(calls[1][0], "download_history_data2")
+        self.assertNotIn("dividend_type", calls[1][1])
+        self.assertEqual(calls[1][1]["end_time"], "20240103")
+        self.assertEqual(calls[2][0], "get_market_data_ex")
+
     def test_sector_list_explicitly_allows_qmt_fallback(self):
         calls = []
 
-        def fake_rpc(_client, _account, method, params, timeout_seconds):
-            calls.append((method, params))
-            return {"ok": True, "data": ["沪深A股", "沪深ETF"]}
+        class FakeXtdata:
+            def get_sector_list(self, **params):
+                calls.append(("get_sector_list", params))
+                return ["沪深A股", "沪深ETF"]
 
-        client = QmtRpc("account", redis_client=object(), rpc_call=fake_rpc)
+        client = QmtRpc("account", xtdata_client=FakeXtdata())
         self.assertEqual(client.sector_list(), ["沪深A股", "沪深ETF"])
         self.assertEqual(calls[0][1], {"allow_fallback": True})
 
     def test_market_bars_normalizes_tick_fields_for_kdb(self):
-        def fake_rpc(_client, _account, method, params, timeout_seconds):
-            self.assertEqual(method, "get_market_data_ex")
-            self.assertEqual(params["period"], "tick")
-            return {
-                "ok": True,
-                "data": {
+        class FakeXtdata:
+            def get_market_data_ex(self, **params):
+                if params["period"] != "tick":
+                    raise AssertionError("expected tick period")
+                return {
                     "600000.SH": [{
                         "time": 1704168600000,
                         "lastPrice": 10.1,
@@ -102,10 +130,9 @@ class DuckDbSyncTest(unittest.TestCase):
                         "bidVol": 50,
                         "askVol": 60,
                     }],
-                },
-            }
+                }
 
-        client = QmtRpc("account", redis_client=object(), rpc_call=fake_rpc)
+        client = QmtRpc("account", xtdata_client=FakeXtdata())
         frame = client.market_bars(["600000.SH"], "20240102", "20240102", period="tick")["600000.SH"]
 
         self.assertEqual(frame["last"].iloc[0], 10.1)

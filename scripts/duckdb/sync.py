@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.utils.bigqmt_client import _call_redis_rpc, _create_redis_client  # noqa: E402
+from src.utils.logs import logger  # noqa: E402
 
 from .config import SyncConfig, load_sector_map  # noqa: E402
 from .fetcher import fetch_batches  # noqa: E402
@@ -76,8 +76,6 @@ def build_qmt(config: SyncConfig) -> QmtRpc:
     return QmtRpc(
         config.account_id,
         timeout=config.timeout,
-        redis_client=_create_redis_client(),
-        rpc_call=_call_redis_rpc,
     )
 
 
@@ -95,16 +93,30 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
     asset_types = {item.strip() for item in args.asset_types.split(",") if item.strip()} if args.asset_types else None
     sector_map = load_sector_map(args.sector_config)
     qmt = build_qmt(config)
-    discovery = UniverseDiscovery(_call_redis_rpc, qmt.client, config.account_id, config.timeout)
+    discovery = UniverseDiscovery(config.account_id, config.timeout, xtdata_client=qmt.xtdata)
     instruments, universe_failures = discovery.discover(
         sector_map,
         asset_types=asset_types,
         limit=args.limit,
     )
     if universe_failures and not args.allow_partial:
+        for failure in universe_failures:
+            logger.warning(
+                "标的发现失败 asset_type={} sector={} error={}",
+                failure.get("asset_type", ""),
+                failure.get("sector", ""),
+                failure.get("error", ""),
+            )
         raise RuntimeError(
             "QMT 标的池发现不完整，请修正 universe.yaml 或使用 --allow-partial：\n"
             + json.dumps(universe_failures, ensure_ascii=False)
+        )
+    for failure in universe_failures:
+        logger.warning(
+            "标的发现失败 asset_type={} sector={} error={}",
+            failure.get("asset_type", ""),
+            failure.get("sector", ""),
+            failure.get("error", ""),
         )
     if instruments.empty:
         raise RuntimeError("没有发现任何可同步标的")
@@ -136,8 +148,23 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
     bars_by_target = {target.name: 0 for target in targets}
     try:
         for target in targets:
-            target.initialize()
-            target.upsert_instruments(instruments)
+            try:
+                target.initialize()
+                target.upsert_instruments(instruments)
+                logger.info(
+                    "标的元数据导入成功 target={} count={}",
+                    target.name,
+                    len(instruments),
+                )
+            except Exception as exc:
+                for symbol in instruments["symbol"].tolist():
+                    logger.warning(
+                        "标的元数据导入失败 target={} symbol={} error={}",
+                        target.name,
+                        symbol,
+                        exc,
+                    )
+                raise
         end_date = args.end or date.today()
         start_date = args.start or parse_date(config.qmt_start_date)
         if args.incremental:
@@ -162,11 +189,67 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
                 dividend_type=args.dividend_type or config.dividend_type,
                 download_missing=args.download_missing,
             ):
-                for target in targets:
-                    bars_by_target[target.name] += target.write_bars(batch_result.bars, period=period)
+                for item in batch_result.errors:
+                    logger.warning(
+                        "行情同步失败 symbol={} type={} error={}",
+                        item.get("symbol", ""),
+                        item.get("error_type", "unknown"),
+                        item.get("error", ""),
+                    )
                 errors.extend(batch_result.errors)
                 if duckdb_store is not None:
                     duckdb_store.record_errors(run_id, batch_result.errors)
+
+                symbol_counts = (
+                    batch_result.bars.groupby("symbol", sort=False).size().to_dict()
+                    if not batch_result.bars.empty
+                    else {}
+                )
+                for target in targets:
+                    if not symbol_counts:
+                        continue
+                    try:
+                        written = target.write_bars(batch_result.bars, period=period)
+                    except Exception as exc:
+                        write_errors = []
+                        for symbol, count in symbol_counts.items():
+                            logger.warning(
+                                "行情导入失败 target={} symbol={} period={} bars={} error={}",
+                                target.name,
+                                symbol,
+                                period,
+                                count,
+                                exc,
+                            )
+                            write_errors.append({
+                                "symbol": symbol,
+                                "error_type": "target_write",
+                                "error": f"{target.name}: {exc}",
+                            })
+                        errors.extend(write_errors)
+                        if duckdb_store is not None and target.name != duckdb_store.name:
+                            duckdb_store.record_errors(run_id, write_errors)
+                        continue
+
+                    expected = sum(symbol_counts.values())
+                    bars_by_target[target.name] += written
+                    if written != expected:
+                        logger.warning(
+                            "行情导入数量异常 target={} period={} expected={} written={}",
+                            target.name,
+                            period,
+                            expected,
+                            written,
+                        )
+                        continue
+                    for symbol, count in symbol_counts.items():
+                        logger.info(
+                            "行情导入成功 target={} symbol={} period={} bars={}",
+                            target.name,
+                            symbol,
+                            period,
+                            count,
+                        )
         status = "success" if not errors else "partial"
         if duckdb_store is not None:
             duckdb_store.finish_run(
@@ -226,7 +309,7 @@ def build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--sector-config", default=str(Path(__file__).with_name("universe.yaml")))
     sync.add_argument("--batch-size", type=int, help="QMT 每批代码数量")
     sync.add_argument("--limit", type=int, help="仅同步前 N 个标的，用于冒烟测试")
-    sync.add_argument("--dividend-type", choices=["none", "front", "back"], help="复权方式，默认 none")
+    sync.add_argument("--dividend-type", choices=["none", "front", "back"], help="复权方式，默认 none 不复权")
     sync.add_argument("--download-missing", action="store_true", help="空数据时先调用 QMT 历史下载接口")
     sync.add_argument("--allow-partial", action="store_true", help="允许部分板块或标的失败")
     sync.add_argument("--dry-run", action="store_true", help="只发现标的并写入 instrument_master，不拉行情")

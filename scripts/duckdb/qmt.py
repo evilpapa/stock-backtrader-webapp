@@ -8,8 +8,7 @@ import pandas as pd
 
 from src.utils.bigqmt_client import (
     BigQmtApiError,
-    _call_redis_rpc,
-    _create_redis_client,
+    get_xtdata,
     format_qmt_date,
     market_data_payload_to_frame,
     market_data_payload_to_ohlcv,
@@ -32,30 +31,19 @@ class QmtRpc:
         account_id: str,
         *,
         timeout: float = 30.0,
-        redis_client: Any | None = None,
-        rpc_call: Any | None = None,
+        xtdata_client: Any | None = None,
     ) -> None:
         if not account_id:
             raise ValueError("BIGQMT_ACCOUNT_ID 不能为空")
         self.account_id = account_id
         self.timeout = timeout
-        self.client = redis_client or _create_redis_client()
-        self.rpc_call = rpc_call or _call_redis_rpc
+        self.xtdata = xtdata_client or get_xtdata(account_id=account_id, timeout=timeout)
 
     def call(self, method: str, params: dict[str, Any]) -> Any:
         try:
-            response = self.rpc_call(
-                self.client,
-                self.account_id,
-                method,
-                params,
-                timeout_seconds=self.timeout,
-            )
+            return getattr(self.xtdata, method)(**params)
         except Exception as exc:
             raise QmtRpcError(f"Big QMT {method} 请求失败: {exc}") from exc
-        if not response.get("ok"):
-            raise QmtRpcError(str(response.get("error") or f"Big QMT {method} 请求失败"))
-        return response.get("data")
 
     def daily_bars(
         self,
@@ -75,6 +63,7 @@ class QmtRpc:
             "count": -1,
             "dividend_type": dividend_type,
             "fill_data": False,
+            "timeout_seconds": self.timeout,
         }
         data = self.call("get_market_data_ex", params)
         result = self._parse_daily_payload(data, symbols)
@@ -85,7 +74,7 @@ class QmtRpc:
                     "stock_list": symbols,
                     "period": "1d",
                     "start_time": format_qmt_date(start_date),
-                    "dividend_type": dividend_type,
+                    "end_time": format_qmt_date(end_date),
                 },
             )
             data = self.call("get_market_data_ex", params)
@@ -115,6 +104,7 @@ class QmtRpc:
             "count": -1,
             "dividend_type": dividend_type,
             "fill_data": False,
+            "timeout_seconds": self.timeout,
         }
         data = self.call("get_market_data_ex", params)
         result = self._parse_market_payload(data, symbols, fields, period)
@@ -125,7 +115,7 @@ class QmtRpc:
                     "stock_list": symbols,
                     "period": period,
                     "start_time": format_qmt_date(start_date),
-                    "dividend_type": dividend_type,
+                    "end_time": format_qmt_date(end_date),
                 },
             )
             data = self.call("get_market_data_ex", params)

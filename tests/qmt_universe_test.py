@@ -10,32 +10,32 @@ from src.utils.qmt_universe import QmtUniverseClient
 class QmtUniverseClientTest(unittest.TestCase):
 	def test_snapshot_normalizes_qmt_universe_metadata(self):
 		"""验证板块、ST、合约、财务和日线数据会合成为统一快照。"""
-		def fake_rpc(_client, _account, method, params, timeout_seconds):
-			responses = {
-				"get_stock_list_in_sector": ["600001.SH", "600002.SH"],
-				"get_instrument_detail": {
+		class FakeXtdata:
+			def get_stock_list_in_sector(self, sector_name):
+				return ["600001.SH", "600002.SH"]
+
+			def get_instrument_detail(self, stock_code):
+				return {
 					"600001.SH": {"InstrumentName": "正常股", "OpenDate": 20200101, "ExpireDate": 99999999, "FloatVolume": 100_000_000},
 					"600002.SH": {"InstrumentName": "ST 测试", "OpenDate": 20200101, "ExpireDate": 99999999, "FloatVolume": 50_000_000},
-				},
-				"get_his_st_data": {"600001.SH": [], "600002.SH": [{"start_date": "20230101", "end_date": None}]},
-				"get_financial_data": {
+				}[stock_code]
+
+			def get_his_st_data(self, stock_code):
+				return {"600001.SH": [], "600002.SH": [{"start_date": "20230101", "end_date": None}]}[stock_code]
+
+			def get_financial_data(self, **_params):
+				return {
 					"600001.SH": [{"float_share": 100_000_000}],
 					"600002.SH": [{"float_share": 50_000_000}],
-				},
-				"get_market_data_ex": {
-					"600001.SH": [{"time": "20240102", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 1000, "amount": 10000}],
-					"600002.SH": [{"time": "20240102", "open": 8, "high": 9, "low": 7, "close": 8, "volume": 0, "amount": 0}],
-				},
-			}
-			if method == "get_instrument_detail":
-				data = responses[method][params["code"]]
-			elif method == "get_his_st_data":
-				data = responses[method][params["stock_code"]]
-			else:
-				data = responses[method]
-			return {"ok": True, "data": data}
+				}
 
-		client = QmtUniverseClient("account-1", redis_client=object(), rpc_call=fake_rpc)
+			def get_market_data_ex(self, **_params):
+				return {
+					"600001.SH": pd.DataFrame([{"time": "20240102", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 1000, "amount": 10000}]),
+					"600002.SH": pd.DataFrame([{"time": "20240102", "open": 8, "high": 9, "low": 7, "close": 8, "volume": 0, "amount": 0}]),
+				}
+
+		client = QmtUniverseClient("account-1", xtdata_client=FakeXtdata())
 		snapshot = client.snapshot("2024-01-02")
 		stocks = snapshot.stocks.set_index("code")
 
