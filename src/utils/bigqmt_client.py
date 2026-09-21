@@ -83,7 +83,7 @@ class QmtDataClient:
         qmt_symbol = normalize_qmt_symbol(symbol)
         field_list = fields or DEFAULT_OHLCV_FIELDS
         try:
-            response = self.xtdata.get_market_data(
+            response = self.xtdata.get_market_data_ex(
                 field_list=field_list,
                 stock_list=[qmt_symbol],
                 period=period,
@@ -94,7 +94,7 @@ class QmtDataClient:
                 fill_data=True,
             )
         except Exception as exc:
-            raise QmtDataError(f"QMT get_market_data 请求失败: {exc}") from exc
+            raise QmtDataError(f"QMT get_market_data_ex 请求失败: {exc}") from exc
         return market_data_payload_to_frame(response, qmt_symbol, field_list, numeric_fields=field_list)
 
     def daily_bars(
@@ -210,7 +210,7 @@ class QmtDataClient:
         dividend_type: str,
     ) -> Any:
         try:
-            return self.xtdata.get_market_data(
+            return self.xtdata.get_market_data_ex(
                 field_list=fields,
                 stock_list=symbols,
                 period=period,
@@ -221,7 +221,7 @@ class QmtDataClient:
                 fill_data=False,
             )
         except Exception as exc:
-            raise QmtDataError(f"QMT get_market_data 请求失败: {exc}") from exc
+            raise QmtDataError(f"QMT get_market_data_ex 请求失败: {exc}") from exc
 
     @staticmethod
     def _bar_frame_to_daily(frame: pd.DataFrame) -> pd.DataFrame:

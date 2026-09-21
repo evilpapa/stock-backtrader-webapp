@@ -57,8 +57,8 @@ class DuckDbSyncTest(unittest.TestCase):
         calls = []
 
         class FakeXtdata:
-            def get_market_data(self, **params):
-                calls.append(("get_market_data", params))
+            def get_market_data_ex(self, **params):
+                calls.append(("get_market_data_ex", params))
                 return {
                     "600000.SH": [{"time": "20240102", "open": 10, "high": 11, "low": 9, "close": 10.5, "volume": 100}],
                     "000001.SZ": [{"time": "20240102", "open": 8, "high": 9, "low": 7, "close": 8.5, "volume": 200, "amount": 1700}],
@@ -70,15 +70,15 @@ class DuckDbSyncTest(unittest.TestCase):
         self.assertEqual(set(result), {"600000.SH", "000001.SZ"})
         self.assertTrue(pd.isna(result["600000.SH"]["amount"].iloc[0]))
         self.assertEqual(result["000001.SZ"]["amount"].iloc[0], 1700)
-        self.assertEqual(calls[0][0], "get_market_data")
+        self.assertEqual(calls[0][0], "get_market_data_ex")
 
     def test_qmt_download_missing_uses_supported_download_params(self):
         calls = []
 
         class FakeXtdata:
-            def get_market_data(self, **params):
-                calls.append(("get_market_data", params))
-                if len([item for item in calls if item[0] == "get_market_data"]) == 1:
+            def get_market_data_ex(self, **params):
+                calls.append(("get_market_data_ex", params))
+                if len([item for item in calls if item[0] == "get_market_data_ex"]) == 1:
                     return {"000001.SZ": []}
                 return {
                     "000001.SZ": [{
@@ -100,7 +100,7 @@ class DuckDbSyncTest(unittest.TestCase):
         self.assertEqual(calls[1][0], "download_history_data2")
         self.assertNotIn("dividend_type", calls[1][1])
         self.assertEqual(calls[1][1]["end_time"], "20240103")
-        self.assertEqual(calls[2][0], "get_market_data")
+        self.assertEqual(calls[2][0], "get_market_data_ex")
 
     def test_sector_list_explicitly_allows_qmt_fallback(self):
         calls = []
@@ -116,7 +116,7 @@ class DuckDbSyncTest(unittest.TestCase):
 
     def test_market_bars_normalizes_tick_fields_for_kdb(self):
         class FakeXtdata:
-            def get_market_data(self, **params):
+            def get_market_data_ex(self, **params):
                 if params["period"] != "tick":
                     raise AssertionError("expected tick period")
                 return {

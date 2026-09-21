@@ -62,6 +62,7 @@ class SmallCapStrategy(BaseStrategy):
 		("main_board_only", True),  # 是否仅保留沪深主板股票
 		("universe_snapshot", None),  # 单个股票池快照（研究或单期回测）
 		("universe_snapshots", None),  # 按调仓日期提供的股票池快照字典
+		("backtest_start_date", None),  # 允许指标预热，但从该日期才开始交易
 		("market_factors", None),  # 含 NHNL、涨停数的日期索引市场因子表
 		("zz1000_name", "000852.SH"),  # 中证1000指数数据源名称
 		("hs300_name", "000300.SH"),  # 沪深300指数数据源名称
@@ -84,6 +85,9 @@ class SmallCapStrategy(BaseStrategy):
 
 	def next(self) -> None:
 		if self._has_pending_orders():
+			return
+		day = pd.Timestamp(self.datas[0].datetime.date(0)).normalize()
+		if self.p.backtest_start_date is not None and day < pd.Timestamp(self.p.backtest_start_date).normalize():
 			return
 		month = (self.datas[0].datetime.date(0).year, self.datas[0].datetime.date(0).month)
 		if month[1] in self.p.avoid_months:

@@ -73,6 +73,16 @@ class SmallCapStrategyTest(unittest.TestCase):
 		)
 		self.assertAlmostEqual(strategy.rebalance_history[-1]["exposure"], 0.3)
 
+	def test_universe_snapshots_wait_until_backtest_start(self):
+		"""指标预热阶段不应读取尚未生效的股票池快照。"""
+		strategy = self._run(
+			universe_snapshot=None,
+			universe_snapshots={self._snapshot().as_of: self._snapshot()},
+			backtest_start_date="2024-02-19",
+		)
+		self.assertTrue(strategy.rebalance_history)
+		self.assertGreaterEqual(strategy.rebalance_history[0]["date"], pd.Timestamp("2024-02-19").date())
+
 
 if __name__ == "__main__":
 	unittest.main()

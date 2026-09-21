@@ -29,7 +29,7 @@ class BigQmtClientTest(unittest.TestCase):
         calls = []
 
         class FakeXtdata:
-            def get_market_data(self, **params):
+            def get_market_data_ex(self, **params):
                 calls.append(params)
                 return {"000001.SZ": pd.DataFrame([{
                     "time": "20240102", "open": 10.0, "high": 11.0,

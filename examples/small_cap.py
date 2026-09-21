@@ -118,9 +118,10 @@ def main(argv: Sequence[str] | None = None) -> SmallCapStrategy:
             "rebalance_days": args.rebalance_days,
             "market_guard": market_factors is not None,
             "avoid_months": (),
-        },
-        market_factors=market_factors,
-    )
+		},
+		market_factors=market_factors,
+		backtest_start_date=args.start_date,
+	)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     snapshot.stocks.to_csv(args.output_dir / "universe_snapshot.csv", index=False, encoding="utf-8-sig")

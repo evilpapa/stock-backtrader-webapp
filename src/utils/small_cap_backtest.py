@@ -52,8 +52,12 @@ def run_small_cap_backtest(
     initial_cash: float,
     strategy_params: dict[str, Any] | None = None,
     market_factors: pd.DataFrame | None = None,
+    backtest_start_date: Any | None = None,
 ) -> SmallCapStrategy:
-    """使用已下载的行情与快照运行 Small2，返回策略实例供读取调仓记录。"""
+    """使用已下载的行情与快照运行 Small2，返回策略实例供读取调仓记录。
+
+    行情数据可以包含策略指标所需的预热区间；实际调仓从 ``backtest_start_date`` 开始。
+    """
     if not snapshots:
         raise ValueError("Small2 回测至少需要一个股票池快照")
     cerebro = bt.Cerebro()
@@ -67,6 +71,10 @@ def run_small_cap_backtest(
         raise ValueError("Small2 回测没有可用的含 amount 日线数据")
     cerebro.broker.setcash(initial_cash)
     params = dict(strategy_params or {})
-    params.update({"universe_snapshots": snapshots, "market_factors": market_factors})
+    params.update({
+        "universe_snapshots": snapshots,
+        "market_factors": market_factors,
+        "backtest_start_date": backtest_start_date,
+    })
     cerebro.addstrategy(SmallCapStrategy, **params)
     return cerebro.run()[0]
