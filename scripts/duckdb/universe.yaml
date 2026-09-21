@@ -2,18 +2,18 @@
 # python -m scripts.duckdb.sync list-sectors
 # 再按实际返回值调整此文件。
 asset_groups:
+#  index:
+#    - 沪深指数
   stock:
     - 沪深A股
     - 北证A股
-  index:
-    - 沪深指数
-  fund:
-    - 沪深基金
-  bond:
-    - 沪深债券
-  repo:
-    - 沪深回购
-  warrant:
-    - 沪深权证
   etf:
     - 沪深ETF
+#  fund:
+#    - 沪深基金
+#  bond:
+#    - 沪深债券
+#  repo:
+#    - 沪深回购
+#  warrant:
+#    - 沪深权证

@@ -145,9 +145,9 @@ class QmtDataClient:
             result = self._parse_market_payload(data, symbols, fields, period)
         return result
 
-    def sector_list(self) -> list[str]:
+    def sector_list(self, *, allow_fallback: bool = False) -> list[str]:
         try:
-            data = self.xtdata.get_sector_list()
+            data = self.xtdata.get_sector_list(allow_fallback=allow_fallback)
         except Exception as exc:
             raise QmtDataError(f"QMT get_sector_list 请求失败: {exc}") from exc
         if isinstance(data, dict):

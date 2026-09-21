@@ -58,8 +58,14 @@ def command_check(config: SyncConfig) -> int:
     payload = {
         "duckdb_cli": shutil.which("duckdb") or "未找到",
         "duckdb_version": None,
-        "duckdb_path": str(config.duckdb_path),
-        "duckdb_path_exists": config.duckdb_path.exists(),
+        "duckdb_dir": str(config.database_dir),
+        "legacy_duckdb_path": str(config.legacy_database_path),
+        "legacy_duckdb_exists": config.legacy_database_path.exists(),
+        "split_databases": {
+            asset_type: str(config.database_path(asset_type))
+            for asset_type in config.sector_map
+            if config.database_path(asset_type).exists()
+        },
         "kdb_x_port": f"{config.kdb_host}:{config.kdb_port}",
         "kdb_x_port_reachable": probe_port(config.kdb_host, config.kdb_port),
     }
@@ -82,6 +88,110 @@ def command_list_sectors(config: SyncConfig) -> int:
     qmt = build_qmt(config)
     print("\n".join(qmt.sector_list(allow_fallback=True)))
     return 0
+
+
+def _asset_types_from_source(connection, configured_types: set[str]) -> list[str]:
+    source_types = {
+        str(row[0])
+        for row in connection.execute(
+            "SELECT DISTINCT asset_type FROM instrument_master WHERE asset_type IS NOT NULL"
+        ).fetchall()
+    }
+    return sorted(configured_types | source_types)
+
+
+def split_market_database(config: SyncConfig) -> dict[str, dict[str, object]]:
+    """Split the legacy combined database into one database per asset type.
+
+    The source database is opened read-only and is never removed. Existing split
+    files are refreshed idempotently, which makes interrupted migrations safe to
+    resume.
+    """
+    source_path = config.legacy_database_path
+    if not source_path.exists():
+        raise FileNotFoundError(f"旧版 DuckDB 文件不存在: {source_path}")
+
+    try:
+        import duckdb
+    except ImportError as exc:  # pragma: no cover - dependency guard
+        raise RuntimeError("请先执行 uv sync 安装 duckdb Python 包") from exc
+
+    source = duckdb.connect(str(source_path), read_only=True)
+    try:
+        asset_types = _asset_types_from_source(source, set(config.sector_map))
+    finally:
+        source.close()
+
+    result: dict[str, dict[str, object]] = {}
+    for asset_type in asset_types:
+        target_path = config.database_path(asset_type)
+        if target_path.resolve() == source_path.resolve():
+            raise ValueError(f"拆分目标不能覆盖源数据库: {target_path}")
+
+        target = DuckDBStore(target_path)
+        target.initialize()
+        target.connection.execute(
+            f"ATTACH '{str(source_path).replace(chr(39), chr(39) * 2)}' "
+            "AS legacy_source (READ_ONLY)"
+        )
+        try:
+            for table in ("instrument_master", "daily_bars"):
+                target.connection.execute(f"DELETE FROM {table}")
+                target.connection.execute(
+                    f"INSERT INTO {table} "
+                    f"SELECT * FROM legacy_source.{table} WHERE asset_type = ?",
+                    [asset_type],
+                )
+            for table in ("trading_calendar", "sync_runs", "sync_errors"):
+                target.connection.execute(f"DELETE FROM {table}")
+                target.connection.execute(
+                    f"INSERT INTO {table} SELECT * FROM legacy_source.{table}"
+                )
+            instrument_count = target.connection.execute(
+                "SELECT count(*) FROM instrument_master"
+            ).fetchone()[0]
+            bar_count = target.connection.execute(
+                "SELECT count(*) FROM daily_bars"
+            ).fetchone()[0]
+        finally:
+            target.connection.execute("DETACH legacy_source")
+            target.close()
+
+        result[asset_type] = {
+            "database": str(target_path),
+            "instrument_count": instrument_count,
+            "bar_count": bar_count,
+        }
+    return result
+
+
+def command_split_market(config: SyncConfig) -> int:
+    result = split_market_database(config)
+    print(json.dumps({
+        "ok": True,
+        "source": str(config.legacy_database_path),
+        "databases": result,
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _error_asset_type(item: dict[str, str], symbol_types: dict[str, str]) -> str | None:
+    return item.get("asset_type") or symbol_types.get(item.get("symbol", ""))
+
+
+def _record_split_errors(
+    stores: dict[str, DuckDBStore],
+    run_ids: dict[str, str],
+    items: list[dict[str, str]],
+    symbol_types: dict[str, str],
+) -> None:
+    grouped: dict[str, list[dict[str, str]]] = {}
+    for item in items:
+        asset_type = _error_asset_type(item, symbol_types)
+        if asset_type in stores:
+            grouped.setdefault(asset_type, []).append(item)
+    for asset_type, errors in grouped.items():
+        stores[asset_type].record_errors(run_ids[asset_type], errors)
 
 
 def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
@@ -120,63 +230,84 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
     if instruments.empty:
         raise RuntimeError("没有发现任何可同步标的")
 
-    targets: list[MarketDataTarget] = []
-    duckdb_store: DuckDBStore | None = None
+    symbol_types = dict(zip(instruments["symbol"], instruments["asset_type"]))
+    active_asset_types = sorted(set(symbol_types.values()))
+    duckdb_stores: dict[str, DuckDBStore] = {}
+    kdb_target: MarketDataTarget | None = None
     try:
         if "duckdb" in target_names:
-            duckdb_store = DuckDBStore(config.duckdb_path)
-            targets.append(duckdb_store)
+            for asset_type in active_asset_types:
+                store = DuckDBStore(config.database_path(asset_type))
+                store.initialize()
+                duckdb_stores[asset_type] = store
         if "kdb" in target_names:
-            targets.append(KdbStore(
+            kdb_target = KdbStore(
                 config.kdb_host,
                 config.kdb_port,
                 username=config.kdb_username,
                 password=config.kdb_password,
                 timeout=config.timeout,
-            ))
+            )
     except Exception:
-        for target in targets:
-            target.close()
+        for store in duckdb_stores.values():
+            store.close()
+        if kdb_target is not None:
+            kdb_target.close()
         raise
 
-    run_id = ""
     errors: list[dict[str, str]] = [
-        {"symbol": "", "error_type": "universe", "error": json.dumps(item, ensure_ascii=False)}
+        {
+            "symbol": "",
+            "asset_type": item.get("asset_type", ""),
+            "error_type": "universe",
+            "error": json.dumps(item, ensure_ascii=False),
+        }
         for item in universe_failures
     ]
-    bars_by_target = {target.name: 0 for target in targets}
+    bars_by_target: dict[str, object] = {}
+    if duckdb_stores:
+        bars_by_target["duckdb"] = {asset_type: 0 for asset_type in active_asset_types}
+    if kdb_target is not None:
+        bars_by_target["kdb"] = 0
+    run_ids: dict[str, str] = {}
     try:
-        for target in targets:
-            try:
-                target.initialize()
-                target.upsert_instruments(instruments)
-                logger.info(
-                    "标的元数据导入成功 target={} count={}",
-                    target.name,
-                    len(instruments),
-                )
-            except Exception as exc:
-                for symbol in instruments["symbol"].tolist():
-                    logger.warning(
-                        "标的元数据导入失败 target={} symbol={} error={}",
-                        target.name,
-                        symbol,
-                        exc,
-                    )
-                raise
+        for asset_type, store in duckdb_stores.items():
+            partition = instruments[instruments["asset_type"] == asset_type]
+            store.upsert_instruments(partition)
+            logger.info(
+                "标的元数据导入成功 target=duckdb/{} count={}",
+                asset_type,
+                len(partition),
+            )
+        if kdb_target is not None:
+            kdb_target.initialize()
+            kdb_target.upsert_instruments(instruments)
+            logger.info("标的元数据导入成功 target=kdb count={}", len(instruments))
+
         end_date = args.end or date.today()
         start_date = args.start or parse_date(config.qmt_start_date)
         if args.incremental:
             latest_values = []
-            for target in targets:
-                latest = target.latest_bar_time(period)
+            for store in duckdb_stores.values():
+                latest = store.latest_bar_time(period)
+                if latest is not None:
+                    latest_values.append(pd.Timestamp(latest).date())
+            if kdb_target is not None:
+                latest = kdb_target.latest_bar_time(period)
                 if latest is not None:
                     latest_values.append(pd.Timestamp(latest).date())
             if latest_values:
-                start_date = max(start_date, max(latest_values) - timedelta(days=config.overlap_days))
-        if duckdb_store is not None:
-            run_id = duckdb_store.start_run(start_date, end_date, args.dividend_type or config.dividend_type)
-            duckdb_store.record_errors(run_id, errors)
+                # Use the lagging split database so incremental sync cannot skip
+                # a type whose local file is behind the others.
+                start_date = max(start_date, min(latest_values) - timedelta(days=config.overlap_days))
+        for asset_type, store in duckdb_stores.items():
+            run_ids[asset_type] = store.start_run(
+                start_date,
+                end_date,
+                args.dividend_type or config.dividend_type,
+            )
+        _record_split_errors(duckdb_stores, run_ids, errors, symbol_types)
+
         if not args.dry_run:
             for batch_result in fetch_batches(
                 qmt,
@@ -188,33 +319,30 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
                 dividend_type=args.dividend_type or config.dividend_type,
                 download_missing=args.download_missing,
             ):
-                for item in batch_result.errors:
+                batch_errors = [
+                    {**item, "asset_type": symbol_types.get(item.get("symbol", ""), "")}
+                    for item in batch_result.errors
+                ]
+                for item in batch_errors:
                     logger.warning(
                         "行情同步失败 symbol={} type={} error={}",
                         item.get("symbol", ""),
                         item.get("error_type", "unknown"),
                         item.get("error", ""),
                     )
-                errors.extend(batch_result.errors)
-                if duckdb_store is not None:
-                    duckdb_store.record_errors(run_id, batch_result.errors)
+                errors.extend(batch_errors)
+                _record_split_errors(duckdb_stores, run_ids, batch_errors, symbol_types)
 
-                symbol_counts = (
-                    batch_result.bars.groupby("symbol", sort=False).size().to_dict()
-                    if not batch_result.bars.empty
-                    else {}
-                )
-                for target in targets:
-                    if not symbol_counts:
-                        continue
+                if kdb_target is not None and not batch_result.bars.empty:
                     try:
-                        written = target.write_bars(batch_result.bars, period=period)
+                        written = kdb_target.write_bars(batch_result.bars, period=period)
                     except Exception as exc:
                         write_errors = []
+                        symbol_counts = batch_result.bars.groupby("symbol", sort=False).size().to_dict()
                         for symbol, count in symbol_counts.items():
                             logger.warning(
                                 "行情导入失败 target={} symbol={} period={} bars={} error={}",
-                                target.name,
+                                "kdb",
                                 symbol,
                                 period,
                                 count,
@@ -222,67 +350,104 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
                             )
                             write_errors.append({
                                 "symbol": symbol,
+                                "asset_type": symbol_types.get(symbol, ""),
                                 "error_type": "target_write",
-                                "error": f"{target.name}: {exc}",
+                                "error": f"kdb: {exc}",
                             })
                         errors.extend(write_errors)
-                        if duckdb_store is not None and target.name != duckdb_store.name:
-                            duckdb_store.record_errors(run_id, write_errors)
-                        continue
+                        _record_split_errors(duckdb_stores, run_ids, write_errors, symbol_types)
+                    else:
+                        bars_by_target["kdb"] += written
+                        logger.info("行情导入成功 target=kdb period={} bars={}", period, written)
 
+                for asset_type, store in duckdb_stores.items():
+                    bars = batch_result.bars[batch_result.bars["asset_type"] == asset_type]
+                    if bars.empty:
+                        logger.warning(
+                            "行情导入为空 target=duckdb/{} period={}",
+                            asset_type,
+                            period,
+                        )
+                        continue
+                    symbol_counts = bars.groupby("symbol", sort=False).size().to_dict()
+                    try:
+                        written = store.write_bars(bars, period=period)
+                    except Exception as exc:
+                        write_errors = [
+                            {
+                                "symbol": symbol,
+                                "asset_type": asset_type,
+                                "error_type": "target_write",
+                                "error": f"duckdb/{asset_type}: {exc}",
+                            }
+                            for symbol in symbol_counts
+                        ]
+                        errors.extend(write_errors)
+                        _record_split_errors(duckdb_stores, run_ids, write_errors, symbol_types)
+                        continue
+                    bars_by_target["duckdb"][asset_type] += written
                     expected = sum(symbol_counts.values())
-                    bars_by_target[target.name] += written
                     if written != expected:
                         logger.warning(
-                            "行情导入数量异常 target={} period={} expected={} written={}",
-                            target.name,
+                            "行情导入数量异常 target=duckdb/{} period={} expected={} written={}",
+                            asset_type,
                             period,
                             expected,
                             written,
                         )
-                        continue
-                    for symbol, count in symbol_counts.items():
+                    else:
                         logger.info(
-                            "行情导入成功 target={} symbol={} period={} bars={}",
-                            target.name,
-                            symbol,
+                            "行情导入成功 target=duckdb/{} period={} bars={}",
+                            asset_type,
                             period,
-                            count,
+                            written,
                         )
         status = "success" if not errors else "partial"
-        if duckdb_store is not None:
-            duckdb_store.finish_run(
-                run_id,
+        for asset_type, store in duckdb_stores.items():
+            type_errors = [
+                item for item in errors
+                if _error_asset_type(item, symbol_types) == asset_type
+            ]
+            store.finish_run(
+                run_ids[asset_type],
                 status=status,
-                instrument_count=len(instruments),
-                bar_count=bars_by_target["duckdb"],
-                error_count=len(errors),
-                message="存在未返回数据或板块失败" if errors else "",
+                instrument_count=int((instruments["asset_type"] == asset_type).sum()),
+                bar_count=bars_by_target["duckdb"][asset_type],
+                error_count=len(type_errors),
+                message="存在未返回数据或板块失败" if type_errors else "",
             )
     except Exception as exc:
-        if run_id and duckdb_store is not None:
-            duckdb_store.finish_run(
-                run_id,
-                status="failed",
-                instrument_count=len(instruments),
-                bar_count=bars_by_target["duckdb"],
-                error_count=len(errors) + 1,
-                message=str(exc),
-            )
+        for asset_type, store in duckdb_stores.items():
+            run_id = run_ids.get(asset_type)
+            if run_id:
+                store.finish_run(
+                    run_id,
+                    status="failed",
+                    instrument_count=int((instruments["asset_type"] == asset_type).sum()),
+                    bar_count=bars_by_target["duckdb"][asset_type],
+                    error_count=len(errors) + 1,
+                    message=str(exc),
+                )
         raise
     finally:
-        for target in targets:
-            target.close()
+        for store in duckdb_stores.values():
+            store.close()
+        if kdb_target is not None:
+            kdb_target.close()
 
     print(json.dumps({
         "ok": not errors,
         "targets": target_names,
         "period": period,
-        "run_id": run_id or None,
+        "run_id": run_ids or None,
         "instrument_count": len(instruments),
         "bars_by_target": bars_by_target,
         "error_count": len(errors),
-        "database": str(config.duckdb_path),
+        "database_dir": str(config.database_dir),
+        "databases": {
+            asset_type: str(config.database_path(asset_type))
+            for asset_type in active_asset_types
+        },
         "start_date": start_date.isoformat(),
         "end_date": end_date.isoformat(),
     }, ensure_ascii=False, indent=2))
@@ -291,12 +456,20 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="将 Big QMT 行情同步到可选的 DuckDB/KDB-X 目标")
-    parser.add_argument("--duckdb-path", help="DuckDB 文件路径，默认读取 DUCKDB_PATH 或 data/market.duckdb")
+    parser.add_argument(
+        "--duckdb-path",
+        help="兼容旧版的 DuckDB 文件或目录路径，默认读取 DUCKDB_PATH 或 data/market.duckdb",
+    )
+    parser.add_argument(
+        "--duckdb-dir",
+        help="拆分后的 DuckDB 目录，默认读取 DUCKDB_DIR 或旧文件所在目录",
+    )
     parser.add_argument("--account-id", help="覆盖 BIGQMT_ACCOUNT_ID")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("check", help="检查 DuckDB 文件、CLI 和 KDB-X 预留端口")
     subparsers.add_parser("list-sectors", help="读取 QMT 可用板块名")
+    subparsers.add_parser("split-market", help="将旧版 data/market.duckdb 拆分为各资产类型数据库")
 
     sync = subparsers.add_parser("sync", help="同步行情数据")
     sync.add_argument("--targets", default="duckdb", help="同步目标，逗号分隔：duckdb、kdb；默认 duckdb")
@@ -327,7 +500,7 @@ def report_error(exc: Exception) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    config = SyncConfig.from_env(duckdb_path=args.duckdb_path)
+    config = SyncConfig.from_env(duckdb_path=args.duckdb_path, duckdb_dir=args.duckdb_dir)
     if args.account_id:
         config = SyncConfig(**{**config.__dict__, "account_id": args.account_id})
     try:
@@ -335,6 +508,8 @@ def main(argv: list[str] | None = None) -> int:
             return command_check(config)
         if args.command == "list-sectors":
             return command_list_sectors(config)
+        if args.command == "split-market":
+            return command_split_market(config)
         return command_sync(args, config)
     except Exception as exc:
         report_error(exc)

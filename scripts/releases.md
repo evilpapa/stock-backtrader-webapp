@@ -66,7 +66,10 @@ QMT RPC
 ## 运行前提与注意事项
 
 1. `BIGQMT_ACCOUNT_ID`、Big QMT Redis 连接变量必须已经配置，QMT 桥接服务必须运行。
-2. 标准 DuckDB 是嵌入式数据库，默认文件为 `data/market.duckdb`，可用 `DUCKDB_PATH` 或 `--duckdb-path` 覆盖。
+2. 标准 DuckDB 是嵌入式数据库，默认按资产类型拆分到 `data/stock.duckdb`、
+   `data/index.duckdb` 等文件；可用 `DUCKDB_DIR` 或 `--duckdb-dir` 覆盖目录。
+   旧版合并库可用 `uv run python -m scripts.duckdb.sync split-market` 拆分，
+   `DUCKDB_PATH` 和 `--duckdb-path` 仍兼容旧版源文件/目录路径。
 3. QMT 板块名称可能因券商和版本不同而变化。先运行 `list-sectors`，再修改 `scripts/duckdb/universe.yaml`；生产同步建议不使用 `--allow-partial`。
 4. KDB-X 默认连接 `127.0.0.1:5000`；分钟/tick 同步必须选择 `--targets kdb`。
 

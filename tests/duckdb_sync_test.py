@@ -7,13 +7,77 @@ from pathlib import Path
 import pandas as pd
 
 from scripts.duckdb.fetcher import fetch_batches
+from scripts.duckdb.config import SyncConfig
 from src.utils.bigqmt_client import QmtDataClient as QmtRpc
 from scripts.duckdb.store import DuckDBStore
+from scripts.duckdb.sync import split_market_database
 from scripts.duckdb.universe import UniverseDiscovery
 from scripts.targets import parse_targets
 
 
 class DuckDbSyncTest(unittest.TestCase):
+    def test_split_market_database_partitions_asset_types(self):
+        import duckdb
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_path = root / "market.duckdb"
+            source = DuckDBStore(source_path)
+            source.initialize()
+            source.upsert_instruments(pd.DataFrame([
+                {
+                    "symbol": "600000.SH", "market": "SH", "asset_type": "stock",
+                    "source_sectors": "沪深A股",
+                },
+                {
+                    "symbol": "000300.SH", "market": "SH", "asset_type": "index",
+                    "source_sectors": "沪深指数",
+                },
+            ]))
+            source.write_bars(pd.DataFrame([
+                {
+                    "symbol": "600000.SH", "market": "SH", "asset_type": "stock",
+                    "bar_time": pd.Timestamp("2024-01-02"), "open": 10.0, "high": 11.0,
+                    "low": 9.0, "close": 10.5, "last": 10.5, "volume": 100.0,
+                    "amount": 1050.0, "bid": None, "ask": None, "bid_volume": None,
+                    "ask_volume": None, "dividend_type": "none", "source": "test",
+                    "ingested_at": pd.Timestamp("2024-01-03"),
+                },
+                {
+                    "symbol": "000300.SH", "market": "SH", "asset_type": "index",
+                    "bar_time": pd.Timestamp("2024-01-02"), "open": 10.0, "high": 11.0,
+                    "low": 9.0, "close": 10.5, "last": 10.5, "volume": 100.0,
+                    "amount": 1050.0, "bid": None, "ask": None, "bid_volume": None,
+                    "ask_volume": None, "dividend_type": "none", "source": "test",
+                    "ingested_at": pd.Timestamp("2024-01-03"),
+                },
+            ]))
+            source.close()
+
+            result = split_market_database(SyncConfig(
+                duckdb_path=source_path,
+                sector_map={"stock": ["沪深A股"], "index": ["沪深指数"]},
+            ))
+
+            self.assertEqual(set(result), {"index", "stock"})
+            for asset_type in ("index", "stock"):
+                target = duckdb.connect(str(root / f"{asset_type}.duckdb"), read_only=True)
+                try:
+                    self.assertEqual(
+                        target.execute("select count(*) from instrument_master").fetchone()[0],
+                        1,
+                    )
+                    self.assertEqual(
+                        target.execute("select count(*) from daily_bars").fetchone()[0],
+                        1,
+                    )
+                    self.assertEqual(
+                        target.execute("select distinct asset_type from daily_bars").fetchone()[0],
+                        asset_type,
+                    )
+                finally:
+                    target.close()
+
     def test_duckdb_upserts_are_idempotent(self):
         with TemporaryDirectory() as temp_dir:
             store = DuckDBStore(Path(temp_dir) / "market.duckdb")
@@ -111,8 +175,8 @@ class DuckDbSyncTest(unittest.TestCase):
                 return ["沪深A股", "沪深ETF"]
 
         client = QmtRpc(xtdata_client=FakeXtdata())
-        self.assertEqual(client.sector_list(), ["沪深A股", "沪深ETF"])
-        self.assertEqual(calls[0][1], {})
+        self.assertEqual(client.sector_list(allow_fallback=True), ["沪深A股", "沪深ETF"])
+        self.assertEqual(calls[0][1], {"allow_fallback": True})
 
     def test_market_bars_normalizes_tick_fields_for_kdb(self):
         class FakeXtdata:
