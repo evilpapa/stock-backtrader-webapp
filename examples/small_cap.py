@@ -85,7 +85,7 @@ def main(argv: Sequence[str] | None = None) -> SmallCapStrategy:
         raise ValueError("--full-universe 与自定义 --codes 不能同时使用")
 
     snapshot_codes = None if args.full_universe else args.codes
-    client = QmtUniverseClient(args.bigqmt_account_id, timeout=args.bigqmt_timeout)
+    client = QmtUniverseClient(timeout=args.bigqmt_timeout)
     snapshots = build_small_cap_snapshots(
         client,
         [args.start_date],

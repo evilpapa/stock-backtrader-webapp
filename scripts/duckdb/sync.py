@@ -28,7 +28,7 @@ from src.utils.logs import logger  # noqa: E402
 
 from .config import SyncConfig, load_sector_map  # noqa: E402
 from .fetcher import fetch_batches  # noqa: E402
-from .qmt import QmtRpc  # noqa: E402
+from src.utils.bigqmt_client import QmtDataClient  # noqa: E402
 from .store import DuckDBStore  # noqa: E402
 from .universe import UniverseDiscovery  # noqa: E402
 from ..kdb.store import KdbStore  # noqa: E402
@@ -72,9 +72,8 @@ def command_check(config: SyncConfig) -> int:
     return 0
 
 
-def build_qmt(config: SyncConfig) -> QmtRpc:
-    return QmtRpc(
-        config.account_id,
+def build_qmt(config: SyncConfig) -> QmtDataClient:
+    return QmtDataClient(
         timeout=config.timeout,
     )
 
@@ -93,7 +92,7 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
     asset_types = {item.strip() for item in args.asset_types.split(",") if item.strip()} if args.asset_types else None
     sector_map = load_sector_map(args.sector_config)
     qmt = build_qmt(config)
-    discovery = UniverseDiscovery(config.account_id, config.timeout, xtdata_client=qmt.xtdata)
+    discovery = UniverseDiscovery(config.timeout, qmt_client=qmt)
     instruments, universe_failures = discovery.discover(
         sector_map,
         asset_types=asset_types,

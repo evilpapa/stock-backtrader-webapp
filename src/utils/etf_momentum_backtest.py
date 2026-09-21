@@ -23,6 +23,7 @@ from examples.backtest_common import (
 )
 from src.strategy import EtfMomentumStrategy
 from src.utils.schemas import DataSourceParams
+from src.utils.rotation_backtest import normalize_assets
 
 
 STRATEGY_NAME = "动量策略"
@@ -57,17 +58,6 @@ RESULT_FILES = {
 	"drawdown": "drawdowns.csv",
 	"weights": "daily_weights.csv",
 }
-
-
-def normalize_assets(assets: pd.DataFrame) -> list[dict[str, str]]:
-	"""将页面表格中的 ETF 标的列表清洗为策略可用的字典列表。"""
-	normalized = []
-	for _, row in assets.iterrows():
-		symbol = str(row.get("symbol", "")).strip()
-		name = str(row.get("name", "")).strip()
-		if symbol and name:
-			normalized.append({"symbol": symbol, "name": name})
-	return normalized
 
 
 def load_etf_momentum_results(output_dir: Path = DEFAULT_OUTPUT_DIR) -> EtfMomentumFrames | None:

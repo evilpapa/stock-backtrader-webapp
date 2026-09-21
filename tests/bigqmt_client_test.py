@@ -24,12 +24,12 @@ class BigQmtClientTest(unittest.TestCase):
         self.assertEqual(frame["date"].dt.strftime("%Y%m%d").tolist(), ["20240102", "20240103"])
         self.assertEqual(frame["close"].tolist(), [10.8, 11.2])
 
-    def test_fetch_history_uses_xtquant_compat_contract(self):
-        """验证历史行情接口按 xtquant_compat 行情接口组装参数。"""
+    def test_fetch_history_uses_native_xtdata_contract(self):
+        """验证历史行情接口按原生 xtdata 行情接口组装参数。"""
         calls = []
 
         class FakeXtdata:
-            def get_market_data_ex(self, **params):
+            def get_market_data(self, **params):
                 calls.append(params)
                 return {"000001.SZ": pd.DataFrame([{
                     "time": "20240102", "open": 10.0, "high": 11.0,
@@ -41,7 +41,6 @@ class BigQmtClientTest(unittest.TestCase):
             pd.Timestamp("2024-01-02"),
             "2024-01-03",
             dividend_type="qfq",
-            account_id="account-1",
             timeout=3.0,
             xtdata_client=FakeXtdata(),
         )
@@ -51,7 +50,20 @@ class BigQmtClientTest(unittest.TestCase):
         self.assertEqual(params["field_list"], ["open", "high", "low", "close", "volume"])
         self.assertEqual(params["start_time"], "20240102")
         self.assertEqual(params["dividend_type"], "front")
-        self.assertEqual(params["timeout_seconds"], 3.0)
+        self.assertNotIn("timeout_seconds", params)
+        self.assertEqual(frame["close"].tolist(), [10.8])
+
+    def test_parses_native_xtdata_field_frames(self):
+        payload = {
+            field: pd.DataFrame([[value]], index=["000001.SZ"], columns=["20240102"])
+            for field, value in {
+                "open": 10.0, "high": 11.0, "low": 9.5, "close": 10.8, "volume": 1000,
+            }.items()
+        }
+
+        frame = market_data_payload_to_ohlcv(payload, "000001.SZ")
+
+        self.assertEqual(frame["date"].dt.strftime("%Y%m%d").tolist(), ["20240102"])
         self.assertEqual(frame["close"].tolist(), [10.8])
 
     def test_normalizes_12_digit_millisecond_timestamps(self):

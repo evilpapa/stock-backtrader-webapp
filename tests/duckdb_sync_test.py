@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 from scripts.duckdb.fetcher import fetch_batches
-from scripts.duckdb.qmt import QmtRpc
+from src.utils.bigqmt_client import QmtDataClient as QmtRpc
 from scripts.duckdb.store import DuckDBStore
 from scripts.duckdb.universe import UniverseDiscovery
 from scripts.targets import parse_targets
@@ -46,7 +46,7 @@ class DuckDbSyncTest(unittest.TestCase):
                     "沪深基金": ["510300.SH", "159919.SZ"],
                 }[sector_name]
 
-        discovery = UniverseDiscovery("account", xtdata_client=FakeXtdata())
+        discovery = UniverseDiscovery(xtdata_client=FakeXtdata())
         frame, failures = discovery.discover({"stock": ["沪深A股"], "etf": ["沪深基金"]})
 
         self.assertEqual(failures, [])
@@ -57,28 +57,28 @@ class DuckDbSyncTest(unittest.TestCase):
         calls = []
 
         class FakeXtdata:
-            def get_market_data_ex(self, **params):
-                calls.append(("get_market_data_ex", params))
+            def get_market_data(self, **params):
+                calls.append(("get_market_data", params))
                 return {
                     "600000.SH": [{"time": "20240102", "open": 10, "high": 11, "low": 9, "close": 10.5, "volume": 100}],
                     "000001.SZ": [{"time": "20240102", "open": 8, "high": 9, "low": 7, "close": 8.5, "volume": 200, "amount": 1700}],
                 }
 
-        client = QmtRpc("account", xtdata_client=FakeXtdata())
+        client = QmtRpc(xtdata_client=FakeXtdata())
         result = client.daily_bars(["600000.SH", "000001.SZ"], "20240101", "20240103")
 
         self.assertEqual(set(result), {"600000.SH", "000001.SZ"})
         self.assertTrue(pd.isna(result["600000.SH"]["amount"].iloc[0]))
         self.assertEqual(result["000001.SZ"]["amount"].iloc[0], 1700)
-        self.assertEqual(calls[0][0], "get_market_data_ex")
+        self.assertEqual(calls[0][0], "get_market_data")
 
     def test_qmt_download_missing_uses_supported_download_params(self):
         calls = []
 
         class FakeXtdata:
-            def get_market_data_ex(self, **params):
-                calls.append(("get_market_data_ex", params))
-                if len([item for item in calls if item[0] == "get_market_data_ex"]) == 1:
+            def get_market_data(self, **params):
+                calls.append(("get_market_data", params))
+                if len([item for item in calls if item[0] == "get_market_data"]) == 1:
                     return {"000001.SZ": []}
                 return {
                     "000001.SZ": [{
@@ -91,7 +91,7 @@ class DuckDbSyncTest(unittest.TestCase):
                 calls.append(("download_history_data2", params))
                 return None
 
-        client = QmtRpc("account", xtdata_client=FakeXtdata())
+        client = QmtRpc(xtdata_client=FakeXtdata())
         result = client.daily_bars(
             ["000001.SZ"], "20240101", "20240103", download_missing=True,
         )
@@ -100,7 +100,7 @@ class DuckDbSyncTest(unittest.TestCase):
         self.assertEqual(calls[1][0], "download_history_data2")
         self.assertNotIn("dividend_type", calls[1][1])
         self.assertEqual(calls[1][1]["end_time"], "20240103")
-        self.assertEqual(calls[2][0], "get_market_data_ex")
+        self.assertEqual(calls[2][0], "get_market_data")
 
     def test_sector_list_explicitly_allows_qmt_fallback(self):
         calls = []
@@ -110,13 +110,13 @@ class DuckDbSyncTest(unittest.TestCase):
                 calls.append(("get_sector_list", params))
                 return ["沪深A股", "沪深ETF"]
 
-        client = QmtRpc("account", xtdata_client=FakeXtdata())
+        client = QmtRpc(xtdata_client=FakeXtdata())
         self.assertEqual(client.sector_list(), ["沪深A股", "沪深ETF"])
-        self.assertEqual(calls[0][1], {"allow_fallback": True})
+        self.assertEqual(calls[0][1], {})
 
     def test_market_bars_normalizes_tick_fields_for_kdb(self):
         class FakeXtdata:
-            def get_market_data_ex(self, **params):
+            def get_market_data(self, **params):
                 if params["period"] != "tick":
                     raise AssertionError("expected tick period")
                 return {
@@ -132,7 +132,7 @@ class DuckDbSyncTest(unittest.TestCase):
                     }],
                 }
 
-        client = QmtRpc("account", xtdata_client=FakeXtdata())
+        client = QmtRpc(xtdata_client=FakeXtdata())
         frame = client.market_bars(["600000.SH"], "20240102", "20240102", period="tick")["600000.SH"]
 
         self.assertEqual(frame["last"].iloc[0], 10.1)

@@ -14,7 +14,7 @@ from src.strategy import CustomAnalyzer
 from src.strategy import EqualWeightStrategy
 from src.strategy import JustBuyHoldStrategy
 from src.strategy import PerformanceCalculator
-from src.utils.bigqmt_client import fetch_history_ohlcv, to_title_case_ohlcv
+from src.utils.bigqmt_client import QmtDataClient, to_title_case_ohlcv
 from src.utils.commission import ChinaStockCommission
 from src.utils.schemas import DataSourceParams
 
@@ -35,13 +35,12 @@ def prepare_price_data(
 	for symbol in symbols:
 		try:
 			df = to_title_case_ohlcv(
-				fetch_history_ohlcv(
+				QmtDataClient(timeout=data_source_params.bigqmt_timeout).history_ohlcv(
 					symbol,
 					start_date,
 					end_date,
+					period="1d",
 					dividend_type=data_source_params.dividend_type,
-					account_id=data_source_params.bigqmt_account_id,
-					timeout=data_source_params.bigqmt_timeout,
 				)
 			)
 		except Exception as exc:

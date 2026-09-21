@@ -18,16 +18,13 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
 
-from src.utils.bigqmt_client import BigQmtApiError, normalize_qmt_symbol
-
-from scripts.duckdb.qmt import QmtRpc
+from src.utils.bigqmt_client import QmtDataClient, QmtDataError, normalize_qmt_symbol
 
 
 DEFAULT_SYMBOL = "000001.SZ"
@@ -54,25 +51,18 @@ def fetch_history(
     end: str | None = None,
     dividend_type: str = "none",
     download_missing: bool = False,
-    account_id: str | None = None,
     timeout: float = 30.0,
-    qmt: QmtRpc | None = None,
+    qmt: QmtDataClient | None = None,
 ) -> pd.DataFrame:
-    """通过 Big QMT 获取指定标的的全部日线历史数据。
+    """通过 xtdata 获取指定标的的全部日线历史数据。
 
-    ``count=-1`` 由 ``QmtRpc.daily_bars`` 设置；最终数据范围由 start/end
+    ``count=-1`` 由 ``QmtDataClient.daily_bars`` 设置；最终数据范围由 start/end
     控制，QMT 会返回该范围内实际存在的全部交易日。
     """
     qmt_symbol = normalize_qmt_symbol(symbol)
     qmt_client = qmt
     if qmt_client is None:
-        configured_account = account_id or os.getenv("BIGQMT_ACCOUNT_ID", "")
-        if not configured_account:
-            raise BigQmtApiError("请设置 BIGQMT_ACCOUNT_ID，或通过 --account-id 传入资金账号")
-        qmt_client = QmtRpc(
-            configured_account,
-            timeout=timeout,
-        )
+        qmt_client = QmtDataClient(timeout=timeout)
 
     result = qmt_client.daily_bars(
         [qmt_symbol],
@@ -84,7 +74,7 @@ def fetch_history(
 
     frame = result.get(qmt_symbol, pd.DataFrame()).copy()
     if frame.empty:
-        raise BigQmtApiError(
+        raise QmtDataError(
             f"Big QMT 未返回 {qmt_symbol} 的历史数据；可确认代码/账号，或重试并增加 --download-missing"
         )
     return frame.sort_values("date").reset_index(drop=True)
@@ -102,7 +92,7 @@ def export_history(frame: pd.DataFrame, output: Path, output_format: str = "auto
         try:
             import tables  # noqa: F401  # pandas.to_hdf 的可选引擎
         except ImportError as exc:
-            raise BigQmtApiError("HDF5 导出需要 PyTables，请执行 uv sync 安装 tables") from exc
+            raise QmtDataError("HDF5 导出需要 PyTables，请执行 uv sync 安装 tables") from exc
         frame.to_hdf(output, key="history", mode="w", format="table", data_columns=["date"])
         return selected_format
     raise ValueError(f"不支持的导出格式: {output_format}")
@@ -115,7 +105,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--end", type=parse_date, help="结束日期，默认今天")
     parser.add_argument("--dividend-type", choices=["none", "front", "back"], default="none", help="复权方式")
     parser.add_argument("--download-missing", action="store_true", help="本地无历史数据时先请求 QMT 下载")
-    parser.add_argument("--account-id", help="覆盖 BIGQMT_ACCOUNT_ID")
     parser.add_argument("--timeout", type=float, default=30.0, help="RPC 超时秒数")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="输出路径；.h5/.hdf5 自动使用 HDF5")
     parser.add_argument("--output-format", choices=["auto", "csv", "hdf5"], default="auto", help="输出格式，默认按扩展名自动判断")
@@ -131,7 +120,6 @@ def main(argv: list[str] | None = None) -> int:
             end=args.end,
             dividend_type=args.dividend_type,
             download_missing=args.download_missing,
-            account_id=args.account_id,
             timeout=args.timeout,
         )
         output = args.output

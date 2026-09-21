@@ -8,7 +8,7 @@ from typing import Iterator
 
 import pandas as pd
 
-from .qmt import QmtRpc
+from src.utils.bigqmt_client import QmtDataClient
 from .universe import Instrument
 
 
@@ -24,7 +24,7 @@ def chunks(items: list[Instrument], size: int) -> Iterator[list[Instrument]]:
 
 
 def fetch_batches(
-    qmt: QmtRpc,
+    qmt: QmtDataClient,
     instruments: pd.DataFrame,
     start_date: date | str,
     end_date: date | str,

@@ -7,7 +7,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.utils.bigqmt_client import get_xtdata, normalize_qmt_symbol
+from src.utils.bigqmt_client import QmtDataClient, normalize_qmt_symbol
 
 
 ASSET_PRIORITY = {
@@ -34,27 +34,15 @@ class UniverseDiscovery:
 
     def __init__(
         self,
-        account_id: str,
         timeout: float = 30.0,
         xtdata_client: Any | None = None,
+        qmt_client: QmtDataClient | None = None,
     ) -> None:
-        self.account_id = account_id
-        self.timeout = timeout
-        self.xtdata = xtdata_client or get_xtdata(account_id=account_id, timeout=timeout)
-
-    def _call(self, method: str, params: dict[str, Any]) -> Any:
-        try:
-            return getattr(self.xtdata, method)(**params)
-        except Exception as exc:
-            raise RuntimeError(f"QMT {method} 请求失败: {exc}") from exc
+        self.data_client = qmt_client or QmtDataClient(timeout=timeout, xtdata_client=xtdata_client)
+        self.xtdata = self.data_client.xtdata
 
     def list_sectors(self) -> list[str]:
-        data = self._call("get_sector_list", {})
-        if isinstance(data, dict):
-            data = data.get("sectors", data.get("data", data))
-        if not isinstance(data, list):
-            raise RuntimeError("get_sector_list 返回格式错误")
-        return sorted({str(item) for item in data if item})
+        return self.data_client.sector_list()
 
     def discover(
         self,
@@ -72,9 +60,7 @@ class UniverseDiscovery:
                 continue
             for sector in sectors:
                 try:
-                    data = self._call("get_stock_list_in_sector", {"sector_name": sector})
-                    if not isinstance(data, list):
-                        raise RuntimeError("返回结果不是代码列表")
+                    data = self.data_client.stock_list_in_sector(sector)
                 except Exception as exc:  # a missing broker-specific sector is actionable
                     failures.append({"asset_type": asset_type, "sector": sector, "error": str(exc)})
                     continue

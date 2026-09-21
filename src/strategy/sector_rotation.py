@@ -9,10 +9,10 @@
 5. 每 K 个交易日调仓一次
 """
 
-from .leading_rotation import LeadingRotationStrategy
+from .leading_rotation import RotationStrategyBase
 
 
-class SectorRotationStrategy(LeadingRotationStrategy):
+class SectorRotationStrategy(RotationStrategyBase):
 	"""行业 ETF 风险调整动量轮动策略。"""
 
 	_name = "SectorRotation"

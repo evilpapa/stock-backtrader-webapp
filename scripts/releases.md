@@ -33,7 +33,7 @@ QMT RPC
 
 - `scripts/duckdb/config.py`：环境变量、数据库路径和同步参数。
 - `scripts/duckdb/universe.py`：股票、指数、基金、债券、回购、权证和 ETF 标的发现。
-- `scripts/duckdb/qmt.py`：Big QMT RPC 的最小可测试封装。
+- `qmt.py`：Big QMT RPC 的最小可测试封装。
 - `scripts/duckdb/fetcher.py`：批量日线、分钟/tick 拉取、空数据识别和可选历史下载重试。
 - `scripts/duckdb/store.py`：建表、事务、幂等写入和运行日志。
 - `scripts/targets.py`：目标协议和 `--targets` 参数解析。

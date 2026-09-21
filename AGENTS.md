@@ -28,9 +28,11 @@
 ## 关键约定
 
 - 策略类命名为 `{Name}Strategy`，文件名使用小写下划线 `name.py`；文件较多时可整理为同名包目录。
-- 普通 Python 代码通过 `utils.bigqmt_client.fetch_history_ohlcv` 访问 QMT Python API。
+- 使用 `src.utils.bigqmt_client.QmtDataClient` 统一访问原生 `xtquant.xtdata`；不要在业务模块重复创建行情客户端。
+- 获取数据的方法参考 xtquant-xtdata skill。
+- 不要使用 `bigqmt_signal_trader.xtquant_compat`、`bigqmt_signal_trader.redis_rpc`，也不要把 xtdata 方法封装为 `call(method, args)`。
+- `utils.bigqmt_client` 是统一行情客户端入口；历史 `fetch_history_ohlcv` 等名称继续兼容。
 - 接入 Backtrader 时使用 `to_backtrader_ohlcv()` 输出 `date/open/high/low/close/volume` 列。
-- QMT 策略脚本与行情数据访问均依赖 `qmt-api` skill。
 - 修改 Streamlit 缓存相关逻辑时，注意缓存键和数据模式变更。
 
 ## 数据流

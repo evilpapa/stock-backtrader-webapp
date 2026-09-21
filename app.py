@@ -14,7 +14,6 @@ from src.utils.etf_momentum_backtest import (
 	DEFAULT_OUTPUT_DIR as ETF_OUTPUT_DIR,
 	EtfMomentumFrames,
 	load_etf_momentum_results,
-	normalize_assets as normalize_etf_assets,
 	run_etf_momentum_backtest,
 )
 from src.utils.load import load_strategy
@@ -25,7 +24,7 @@ from src.utils.rotation_backtest import (
 	RotationFrames,
 	RotationSpec,
 	load_rotation_results,
-	normalize_assets as normalize_rotation_assets,
+	normalize_assets,
 	run_rotation_backtest,
 )
 from src.strategy import QbEtfMomentumStrategy
@@ -276,7 +275,7 @@ def render_etf_momentum_page(qb_strategy: bool = False) -> None:
 		use_container_width=True,
 		key="etf_momentum_assets",
 	)
-	assets = normalize_etf_assets(assets_df)
+	assets = normalize_assets(assets_df)
 
 	if st.button(f"重新运行 {strategy_name} 回测", type="primary"):
 		try:
@@ -352,7 +351,7 @@ def render_rotation_page(spec: RotationSpec) -> None:
 		use_container_width=True,
 		key=f"{spec.key}_assets",
 	)
-	assets = normalize_rotation_assets(assets_df)
+	assets = normalize_assets(assets_df)
 
 	if st.button(f"重新运行 {spec.title} 回测", type="primary"):
 		try:

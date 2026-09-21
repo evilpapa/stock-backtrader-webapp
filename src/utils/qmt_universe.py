@@ -1,4 +1,4 @@
-"""基于 Big QMT RPC 的全市场股票池快照服务。"""
+"""基于原生 ``xtquant.xtdata`` 的全市场股票池快照服务。"""
 
 from __future__ import annotations
 
@@ -9,17 +9,14 @@ from typing import Any
 import pandas as pd
 
 from .bigqmt_client import (
-    BigQmtApiError,
-    format_qmt_date,
-    get_xtdata,
-    market_data_payload_to_ohlcv,
+    QmtDataClient,
     normalize_qmt_symbol,
 )
 
 
 @dataclass(frozen=True)
 class StockUniverseSnapshot:
-    """Small2 选股所需的同一时点全市场元数据。"""
+    """Small_Cap 选股所需的同一时点全市场元数据。"""
 
     as_of: pd.Timestamp
     stocks: pd.DataFrame
@@ -57,79 +54,51 @@ class StockUniverseSnapshot:
 
 
 class QmtUniverseClient:
-    """通过 ``xtquant_compat.xtdata`` 读取 QMT 全市场元数据。"""
+    """通过原生 ``xtquant.xtdata`` 读取 QMT 全市场元数据。"""
 
     def __init__(
         self,
-        account_id: str,
         timeout: float = 30.0,
         xtdata_client: Any | None = None,
     ) -> None:
-        if not account_id:
-            raise ValueError("account_id 不能为空")
-        self.account_id = account_id
         self.timeout = timeout
-        self.xtdata = xtdata_client or get_xtdata(account_id=account_id, timeout=timeout)
-
-    def _call(self, method: str, **params: Any) -> Any:
-        """调用兼容层的同名行情方法，集中转换错误信息。"""
-        try:
-            return getattr(self.xtdata, method)(**params)
-        except Exception as exc:
-            raise BigQmtApiError(f"Big QMT {method} 请求失败: {exc}") from exc
+        self.data_client = QmtDataClient(timeout=timeout, xtdata_client=xtdata_client)
+        self.xtdata = self.data_client.xtdata
 
     def stock_codes(self, sector_name: str = "沪深A股") -> list[str]:
         """读取 QMT 板块成分股并规范化代码。"""
-        data = self._call("get_stock_list_in_sector", sector_name=sector_name)
-        if not isinstance(data, list):
-            raise BigQmtApiError("get_stock_list_in_sector 返回格式错误")
-        return [normalize_qmt_symbol(code) for code in data if isinstance(code, str) and code]
+        return [
+            normalize_qmt_symbol(code)
+            for code in self.data_client.stock_list_in_sector(sector_name)
+            if isinstance(code, str) and code
+        ]
 
     def instrument_details(self, codes: list[str]) -> dict[str, dict[str, Any]]:
         """逐只读取合约详情（名称、上市/退市日期）。"""
-        return {
-            code: data for code in codes
-            if isinstance(data := self._call("get_instrument_detail", stock_code=code), dict)
-        }
+        details = {}
+        for code in codes:
+            data = self.data_client.instrument_detail(code, is_detail=True)
+            if isinstance(data, dict):
+                details[code] = data
+        return details
 
     def historical_st_codes(self, codes: list[str], as_of: date | str | pd.Timestamp) -> set[str]:
         """通过 ``get_his_st_data`` 判断目标日期是否处于 ST 区间。"""
         day = pd.Timestamp(as_of).normalize()
         result: set[str] = set()
         for code in codes:
-            payload = self._call("get_his_st_data", stock_code=code)
+            payload = self.data_client.historical_st_data(code)
             if self._is_st_on(payload, day):
                 result.add(code)
         return result
 
     def daily_bars(self, codes: list[str], start_date: Any, end_date: Any) -> dict[str, pd.DataFrame]:
         """批量取得含成交额的日线；缺少目标日有效 bar 的股票应视为停牌。"""
-        data = self._call(
-            "get_market_data_ex",
-            field_list=["open", "high", "low", "close", "volume", "amount"],
-            stock_list=codes,
-            period="1d",
-            start_time=format_qmt_date(start_date),
-            end_time=format_qmt_date(end_date),
-            count=-1,
-            dividend_type="none",
-            fill_data=False,
-            timeout_seconds=self.timeout,
-        )
-        return {
-            code: market_data_payload_to_ohlcv(data, code, ["open", "high", "low", "close", "volume", "amount"])
-            for code in codes
-        }
+        return self.data_client.daily_bars(codes, start_date, end_date)
 
     def float_shares(self, codes: list[str], as_of: date | str | pd.Timestamp) -> dict[str, float]:
-        """从 ``Capital.CAPITAL`` 提取流通股本，兼容常见字段命名。"""
-        data = self._call(
-            "get_financial_data",
-            stock_list=codes,
-            table_list=["Capital.CAPITAL"],
-            start_time="",
-            end_time=format_qmt_date(as_of),
-        )
+        """从 ``Capital`` 提取流通股本，兼容常见字段命名。"""
+        data = self.data_client.financial_data(codes, tables=["Capital"], end_date=as_of)
         return {code: self._extract_float_shares(self._financial_frame(data, code)) for code in codes}
 
     def snapshot(
@@ -176,14 +145,21 @@ class QmtUniverseClient:
     @staticmethod
     def _financial_frame(data: Any, code: str) -> pd.DataFrame:
         if isinstance(data, dict):
-            data = data.get(code, data.get("Capital.CAPITAL", data))
+            data = data.get(code, data.get("Capital", data.get("Capital.CAPITAL", data)))
+            if isinstance(data, dict):
+                data = data.get("Capital", data.get("Capital.CAPITAL", data))
+        if isinstance(data, pd.DataFrame):
+            return data.copy()
         if isinstance(data, dict) and data.get("__bigqmt_type__") == "DataFrame":
             return pd.DataFrame(data.get("records", []))
         return pd.DataFrame(data if isinstance(data, list) else [data] if isinstance(data, dict) else [])
 
     @staticmethod
     def _extract_float_shares(frame: pd.DataFrame) -> float:
-        for column in ("float_share", "float_shares", "float_share_capital", "circulating_share"):
+        for column in (
+            "float_share", "float_shares", "float_share_capital",
+            "circulating_share", "circulating_capital",
+        ):
             if column in frame.columns:
                 values = pd.to_numeric(frame[column], errors="coerce").dropna()
                 if not values.empty and values.iloc[-1] > 0:

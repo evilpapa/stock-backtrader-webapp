@@ -1,11 +1,11 @@
-"""使用 Big QMT ``get_local_data`` 读取 000001.SZ 的本地缓存行情。
+"""使用 ``xtquant.xtdata.get_local_data`` 读取 000001.SZ 的本地缓存行情。
 
 该接口只读取 QMT 本地保存的数据，不会触发历史数据下载。运行前请启动
 Big QMT Redis RPC 桥接服务，并设置 ``BIGQMT_ACCOUNT_ID``：
 
     uv run python -m scripts.qmt_tutor.get_000001_local_data
 
-如需将原始 RPC 返回保存为 JSON：
+如需将原始返回保存为 JSON：
 
     uv run python -m scripts.qmt_tutor.get_000001_local_data \
         --output data/000001.SZ_local_data.json
@@ -15,13 +15,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import date
 from pathlib import Path
 from typing import Any
 
-from src.utils.bigqmt_client import BigQmtApiError, get_xtdata, normalize_qmt_symbol
+from src.utils.bigqmt_client import QmtDataClient, QmtDataError, normalize_qmt_symbol
 
 from scripts.qmt_tutor.fetch_000001_history import parse_date
 
@@ -42,16 +41,11 @@ def get_local_data(
     dividend_type: str = "none",
     fill_data: bool = False,
     data_dir: str | None = None,
-    account_id: str | None = None,
     timeout: float = 30.0,
     xtdata_client: Any | None = None,
 ) -> dict[str, Any]:
-    """通过 ``xtquant_compat.xtdata.get_local_data`` 返回本地缓存行情。"""
+    """通过 ``xtdata.get_local_data`` 返回本地缓存行情。"""
     qmt_symbol = normalize_qmt_symbol(symbol)
-    configured_account = account_id or os.getenv("BIGQMT_ACCOUNT_ID", "")
-    if not configured_account:
-        raise BigQmtApiError("请设置 BIGQMT_ACCOUNT_ID，或通过 --account-id 传入资金账号")
-
     params: dict[str, Any] = {
         "field_list": fields or DEFAULT_FIELDS,
         "stock_list": [qmt_symbol],
@@ -65,13 +59,12 @@ def get_local_data(
     if data_dir:
         params["data_dir"] = data_dir
 
-    xtdata = xtdata_client or get_xtdata(account_id=configured_account, timeout=timeout)
     try:
-        data = xtdata.get_local_data(**params)
+        data = QmtDataClient(timeout=timeout, xtdata_client=xtdata_client).local_data(**params)
     except Exception as exc:
-        raise BigQmtApiError(f"Big QMT get_local_data 请求失败: {exc}") from exc
+        raise QmtDataError(f"QMT get_local_data 请求失败: {exc}") from exc
     if data is None or (isinstance(data, (dict, list, tuple, set)) and not data):
-        raise BigQmtApiError(f"本地缓存没有返回 {qmt_symbol} 的数据")
+        raise QmtDataError(f"本地缓存没有返回 {qmt_symbol} 的数据")
     return {"stock_code": qmt_symbol, "params": params, "data": data}
 
 
@@ -105,8 +98,6 @@ def main(argv: list[str] | None = None) -> int:
             dividend_type=args.dividend_type,
             fill_data=args.fill_data,
             data_dir=args.data_dir,
-            account_id=args.account_id,
-            timeout=args.timeout,
         )
         text = json.dumps(payload, ensure_ascii=False, indent=2, default=str)
         if args.output:

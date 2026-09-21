@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from .logs import logger
-from .bigqmt_client import fetch_history_ohlcv, to_chinese_ohlcv
+from .bigqmt_client import QmtDataClient, to_chinese_ohlcv
 from .schemas import BacktraderParams, MarketDataParams, StrategyBase
 
 logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR)
@@ -27,14 +27,12 @@ def gen_stock_df(market_data_params: MarketDataParams) -> pd.DataFrame:
     Returns:
         pd.DataFrame: 股票历史数据
     """
-    df = fetch_history_ohlcv(
+    df = QmtDataClient(timeout=market_data_params.bigqmt_timeout).history_ohlcv(
         symbol=market_data_params.symbol,
         period=market_data_params.period,
         start_date=market_data_params.start_date,
         end_date=market_data_params.end_date,
         dividend_type=market_data_params.dividend_type,
-        account_id=market_data_params.bigqmt_account_id,
-        timeout=market_data_params.bigqmt_timeout,
     )
     if not df.empty:
         return to_chinese_ohlcv(df)
@@ -117,4 +115,3 @@ def run_backtrader(stock_df: pd.DataFrame, strategy: StrategyBase, bt_params: Ba
     columns.extend(["return", "total_return", "dd", "sharpe", "calmar"])
     par_df = pd.DataFrame(par_list, columns=columns)
     return par_df
-
