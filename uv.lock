@@ -2956,7 +2956,7 @@ requires-dist = [
     { name = "streamlit-echarts", specifier = "==0.4.0" },
     { name = "tables", specifier = ">=3.10.2" },
     { name = "tabulate", specifier = ">=0.10.0" },
-    { name = "xtquant-big-convert", extras = ["redis"], specifier = "==0.3.45" },
+    { name = "xtquant-big-convert", extras = ["redis"], specifier = "==0.3.50" },
 ]
 
 [package.metadata.requires-dev]
@@ -3733,14 +3733,14 @@ wheels = [
 
 [[package]]
 name = "xtquant-big-convert"
-version = "0.3.45"
+version = "0.3.50"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyzmq" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/70/86/a423fe18347ff0c2c31c75ed0e2a131c5742e4c2aef2a939d5a8d08c5ff5/xtquant_big_convert-0.3.45.tar.gz", hash = "sha256:95cb52a777b0574f62fe4fb7ffe767264fc6416e3599f51c64c188c0af3d2798", size = 562809, upload-time = "2026-09-16T03:24:25.136Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bd/40/9aff50a5867529e31c8794eb132bf44775260797d0534e78da79e9c8ba0d/xtquant_big_convert-0.3.50.tar.gz", hash = "sha256:9957150f9d8a8546d6e2345af6d16002855f83eeebe74ded84756766f17f1935", size = 583583, upload-time = "2026-09-21T06:43:57.359Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/4a/faa0b35de4ade364871852a64b4f180a6c45e8933d4303fde3c78d2feee3/xtquant_big_convert-0.3.45-py3-none-any.whl", hash = "sha256:efbacbb7cb8dbfe6eeba50b766b4f3fc2aa66e3a59368c4358d3b0db9444ff81", size = 499102, upload-time = "2026-09-16T03:24:23.472Z" },
+    { url = "https://files.pythonhosted.org/packages/e3/76/16fad4ca355163f9c0dc90f4508cb66522029e0462f2cd2df6255e785c46/xtquant_big_convert-0.3.50-py3-none-any.whl", hash = "sha256:ca587cdd4b1b845a5d4e03c381a4986d7abc7948f10d9b91f97e0d8692c20d9c", size = 516370, upload-time = "2026-09-21T06:43:55.793Z" },
 ]
 
 [package.optional-dependencies]

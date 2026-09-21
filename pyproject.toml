@@ -34,7 +34,7 @@ dependencies = [
     "streamlit-echarts==0.4.0",
     "tables>=3.10.2",
     "tabulate>=0.10.0",
-    "xtquant-big-convert[redis]==0.3.45",
+    "xtquant-big-convert[redis]==0.3.50",
 ]
 
 [tool.setuptools]
