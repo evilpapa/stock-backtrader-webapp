@@ -7,6 +7,17 @@ CREATE TABLE IF NOT EXISTS instrument_master (
     last_seen_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS instrument_details (
+    symbol VARCHAR NOT NULL,
+    asset_type VARCHAR NOT NULL,
+    market VARCHAR,
+    instrument_name VARCHAR,
+    open_date DATE,
+    expire_date DATE,
+    detail_json VARCHAR NOT NULL,
+    fetched_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS daily_bars (
     symbol VARCHAR NOT NULL,
     market VARCHAR,
@@ -60,6 +71,15 @@ COMMENT ON COLUMN instrument_master.source_sectors IS '发现该证券的 QMT �
 COMMENT ON COLUMN instrument_master.first_seen_at IS '首次发现该证券的时间';
 COMMENT ON COLUMN instrument_master.last_seen_at IS '最近一次发现该证券的时间';
 
+COMMENT ON COLUMN instrument_details.symbol IS '证券代码，使用 QMT 的 code.market 格式';
+COMMENT ON COLUMN instrument_details.asset_type IS '资产类型：stock、index、fund、bond、repo、warrant 或 etf';
+COMMENT ON COLUMN instrument_details.market IS '交易市场代码，例如 SH、SZ、BJ';
+COMMENT ON COLUMN instrument_details.instrument_name IS 'QMT InstrumentName 合约名称';
+COMMENT ON COLUMN instrument_details.open_date IS 'QMT OpenDate 上市日期';
+COMMENT ON COLUMN instrument_details.expire_date IS 'QMT ExpireDate 到期日期';
+COMMENT ON COLUMN instrument_details.detail_json IS 'get_instrument_detail 返回的完整 JSON';
+COMMENT ON COLUMN instrument_details.fetched_at IS '合约详情查询时间';
+
 COMMENT ON COLUMN daily_bars.symbol IS '证券代码，使用 QMT 的 code.market 格式';
 COMMENT ON COLUMN daily_bars.market IS '交易市场代码，例如 SH、SZ、BJ';
 COMMENT ON COLUMN daily_bars.asset_type IS '资产类型：stock、index、fund、bond、repo、warrant 或 etf';
@@ -100,3 +120,4 @@ COMMENT ON COLUMN sync_errors.created_at IS '错误记录创建时间';
 
 CREATE INDEX IF NOT EXISTS daily_bars_symbol_date_idx ON daily_bars(symbol, trade_date);
 CREATE INDEX IF NOT EXISTS daily_bars_asset_date_idx ON daily_bars(asset_type, trade_date);
+CREATE INDEX IF NOT EXISTS instrument_details_open_date_idx ON instrument_details(open_date);

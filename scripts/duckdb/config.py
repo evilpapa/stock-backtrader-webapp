@@ -27,7 +27,7 @@ class SyncConfig:
     account_id: str = ""
     timeout: float = 30.0
     batch_size: int = 100
-    duckdb_path: Path = Path("data/market.duckdb")
+    duckdb_dir: Path = Path("data")
     kdb_host: str = "127.0.0.1"
     kdb_port: int = 5000
     kdb_username: str = ""
@@ -43,18 +43,15 @@ class SyncConfig:
     def from_env(
         cls,
         *,
-        duckdb_path: str | Path | None = None,
         duckdb_dir: str | Path | None = None,
         sector_map: dict[str, list[str]] | None = None,
     ) -> "SyncConfig":
-        configured_path = duckdb_path or os.getenv("DUCKDB_PATH")
-        if configured_path is None:
-            configured_path = duckdb_dir or os.getenv("DUCKDB_DIR", "data/market.duckdb")
+        configured_dir = duckdb_dir or os.getenv("DUCKDB_DIR", "data")
         return cls(
             account_id=os.getenv("BIGQMT_ACCOUNT_ID", ""),
             timeout=float(os.getenv("BIGQMT_RPC_TIMEOUT_SECONDS", "30")),
             batch_size=max(1, int(os.getenv("QMT_SYNC_BATCH_SIZE", "100"))),
-            duckdb_path=Path(configured_path),
+            duckdb_dir=Path(configured_dir),
             kdb_host=os.getenv("KDB_HOST", "127.0.0.1"),
             kdb_port=int(os.getenv("KDB_PORT", "5000")),
             kdb_username=os.getenv("KDB_USERNAME", ""),
@@ -67,33 +64,21 @@ class SyncConfig:
             },
         )
 
-    @property
-    def database_dir(self) -> Path:
-        """Return the directory containing one DuckDB file per asset type.
-
-        ``duckdb_path`` remains accepted for compatibility. A legacy file path
-        such as ``data/market.duckdb`` uses its parent directory; a directory
-        path is used directly.
-        """
-        path = Path(self.duckdb_path)
-        return path.parent if path.suffix.lower() == ".duckdb" else path
-
-    @property
-    def legacy_database_path(self) -> Path:
-        """Return the old combined database path used by migration."""
-        path = Path(self.duckdb_path)
-        return path if path.suffix.lower() == ".duckdb" else path / "market.duckdb"
-
     def database_path(self, asset_type: str) -> Path:
         """Return the split database path for one configured asset type."""
         name = str(asset_type).strip()
         if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
             raise ValueError(f"非法资产类型，不能用作数据库文件名: {asset_type}")
-        return self.database_dir / f"{name}.duckdb"
+        return self.duckdb_dir / f"{name}.duckdb"
 
 
 def load_sector_map(path: str | Path | None) -> dict[str, list[str]]:
-    """Load a YAML mapping and merge it with the built-in candidates."""
+    """Load the authoritative YAML asset-group mapping.
+
+    When a file is supplied, commented-out or omitted asset groups are not
+    enabled implicitly. This keeps storage and RPC requests aligned with the
+    operator's configuration.
+    """
     if path is None:
         return {key: list(value) for key, value in DEFAULT_SECTOR_MAP.items()}
 
@@ -107,7 +92,7 @@ def load_sector_map(path: str | Path | None) -> dict[str, list[str]]:
         raise FileNotFoundError(f"板块配置不存在: {config_path}")
     payload: Any = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     groups = payload.get("asset_groups", payload) if isinstance(payload, dict) else {}
-    result = {key: list(value) for key, value in DEFAULT_SECTOR_MAP.items()}
+    result: dict[str, list[str]] = {}
     for asset_type, sectors in groups.items():
         if isinstance(sectors, str):
             sectors = [sectors]

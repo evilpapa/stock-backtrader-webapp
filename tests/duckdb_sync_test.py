@@ -6,77 +6,88 @@ from pathlib import Path
 
 import pandas as pd
 
+from scripts.duckdb.config import load_sector_map
 from scripts.duckdb.fetcher import fetch_batches
-from scripts.duckdb.config import SyncConfig
 from src.utils.bigqmt_client import QmtDataClient as QmtRpc
 from scripts.duckdb.store import DuckDBStore
-from scripts.duckdb.sync import split_market_database
+from scripts.duckdb.sync import (
+    _partition_bars_by_asset_type,
+    fetch_instrument_details,
+    filter_instruments_by_open_date,
+)
 from scripts.duckdb.universe import UniverseDiscovery
 from scripts.targets import parse_targets
 
 
 class DuckDbSyncTest(unittest.TestCase):
-    def test_split_market_database_partitions_asset_types(self):
-        import duckdb
-
+    def test_sector_config_does_not_restore_commented_default_groups(self):
         with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            source_path = root / "market.duckdb"
-            source = DuckDBStore(source_path)
-            source.initialize()
-            source.upsert_instruments(pd.DataFrame([
-                {
-                    "symbol": "600000.SH", "market": "SH", "asset_type": "stock",
-                    "source_sectors": "沪深A股",
-                },
-                {
-                    "symbol": "000300.SH", "market": "SH", "asset_type": "index",
-                    "source_sectors": "沪深指数",
-                },
-            ]))
-            source.write_bars(pd.DataFrame([
-                {
-                    "symbol": "600000.SH", "market": "SH", "asset_type": "stock",
-                    "bar_time": pd.Timestamp("2024-01-02"), "open": 10.0, "high": 11.0,
-                    "low": 9.0, "close": 10.5, "last": 10.5, "volume": 100.0,
-                    "amount": 1050.0, "bid": None, "ask": None, "bid_volume": None,
-                    "ask_volume": None, "dividend_type": "none", "source": "test",
-                    "ingested_at": pd.Timestamp("2024-01-03"),
-                },
-                {
-                    "symbol": "000300.SH", "market": "SH", "asset_type": "index",
-                    "bar_time": pd.Timestamp("2024-01-02"), "open": 10.0, "high": 11.0,
-                    "low": 9.0, "close": 10.5, "last": 10.5, "volume": 100.0,
-                    "amount": 1050.0, "bid": None, "ask": None, "bid_volume": None,
-                    "ask_volume": None, "dividend_type": "none", "source": "test",
-                    "ingested_at": pd.Timestamp("2024-01-03"),
-                },
-            ]))
-            source.close()
+            path = Path(temp_dir) / "universe.yaml"
+            path.write_text(
+                "asset_groups:\n  stock:\n    - 沪深A股\n  etf:\n    - 沪深ETF\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                load_sector_map(path),
+                {"stock": ["沪深A股"], "etf": ["沪深ETF"]},
+            )
 
-            result = split_market_database(SyncConfig(
-                duckdb_path=source_path,
-                sector_map={"stock": ["沪深A股"], "index": ["沪深指数"]},
-            ))
+    def test_instrument_details_are_upserted_with_normalized_dates(self):
+        with TemporaryDirectory() as temp_dir:
+            store = DuckDBStore(Path(temp_dir) / "stock.duckdb")
+            try:
+                store.initialize()
+                details = pd.DataFrame([{
+                    "symbol": "600000.SH", "asset_type": "stock", "market": "SH",
+                    "instrument_name": "浦发银行", "open_date": "19991110",
+                    "expire_date": None, "detail_json": '{"OpenDate": 19991110}',
+                    "fetched_at": pd.Timestamp("2026-09-22"),
+                }])
+                store.upsert_instrument_details(details)
+                row = store.connection.execute(
+                    "SELECT symbol, open_date, detail_json FROM instrument_details"
+                ).fetchone()
+                self.assertEqual(row, ("600000.SH", pd.Timestamp("1999-11-10").date(), details.iloc[0]["detail_json"]))
+            finally:
+                store.close()
 
-            self.assertEqual(set(result), {"index", "stock"})
-            for asset_type in ("index", "stock"):
-                target = duckdb.connect(str(root / f"{asset_type}.duckdb"), read_only=True)
-                try:
-                    self.assertEqual(
-                        target.execute("select count(*) from instrument_master").fetchone()[0],
-                        1,
-                    )
-                    self.assertEqual(
-                        target.execute("select count(*) from daily_bars").fetchone()[0],
-                        1,
-                    )
-                    self.assertEqual(
-                        target.execute("select distinct asset_type from daily_bars").fetchone()[0],
-                        asset_type,
-                    )
-                finally:
-                    target.close()
+    def test_open_date_filter_skips_future_instruments(self):
+        instruments = pd.DataFrame([
+            {"symbol": "600000.SH", "asset_type": "stock"},
+            {"symbol": "600001.SH", "asset_type": "stock"},
+            {"symbol": "600002.SH", "asset_type": "stock"},
+        ])
+        details = pd.DataFrame([
+            {"symbol": "600000.SH", "open_date": pd.Timestamp("1999-11-10")},
+            {"symbol": "600001.SH", "open_date": pd.Timestamp("2027-01-01")},
+        ])
+        filtered, skipped = filter_instruments_by_open_date(
+            instruments,
+            details,
+            end_date=pd.Timestamp("2026-09-22").date(),
+        )
+        self.assertEqual(filtered["symbol"].tolist(), ["600000.SH", "600002.SH"])
+        self.assertEqual(skipped, 1)
+
+    def test_fetch_instrument_details_normalizes_open_date(self):
+        class FakeQmt:
+            def instrument_detail(self, symbol, **_kwargs):
+                return {
+                    "InstrumentName": f"name-{symbol}",
+                    "OpenDate": 20270101 if symbol == "600001.SH" else 19991110,
+                    "ExpireDate": 99999999,
+                }
+
+        details, errors = fetch_instrument_details(
+            FakeQmt(),
+            pd.DataFrame([
+                {"symbol": "600000.SH", "asset_type": "stock", "market": "SH"},
+                {"symbol": "600001.SH", "asset_type": "stock", "market": "SH"},
+            ]),
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(details["open_date"].dt.strftime("%Y%m%d").tolist(), ["19991110", "20270101"])
+        self.assertTrue(details["expire_date"].isna().all())
 
     def test_duckdb_upserts_are_idempotent(self):
         with TemporaryDirectory() as temp_dir:
@@ -230,6 +241,9 @@ class DuckDbSyncTest(unittest.TestCase):
         self.assertEqual(len(result.bars), 1)
         self.assertEqual(result.bars.iloc[0]["symbol"], "600000.SH")
         self.assertEqual(result.errors[0]["symbol"], "159919.SZ")
+
+    def test_empty_bar_batch_is_safe_to_partition(self):
+        self.assertEqual(_partition_bars_by_asset_type(pd.DataFrame(), {"stock", "etf"}), {})
 
 
 if __name__ == "__main__":

@@ -39,7 +39,7 @@ QMT RPC
 - `scripts/targets.py`：目标协议和 `--targets` 参数解析。
 - `scripts/kdb/store.py`：KDB-X 连接、schema 初始化和 keyed upsert。
 - `scripts/kdb/schema.q`：KDB-X 表结构。
-- `scripts/duckdb/schema.sql`：`instrument_master`、`daily_bars`、`trading_calendar`、`sync_runs`、`sync_errors`。
+- `scripts/duckdb/schema.sql`：`instrument_master`、`instrument_details`、`daily_bars`、`trading_calendar`、`sync_runs`、`sync_errors`。
 - `scripts/duckdb/universe.yaml`：可按券商/QMT 版本调整的板块名称映射。
 - `scripts/kdb/README.md`：KDB-X 分钟/tick 数据目标说明。
 
@@ -58,6 +58,8 @@ QMT RPC
 - 增量同步：`--incremental` 从数据库最新交易日向前重叠若干天；
 - QMT 批量请求：`--batch-size` 控制单次代码数量；
 - 失败可追踪：失败写入 `sync_errors`，每次任务写入 `sync_runs`；
+- 合约详情：每次同步调用 `get_instrument_detail`，完整 JSON 和 `OpenDate`/`ExpireDate` 写入 `instrument_details`；
+- 未上市过滤：`OpenDate` 晚于同步结束日期的标的不发起行情请求；
 - 冒烟测试：`--limit N` 和 `--dry-run`；
 - QMT 历史数据缺失时：可选 `--download-missing` 调用 `download_history_data2` 后重试。
 - 可选目标：`--targets duckdb`、`--targets kdb` 或 `--targets duckdb,kdb`；
@@ -67,9 +69,9 @@ QMT RPC
 
 1. `BIGQMT_ACCOUNT_ID`、Big QMT Redis 连接变量必须已经配置，QMT 桥接服务必须运行。
 2. 标准 DuckDB 是嵌入式数据库，默认按资产类型拆分到 `data/stock.duckdb`、
-   `data/index.duckdb` 等文件；可用 `DUCKDB_DIR` 或 `--duckdb-dir` 覆盖目录。
-   旧版合并库可用 `uv run python -m scripts.duckdb.sync split-market` 拆分，
-   `DUCKDB_PATH` 和 `--duckdb-path` 仍兼容旧版源文件/目录路径。
+   `data/index.duckdb` 等文件；文件类型和 QMT 板块只使用
+   `scripts/duckdb/universe.yaml` 中启用的 `asset_groups`，目录可用 `DUCKDB_DIR`
+   或 `--duckdb-dir` 覆盖。旧版 `data/market.duckdb` 不再参与后续同步。
 3. QMT 板块名称可能因券商和版本不同而变化。先运行 `list-sectors`，再修改 `scripts/duckdb/universe.yaml`；生产同步建议不使用 `--allow-partial`。
 4. KDB-X 默认连接 `127.0.0.1:5000`；分钟/tick 同步必须选择 `--targets kdb`。
 

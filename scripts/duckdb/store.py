@@ -64,6 +64,40 @@ class DuckDBStore:
         finally:
             self.connection.unregister("_instrument_stage")
 
+    def upsert_instrument_details(self, frame: pd.DataFrame) -> None:
+        """Persist the raw QMT contract detail and normalized date fields."""
+        if frame.empty:
+            return
+        now = pd.Timestamp.utcnow().tz_localize(None)
+        values = frame.copy()
+        if "fetched_at" not in values:
+            values["fetched_at"] = now
+        values["open_date"] = pd.to_datetime(values["open_date"], errors="coerce").dt.normalize()
+        values["expire_date"] = pd.to_datetime(values["expire_date"], errors="coerce").dt.normalize()
+        values = values[[
+            "symbol", "asset_type", "market", "instrument_name", "open_date",
+            "expire_date", "detail_json", "fetched_at",
+        ]]
+        self.connection.register("_instrument_detail_stage", values)
+        try:
+            self.connection.execute("BEGIN")
+            self.connection.execute(
+                """
+                DELETE FROM instrument_details AS target
+                USING _instrument_detail_stage AS stage
+                WHERE target.symbol = stage.symbol
+                """
+            )
+            self.connection.execute(
+                "INSERT INTO instrument_details SELECT * FROM _instrument_detail_stage"
+            )
+            self.connection.execute("COMMIT")
+        except Exception:
+            self.connection.execute("ROLLBACK")
+            raise
+        finally:
+            self.connection.unregister("_instrument_detail_stage")
+
     def upsert_bars(self, frame: pd.DataFrame) -> int:
         """Backward-compatible daily-bar name used by older callers."""
         if "trade_date" in frame.columns and "bar_time" not in frame.columns:

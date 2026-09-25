@@ -2,10 +2,12 @@
 
 Examples::
 
-    python -m scripts.duckdb.sync check
-    python -m scripts.duckdb.sync list-sectors
-    python -m scripts.duckdb.sync sync --targets duckdb --period 1d
-    python -m scripts.duckdb.sync sync --targets kdb --period 1m
+    uv run python -m scripts.duckdb.sync check
+    uv run python -m scripts.duckdb.sync list-sectors
+    uv run python -m scripts.duckdb.sync sync --targets duckdb --period 1d
+    uv run python -m scripts.duckdb.sync sync --targets kdb --period 1m
+
+    uv run python -m scripts.duckdb.sync sync --targets duckdb --period 1d --asset-types stock,index,etf --incremental --allow-partial --batch-size 5
 """
 
 from __future__ import annotations
@@ -58,9 +60,7 @@ def command_check(config: SyncConfig) -> int:
     payload = {
         "duckdb_cli": shutil.which("duckdb") or "未找到",
         "duckdb_version": None,
-        "duckdb_dir": str(config.database_dir),
-        "legacy_duckdb_path": str(config.legacy_database_path),
-        "legacy_duckdb_exists": config.legacy_database_path.exists(),
+        "duckdb_dir": str(config.duckdb_dir),
         "split_databases": {
             asset_type: str(config.database_path(asset_type))
             for asset_type in config.sector_map
@@ -90,93 +90,96 @@ def command_list_sectors(config: SyncConfig) -> int:
     return 0
 
 
-def _asset_types_from_source(connection, configured_types: set[str]) -> list[str]:
-    source_types = {
-        str(row[0])
-        for row in connection.execute(
-            "SELECT DISTINCT asset_type FROM instrument_master WHERE asset_type IS NOT NULL"
-        ).fetchall()
-    }
-    return sorted(configured_types | source_types)
-
-
-def split_market_database(config: SyncConfig) -> dict[str, dict[str, object]]:
-    """Split the legacy combined database into one database per asset type.
-
-    The source database is opened read-only and is never removed. Existing split
-    files are refreshed idempotently, which makes interrupted migrations safe to
-    resume.
-    """
-    source_path = config.legacy_database_path
-    if not source_path.exists():
-        raise FileNotFoundError(f"旧版 DuckDB 文件不存在: {source_path}")
-
-    try:
-        import duckdb
-    except ImportError as exc:  # pragma: no cover - dependency guard
-        raise RuntimeError("请先执行 uv sync 安装 duckdb Python 包") from exc
-
-    source = duckdb.connect(str(source_path), read_only=True)
-    try:
-        asset_types = _asset_types_from_source(source, set(config.sector_map))
-    finally:
-        source.close()
-
-    result: dict[str, dict[str, object]] = {}
-    for asset_type in asset_types:
-        target_path = config.database_path(asset_type)
-        if target_path.resolve() == source_path.resolve():
-            raise ValueError(f"拆分目标不能覆盖源数据库: {target_path}")
-
-        target = DuckDBStore(target_path)
-        target.initialize()
-        target.connection.execute(
-            f"ATTACH '{str(source_path).replace(chr(39), chr(39) * 2)}' "
-            "AS legacy_source (READ_ONLY)"
-        )
-        try:
-            for table in ("instrument_master", "daily_bars"):
-                target.connection.execute(f"DELETE FROM {table}")
-                target.connection.execute(
-                    f"INSERT INTO {table} "
-                    f"SELECT * FROM legacy_source.{table} WHERE asset_type = ?",
-                    [asset_type],
-                )
-            for table in ("trading_calendar", "sync_runs", "sync_errors"):
-                target.connection.execute(f"DELETE FROM {table}")
-                target.connection.execute(
-                    f"INSERT INTO {table} SELECT * FROM legacy_source.{table}"
-                )
-            instrument_count = target.connection.execute(
-                "SELECT count(*) FROM instrument_master"
-            ).fetchone()[0]
-            bar_count = target.connection.execute(
-                "SELECT count(*) FROM daily_bars"
-            ).fetchone()[0]
-        finally:
-            target.connection.execute("DETACH legacy_source")
-            target.close()
-
-        result[asset_type] = {
-            "database": str(target_path),
-            "instrument_count": instrument_count,
-            "bar_count": bar_count,
-        }
-    return result
-
-
-def command_split_market(config: SyncConfig) -> int:
-    result = split_market_database(config)
-    print(json.dumps({
-        "ok": True,
-        "source": str(config.legacy_database_path),
-        "databases": result,
-    }, ensure_ascii=False, indent=2))
-    return 0
-
-
 def _error_asset_type(item: dict[str, str], symbol_types: dict[str, str]) -> str | None:
     return item.get("asset_type") or symbol_types.get(item.get("symbol", ""))
+
+
+def _detail_date(value: object) -> pd.Timestamp | None:
+    """Normalize QMT YYYYMMDD fields such as OpenDate/ExpireDate."""
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, (date, pd.Timestamp)):
+        parsed = pd.Timestamp(value)
+    else:
+        text = str(value).strip()
+        if text.endswith(".0"):
+            text = text[:-2]
+        if len(text) != 8 or not text.isdigit() or text == "99999999":
+            return None
+        parsed = pd.to_datetime(text, format="%Y%m%d", errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return pd.Timestamp(parsed).normalize()
+
+
+def fetch_instrument_details(
+    qmt: QmtDataClient,
+    instruments: pd.DataFrame,
+) -> tuple[pd.DataFrame, list[dict[str, str]]]:
+    """Fetch and normalize one complete QMT detail record per instrument."""
+    fetched_at = pd.Timestamp.utcnow().tz_localize(None)
+    rows: list[dict[str, object]] = []
+    errors: list[dict[str, str]] = []
+    for item in instruments.to_dict(orient="records"):
+        symbol = str(item["symbol"])
+        try:
+            detail = qmt.instrument_detail(symbol, is_detail=True)
+            if not isinstance(detail, dict):
+                raise ValueError("QMT 未返回合约详情")
+        except Exception as exc:
+            errors.append({
+                "symbol": symbol,
+                "asset_type": str(item["asset_type"]),
+                "error_type": "instrument_detail",
+                "error": str(exc),
+            })
+            continue
+        rows.append({
+            "symbol": symbol,
+            "asset_type": str(item["asset_type"]),
+            "market": str(item.get("market", "")),
+            "instrument_name": str(detail.get("InstrumentName") or detail.get("name") or ""),
+            "open_date": _detail_date(detail.get("OpenDate") or detail.get("open_date")),
+            "expire_date": _detail_date(detail.get("ExpireDate") or detail.get("expire_date")),
+            "detail_json": json.dumps(detail, ensure_ascii=False, default=str),
+            "fetched_at": fetched_at,
+        })
+    return pd.DataFrame(rows, columns=[
+        "symbol", "asset_type", "market", "instrument_name", "open_date",
+        "expire_date", "detail_json", "fetched_at",
+    ]), errors
+
+
+def filter_instruments_by_open_date(
+    instruments: pd.DataFrame,
+    details: pd.DataFrame,
+    end_date: date,
+) -> tuple[pd.DataFrame, int]:
+    """Skip instruments not yet listed by the end of the requested period."""
+    if details.empty:
+        return instruments.copy(), 0
+    open_dates = details.set_index("symbol")["open_date"]
+    end_timestamp = pd.Timestamp(end_date).normalize()
+    keep: list[bool] = []
+    for symbol in instruments["symbol"]:
+        open_date = open_dates.get(symbol)
+        keep.append(pd.isna(open_date) or pd.Timestamp(open_date) <= end_timestamp)
+    filtered = instruments.loc[keep].reset_index(drop=True)
+    return filtered, len(instruments) - len(filtered)
+
+
+def _partition_bars_by_asset_type(
+    bars: pd.DataFrame,
+    asset_types: set[str],
+) -> dict[str, pd.DataFrame]:
+    """Partition a fetched batch, tolerating a batch with no returned bars."""
+    if bars.empty or "asset_type" not in bars.columns:
+        return {}
+    return {
+        asset_type: partition
+        for asset_type in sorted(asset_types)
+        if not (partition := bars[bars["asset_type"] == asset_type]).empty
+    }
 
 
 def _record_split_errors(
@@ -230,6 +233,33 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
     if instruments.empty:
         raise RuntimeError("没有发现任何可同步标的")
 
+    end_date = args.end or date.today()
+    start_date = args.start or parse_date(config.qmt_start_date)
+    instrument_details, detail_failures = fetch_instrument_details(qmt, instruments)
+    if detail_failures and not args.allow_partial:
+        raise RuntimeError(
+            "QMT 合约详情获取不完整，请使用 --allow-partial：\n"
+            + json.dumps(detail_failures, ensure_ascii=False)
+        )
+    for failure in detail_failures:
+        logger.warning(
+            "合约详情获取失败 symbol={} error={}",
+            failure.get("symbol", ""),
+            failure.get("error", ""),
+        )
+    bar_instruments, skipped_before_listing = filter_instruments_by_open_date(
+        instruments,
+        instrument_details,
+        end_date,
+    )
+    if skipped_before_listing:
+        logger.info(
+            "跳过同步未上市标的 count={} end_date={}",
+            skipped_before_listing,
+            end_date,
+        )
+    bar_asset_types = set(bar_instruments["asset_type"]) if not bar_instruments.empty else set()
+
     symbol_types = dict(zip(instruments["symbol"], instruments["asset_type"]))
     active_asset_types = sorted(set(symbol_types.values()))
     duckdb_stores: dict[str, DuckDBStore] = {}
@@ -263,7 +293,7 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
             "error": json.dumps(item, ensure_ascii=False),
         }
         for item in universe_failures
-    ]
+    ] + detail_failures
     bars_by_target: dict[str, object] = {}
     if duckdb_stores:
         bars_by_target["duckdb"] = {asset_type: 0 for asset_type in active_asset_types}
@@ -274,6 +304,10 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
         for asset_type, store in duckdb_stores.items():
             partition = instruments[instruments["asset_type"] == asset_type]
             store.upsert_instruments(partition)
+            detail_partition = instrument_details[
+                instrument_details["asset_type"] == asset_type
+            ]
+            store.upsert_instrument_details(detail_partition)
             logger.info(
                 "标的元数据导入成功 target=duckdb/{} count={}",
                 asset_type,
@@ -284,8 +318,6 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
             kdb_target.upsert_instruments(instruments)
             logger.info("标的元数据导入成功 target=kdb count={}", len(instruments))
 
-        end_date = args.end or date.today()
-        start_date = args.start or parse_date(config.qmt_start_date)
         if args.incremental:
             latest_values = []
             for store in duckdb_stores.values():
@@ -308,10 +340,10 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
             )
         _record_split_errors(duckdb_stores, run_ids, errors, symbol_types)
 
-        if not args.dry_run:
+        if not args.dry_run and not bar_instruments.empty:
             for batch_result in fetch_batches(
                 qmt,
-                instruments,
+                bar_instruments,
                 start_date,
                 end_date,
                 batch_size=max(1, args.batch_size or config.batch_size),
@@ -332,6 +364,13 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
                     )
                 errors.extend(batch_errors)
                 _record_split_errors(duckdb_stores, run_ids, batch_errors, symbol_types)
+
+                bars_by_asset_type = _partition_bars_by_asset_type(
+                    batch_result.bars,
+                    bar_asset_types,
+                )
+                if not bars_by_asset_type:
+                    continue
 
                 if kdb_target is not None and not batch_result.bars.empty:
                     try:
@@ -360,15 +399,8 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
                         bars_by_target["kdb"] += written
                         logger.info("行情导入成功 target=kdb period={} bars={}", period, written)
 
-                for asset_type, store in duckdb_stores.items():
-                    bars = batch_result.bars[batch_result.bars["asset_type"] == asset_type]
-                    if bars.empty:
-                        logger.warning(
-                            "行情导入为空 target=duckdb/{} period={}",
-                            asset_type,
-                            period,
-                        )
-                        continue
+                for asset_type, bars in bars_by_asset_type.items():
+                    store = duckdb_stores[asset_type]
                     symbol_counts = bars.groupby("symbol", sort=False).size().to_dict()
                     try:
                         written = store.write_bars(bars, period=period)
@@ -441,9 +473,12 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
         "period": period,
         "run_id": run_ids or None,
         "instrument_count": len(instruments),
+        "instrument_detail_count": len(instrument_details),
+        "instrument_detail_error_count": len(detail_failures),
+        "skipped_before_listing": skipped_before_listing,
         "bars_by_target": bars_by_target,
         "error_count": len(errors),
-        "database_dir": str(config.database_dir),
+        "database_dir": str(config.duckdb_dir),
         "databases": {
             asset_type: str(config.database_path(asset_type))
             for asset_type in active_asset_types
@@ -457,19 +492,14 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="将 Big QMT 行情同步到可选的 DuckDB/KDB-X 目标")
     parser.add_argument(
-        "--duckdb-path",
-        help="兼容旧版的 DuckDB 文件或目录路径，默认读取 DUCKDB_PATH 或 data/market.duckdb",
-    )
-    parser.add_argument(
         "--duckdb-dir",
-        help="拆分后的 DuckDB 目录，默认读取 DUCKDB_DIR 或旧文件所在目录",
+        help="拆分后的 DuckDB 目录，默认读取 DUCKDB_DIR 或 data",
     )
     parser.add_argument("--account-id", help="覆盖 BIGQMT_ACCOUNT_ID")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("check", help="检查 DuckDB 文件、CLI 和 KDB-X 预留端口")
     subparsers.add_parser("list-sectors", help="读取 QMT 可用板块名")
-    subparsers.add_parser("split-market", help="将旧版 data/market.duckdb 拆分为各资产类型数据库")
 
     sync = subparsers.add_parser("sync", help="同步行情数据")
     sync.add_argument("--targets", default="duckdb", help="同步目标，逗号分隔：duckdb、kdb；默认 duckdb")
@@ -500,7 +530,7 @@ def report_error(exc: Exception) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    config = SyncConfig.from_env(duckdb_path=args.duckdb_path, duckdb_dir=args.duckdb_dir)
+    config = SyncConfig.from_env(duckdb_dir=args.duckdb_dir)
     if args.account_id:
         config = SyncConfig(**{**config.__dict__, "account_id": args.account_id})
     try:
@@ -508,8 +538,6 @@ def main(argv: list[str] | None = None) -> int:
             return command_check(config)
         if args.command == "list-sectors":
             return command_list_sectors(config)
-        if args.command == "split-market":
-            return command_split_market(config)
         return command_sync(args, config)
     except Exception as exc:
         report_error(exc)
