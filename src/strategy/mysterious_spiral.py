@@ -44,6 +44,10 @@ class MysteriousSpiralStrategy(BaseStrategy):
 			data._name: (1.0 / len(selected) if selected and data._name in selected else 0.0)
 			for data in self.datas
 		}
+		if self.risk.enabled:
+			# 风控层缩放总仓位、限制单标的上限，并避免止损冷却期内回补。
+			adjusted = self.apply_risk_weights(target_weights)
+			target_weights = {name: adjusted.get(name, 0.0) for name in target_weights}
 		self._rebalance(target_weights)
 		self.rebalance_history.append(
 			{

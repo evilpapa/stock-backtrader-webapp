@@ -13,6 +13,7 @@ from examples.backtest_common import (
 	build_rebalance_detail_frame,
 	build_return_series,
 	build_returns_frame,
+	build_risk_frames,
 	build_selection_frequency_frame,
 	build_weight_frame,
 	prepare_price_data,
@@ -21,6 +22,7 @@ from examples.backtest_common import (
 	run_rotation_strategy_backtest,
 	save_results,
 )
+from src.risk import RiskConfig
 from src.strategy import LeadingRotationStrategy
 from src.strategy import SectorRotationStrategy
 from src.utils.schemas import DataSourceParams
@@ -58,6 +60,8 @@ class RotationFrames:
 	weights: pd.DataFrame
 	selection_frequency: pd.DataFrame | None = None
 	rebalance_details: pd.DataFrame | None = None
+	risk_events: pd.DataFrame | None = None
+	risk_summary: pd.DataFrame | None = None
 
 
 RESULT_FILES = {
@@ -174,6 +178,16 @@ def load_rotation_results(spec: RotationSpec) -> RotationFrames | None:
 		rebalance_details=(
 			pd.read_csv(rebalance_path, encoding="utf-8-sig") if rebalance_path.exists() else None
 		),
+		risk_events=(
+			pd.read_csv(spec.output_dir / "risk_events.csv", encoding="utf-8-sig")
+			if (spec.output_dir / "risk_events.csv").exists()
+			else None
+		),
+		risk_summary=(
+			pd.read_csv(spec.output_dir / "risk_summary.csv", encoding="utf-8-sig")
+			if (spec.output_dir / "risk_summary.csv").exists()
+			else None
+		),
 	)
 
 
@@ -190,6 +204,7 @@ def run_rotation_backtest(
 	top_l: int,
 	price_data: dict[str, pd.DataFrame] | None = None,
 	data_source_params: DataSourceParams | None = None,
+	risk_config: RiskConfig | None = None,
 ) -> RotationFrames:
 	"""运行指定轮动策略、基准和等权组合回测，并输出结果文件。"""
 	if not assets:
@@ -228,6 +243,7 @@ def run_rotation_backtest(
 		momentum_window,
 		rebalance_days,
 		top_l,
+		risk_config=risk_config,
 	)
 	benchmark_result = run_benchmark_backtest(
 		price_data,
@@ -255,6 +271,9 @@ def run_rotation_backtest(
 		benchmark_returns,
 		equal_returns,
 	)
+
+	# 风控事件与统计表独立于绩效指标，便于对比不同风控参数的触发情况。
+	risk_events, risk_summary = build_risk_frames(strategy_result)
 
 	frames = RotationFrames(
 		metrics=build_metrics(
@@ -292,6 +311,8 @@ def run_rotation_backtest(
 		weights=build_weight_frame(strategy_result),
 		selection_frequency=build_selection_frequency_frame(strategy_result, spec.asset_label),
 		rebalance_details=build_rebalance_detail_frame(strategy_result, spec.asset_label),
+		risk_events=risk_events,
+		risk_summary=risk_summary,
 	)
 	save_results(
 		spec.output_dir,
@@ -302,5 +323,7 @@ def run_rotation_backtest(
 		frames.weights,
 		frames.selection_frequency,
 		frames.rebalance_details,
+		risk_events_df=frames.risk_events,
+		risk_summary_df=frames.risk_summary,
 	)
 	return frames

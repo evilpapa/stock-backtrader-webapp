@@ -2,18 +2,30 @@ from typing import Optional
 
 import backtrader as bt
 
+from src.risk.mixin import RiskControlMixin
+from src.risk.report import format_risk_summary
 from src.utils.logs import logger
 
 
-class BaseStrategy(bt.Strategy):
-	"""所有 Backtrader 策略共享的基础策略。"""
+class BaseStrategy(RiskControlMixin, bt.Strategy):
+	"""所有 Backtrader 策略共享的基础策略。
+
+	通过 :class:`~src.risk.RiskControlMixin` 统一接入风控：子类只要定义
+	``next``（或 ``next_open``），风控就会在策略逻辑之前自动执行，无需在
+	策略内部书写任何风控代码。``risk_config`` 传入 :class:`~src.risk.RiskConfig`
+	或同结构字典即可启用，缺省为关闭。
+	"""
 
 	_name = "base"
 	# ``params`` 是 Backtrader 的参数注册接口，不能改为私有名称。
-	params = (("print_log", False),)  # 是否输出策略运行日志
+	params = (
+		("print_log", False),  # 是否输出策略运行日志
+		("risk_config", None),  # 风控参数（RiskConfig 或字典），None 表示关闭风控
+	)
 
 	def __init__(self):
-		"""初始化订单、成交价格和手续费等通用状态。"""
+		"""初始化订单、成交价格、手续费和风控状态。"""
+		super().__init__()
 		self.bar_executed = None
 		self.buy_comm = None
 		self.buy_price = None
@@ -21,6 +33,7 @@ class BaseStrategy(bt.Strategy):
 		self.pending_orders: dict[int, bt.OrderBase] = {}
 		self.bought = False
 		self.rebalance_counter = 0
+		self._init_risk_control()
 
 	def log(self, txt: str, dt: Optional[bt.datetime.date] = None, do_print: bool = False) -> None:
 		"""按策略配置输出带交易日期的日志。"""
@@ -83,9 +96,14 @@ class BaseStrategy(bt.Strategy):
 		pass
 
 	def stop(self) -> None:
-		"""回测结束时输出策略参数和期末资产。"""
-		params = [f"{k}_{v}" for k, v in self.p._getkwargs().items() if k != "print_log"]
+		"""回测结束时输出策略参数、期末资产和风控摘要。"""
+		params = [
+			f"{k}_{v}"
+			for k, v in self.p._getkwargs().items()
+			if k not in {"print_log", "risk_config"}
+		]
 		self.log(
 			"(%s %s) Ending Value %.2f" % (self._name, " ".join(params), self.broker.getvalue()),
 			do_print=True,
 		)
+		self.log(format_risk_summary(self), do_print=True)

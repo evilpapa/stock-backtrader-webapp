@@ -15,15 +15,16 @@ from examples.backtest_common import (
 	build_metrics,
 	build_return_series,
 	build_returns_frame,
+	build_risk_frames,
 	prepare_price_data,
 	run_benchmark_backtest,
 	run_equal_weight_backtest,
 	run_strategy_backtest,
 	save_results,
 )
+from src.risk import RiskConfig
 from src.strategy import EtfMomentumStrategy
 from src.utils.schemas import DataSourceParams
-from src.utils.rotation_backtest import normalize_assets
 
 
 STRATEGY_NAME = "动量策略"
@@ -49,6 +50,8 @@ class EtfMomentumFrames:
 	cumulative: pd.DataFrame
 	drawdown: pd.DataFrame
 	weights: pd.DataFrame
+	risk_events: pd.DataFrame | None = None
+	risk_summary: pd.DataFrame | None = None
 
 
 RESULT_FILES = {
@@ -64,12 +67,20 @@ def load_etf_momentum_results(output_dir: Path = DEFAULT_OUTPUT_DIR) -> EtfMomen
 	"""从输出目录读取已生成的 ETF 动量回测结果；文件不完整时返回空。"""
 	if not all((output_dir / filename).exists() for filename in RESULT_FILES.values()):
 		return None
+	risk_events_path = output_dir / "risk_events.csv"
+	risk_summary_path = output_dir / "risk_summary.csv"
 	return EtfMomentumFrames(
 		metrics=pd.read_csv(output_dir / RESULT_FILES["metrics"], encoding="utf-8-sig"),
 		returns=pd.read_csv(output_dir / RESULT_FILES["returns"], encoding="utf-8-sig"),
 		cumulative=pd.read_csv(output_dir / RESULT_FILES["cumulative"], encoding="utf-8-sig"),
 		drawdown=pd.read_csv(output_dir / RESULT_FILES["drawdown"], encoding="utf-8-sig"),
 		weights=pd.read_csv(output_dir / RESULT_FILES["weights"], encoding="utf-8-sig"),
+		risk_events=(
+			pd.read_csv(risk_events_path, encoding="utf-8-sig") if risk_events_path.exists() else None
+		),
+		risk_summary=(
+			pd.read_csv(risk_summary_path, encoding="utf-8-sig") if risk_summary_path.exists() else None
+		),
 	)
 
 
@@ -102,10 +113,10 @@ def run_etf_momentum_backtest(
 	data_source_params: DataSourceParams | None = None,
 	strategy_class: Type[bt.Strategy] | None = None,
 	strategy_params: dict | None = None,
+	risk_config: RiskConfig | None = None,
 ) -> EtfMomentumFrames:
 	"""执行 ETF 动量策略、基准和等权组合回测，并保存结果表。"""
 	symbols = [asset["symbol"] for asset in assets]
-	names = [asset["name"] for asset in assets]
 	if not symbols:
 		raise ValueError("ETF Momentum 至少需要一个可交易 ETF 标的")
 	if benchmark_symbol not in symbols:
@@ -136,6 +147,7 @@ def run_etf_momentum_backtest(
 			"momentum_window": momentum_window,
 			"rebalance_days": rebalance_days,
 		},
+		risk_config=risk_config,
 	)
 	benchmark_result = run_benchmark_backtest(
 		price_data,
@@ -159,6 +171,9 @@ def run_etf_momentum_backtest(
 		benchmark_returns,
 		equal_returns,
 	)
+
+	# 风控事件与统计表独立于绩效指标，便于对比不同风控参数的触发情况。
+	risk_events, risk_summary = build_risk_frames(strategy_result)
 
 	frames = EtfMomentumFrames(
 		metrics=build_metrics(
@@ -193,7 +208,9 @@ def run_etf_momentum_backtest(
 			benchmark_name,
 			EQUAL_WEIGHT_NAME,
 		),
-		weights=build_etf_momentum_weight_frame(strategy_result.rebalance_history, available_names),
+		weights=build_etf_momentum_weight_frame(getattr(strategy_result, "rebalance_history", []), available_names),
+		risk_events=risk_events,
+		risk_summary=risk_summary,
 	)
 	save_results(
 		output_dir,
@@ -202,5 +219,7 @@ def run_etf_momentum_backtest(
 		frames.cumulative,
 		frames.drawdown,
 		frames.weights,
+		risk_events_df=frames.risk_events,
+		risk_summary_df=frames.risk_summary,
 	)
 	return frames

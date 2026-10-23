@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from src.utils.bigqmt_client import fetch_history_ohlcv, market_data_payload_to_ohlcv
+from src.utils.datahub_client import DataHubClient, market_data_payload_to_ohlcv
 
 
 class BigQmtClientTest(unittest.TestCase):
@@ -36,7 +36,7 @@ class BigQmtClientTest(unittest.TestCase):
                     "low": 9.5, "close": 10.8, "volume": 1000,
                 }])}
 
-        frame = fetch_history_ohlcv(
+        frame = DataHubClient().history_ohlcv(
             "000001",
             pd.Timestamp("2024-01-02"),
             "2024-01-03",

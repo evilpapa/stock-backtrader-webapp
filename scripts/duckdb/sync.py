@@ -1,4 +1,4 @@
-"""Synchronise QMT market data into selectable DuckDB and KDB-X targets.
+"""Synchronise Tushare market data into selectable DuckDB and KDB-X targets.
 
 Examples::
 
@@ -22,19 +22,20 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 from src.utils.logs import logger  # noqa: E402
 
 from .config import SyncConfig, load_sector_map  # noqa: E402
 from .fetcher import fetch_batches  # noqa: E402
-from src.utils.bigqmt_client import QmtDataClient  # noqa: E402
+from src.utils.datahub_client import DataHubClient  # noqa: E402
 from .store import DuckDBStore  # noqa: E402
 from .universe import UniverseDiscovery  # noqa: E402
 from ..kdb.store import KdbStore  # noqa: E402
 from ..targets import MarketDataTarget, parse_targets  # noqa: E402
+
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def parse_date(value: str) -> date:
@@ -78,10 +79,8 @@ def command_check(config: SyncConfig) -> int:
     return 0
 
 
-def build_qmt(config: SyncConfig) -> QmtDataClient:
-    return QmtDataClient(
-        timeout=config.timeout,
-    )
+def build_qmt(config: SyncConfig) -> DataHubClient:
+    return DataHubClient(token=config.account_id or None, timeout=config.timeout)
 
 
 def command_list_sectors(config: SyncConfig) -> int:
@@ -95,7 +94,7 @@ def _error_asset_type(item: dict[str, str], symbol_types: dict[str, str]) -> str
 
 
 def _detail_date(value: object) -> pd.Timestamp | None:
-    """Normalize QMT YYYYMMDD fields such as OpenDate/ExpireDate."""
+    """Normalize Tushare listing/delisting date fields."""
     if value is None or pd.isna(value):
         return None
     if isinstance(value, (date, pd.Timestamp)):
@@ -113,10 +112,10 @@ def _detail_date(value: object) -> pd.Timestamp | None:
 
 
 def fetch_instrument_details(
-    qmt: QmtDataClient,
+    qmt: DataHubClient,
     instruments: pd.DataFrame,
 ) -> tuple[pd.DataFrame, list[dict[str, str]]]:
-    """Fetch and normalize one complete QMT detail record per instrument."""
+    """通过 DataHub 获取并规范化每个标的的完整详情记录。"""
     fetched_at = pd.Timestamp.utcnow().tz_localize(None)
     rows: list[dict[str, object]] = []
     errors: list[dict[str, str]] = []
@@ -125,7 +124,7 @@ def fetch_instrument_details(
         try:
             detail = qmt.instrument_detail(symbol, is_detail=True)
             if not isinstance(detail, dict):
-                raise ValueError("QMT 未返回合约详情")
+                raise ValueError("Tushare 未返回标的详情")
         except Exception as exc:
             errors.append({
                 "symbol": symbol,
@@ -220,7 +219,7 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
                 failure.get("error", ""),
             )
         raise RuntimeError(
-            "QMT 标的池发现不完整，请修正 universe.yaml 或使用 --allow-partial：\n"
+            "Tushare 标的池发现不完整，请修正 universe.yaml 或使用 --allow-partial：\n"
             + json.dumps(universe_failures, ensure_ascii=False)
         )
     for failure in universe_failures:
@@ -238,7 +237,7 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
     instrument_details, detail_failures = fetch_instrument_details(qmt, instruments)
     if detail_failures and not args.allow_partial:
         raise RuntimeError(
-            "QMT 合约详情获取不完整，请使用 --allow-partial：\n"
+            "Tushare 合约详情获取不完整，请使用 --allow-partial：\n"
             + json.dumps(detail_failures, ensure_ascii=False)
         )
     for failure in detail_failures:
@@ -490,29 +489,29 @@ def command_sync(args: argparse.Namespace, config: SyncConfig) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="将 Big QMT 行情同步到可选的 DuckDB/KDB-X 目标")
+    parser = argparse.ArgumentParser(description="将 Tushare 行情同步到可选的 DuckDB/KDB-X 目标")
     parser.add_argument(
         "--duckdb-dir",
         help="拆分后的 DuckDB 目录，默认读取 DUCKDB_DIR 或 data",
     )
-    parser.add_argument("--account-id", help="覆盖 BIGQMT_ACCOUNT_ID")
+    parser.add_argument("--account-id", help="覆盖 TUSHARE_TOKEN")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("check", help="检查 DuckDB 文件、CLI 和 KDB-X 预留端口")
-    subparsers.add_parser("list-sectors", help="读取 QMT 可用板块名")
+    subparsers.add_parser("list-sectors", help="读取 Tushare 可用标的分组")
 
     sync = subparsers.add_parser("sync", help="同步行情数据")
     sync.add_argument("--targets", default="duckdb", help="同步目标，逗号分隔：duckdb、kdb；默认 duckdb")
-    sync.add_argument("--period", choices=["1d", "1m", "5m", "15m", "30m", "60m", "tick"], default="1d", help="QMT 数据周期")
+    sync.add_argument("--period", choices=["1d", "1w", "1mon", "1m", "5m", "15m", "30m", "60m"], default="1d", help="Tushare 数据周期")
     sync.add_argument("--start", type=parse_date, help="开始日期，默认 20000101")
     sync.add_argument("--end", type=parse_date, help="结束日期，默认今天")
     sync.add_argument("--incremental", action="store_true", help="从数据库最新日期附近增量同步")
     sync.add_argument("--asset-types", help="逗号分隔：stock,index,fund,bond,repo,warrant,etf")
     sync.add_argument("--sector-config", default=str(Path(__file__).with_name("universe.yaml")))
-    sync.add_argument("--batch-size", type=int, help="QMT 每批代码数量")
+    sync.add_argument("--batch-size", type=int, help="Tushare 每批代码数量")
     sync.add_argument("--limit", type=int, help="仅同步前 N 个标的，用于冒烟测试")
     sync.add_argument("--dividend-type", choices=["none", "front", "back"], help="复权方式，默认 none 不复权")
-    sync.add_argument("--download-missing", action="store_true", help="空数据时先调用 QMT 历史下载接口")
+    sync.add_argument("--download-missing", action="store_true", help="兼容旧参数；Tushare 数据按请求实时获取")
     sync.add_argument("--allow-partial", action="store_true", help="允许部分板块或标的失败")
     sync.add_argument("--dry-run", action="store_true", help="只发现标的并写入 instrument_master，不拉行情")
     return parser
@@ -521,10 +520,8 @@ def build_parser() -> argparse.ArgumentParser:
 def report_error(exc: Exception) -> None:
     message = str(exc)
     print(f"同步命令失败: {message}", file=sys.stderr)
-    if "BIGQMT_ACCOUNT_ID" in message:
-        print("请设置 BIGQMT_ACCOUNT_ID，或使用 --account-id 传入资金账号。", file=sys.stderr)
-    if "127.0.0.1:6379" in message or "Redis" in message:
-        print("请确认 Big QMT Redis 桥接服务已启动，并检查 BIGQMT_REDIS_HOST/PORT/DB/PASSWORD。", file=sys.stderr)
+    if "TUSHARE_TOKEN" in message:
+        print("请设置 TUSHARE_TOKEN，或使用 --account-id 传入 Token。", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:

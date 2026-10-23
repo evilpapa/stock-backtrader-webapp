@@ -1,4 +1,4 @@
-"""Small2 的 QMT 数据装配与 Backtrader 回测入口。"""
+"""Small2 的 Tushare 数据装配与 Backtrader 回测入口。"""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ import pandas as pd
 
 from src.strategy.small_cap import SmallCapPandasData, SmallCapStrategy
 
-from .qmt_universe import QmtUniverseClient, StockUniverseSnapshot
+from .datahub_universe import DatahubUniverseClient, StockUniverseSnapshot
 
 
 def build_small_cap_snapshots(
-    client: QmtUniverseClient,
+    client: DatahubUniverseClient,
     rebalance_dates: list[date | str | pd.Timestamp],
     sector_name: str = "沪深A股",
     codes: list[str] | None = None,
@@ -22,7 +22,7 @@ def build_small_cap_snapshots(
     """按调仓日构建并返回股票池快照。
 
     ``codes`` 可限制为研究样本；传入 ``None`` 时读取完整板块股票池。调用方可将
-    快照持久化以复用高成本的 QMT 全市场元数据请求。
+    快照持久化以复用高成本的 Tushare 全市场元数据请求。
     """
     return {
         pd.Timestamp(day).normalize(): client.snapshot(day, sector_name, codes=codes)
@@ -31,7 +31,7 @@ def build_small_cap_snapshots(
 
 
 def prepare_small_cap_price_data(
-    client: QmtUniverseClient,
+    client: DatahubUniverseClient,
     snapshots: dict[pd.Timestamp, StockUniverseSnapshot],
     start_date: date | str | pd.Timestamp,
     end_date: date | str | pd.Timestamp,

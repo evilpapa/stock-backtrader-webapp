@@ -6,7 +6,7 @@
 
 | qb 数据接口         | 当前封装                          | QMT API                               |
 |---------------------|-----------------------------------|---------------------------------------|
-| A 股股票池          | `QmtUniverseClient.stock_codes()` | `get_stock_list_in_sector("沪深A股")` |
+| A 股股票池          | `DatahubUniverseClient.stock_codes()` | `get_stock_list_in_sector("沪深A股")` |
 | 名称、上市/退市日期 | `instrument_details()`            | `get_instrument_detail`               |
 | ST 状态             | `historical_st_codes()`           | `get_his_st_data`                     |
 | 停牌状态            | `snapshot()`                      | 目标日无有效日线，或 `volume <= 0`    |

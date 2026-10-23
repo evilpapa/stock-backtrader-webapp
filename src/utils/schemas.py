@@ -5,15 +5,20 @@ from pydantic import BaseModel
 
 
 class DataSourceParams(BaseModel):
-    """Big QMT RPC 行情数据源的通用连接参数。"""
+    """DataHub 行情数据源的通用连接参数。"""
 
     dividend_type: str = "front"
+    data_source: str = "tushare"
+    cache_path: str = "data/etf.duckdb"
+    tushare_token: str = ""
+    tushare_timeout: float = 30.0
+    # 旧配置字段保留为迁移兼容，不再用于连接行情服务。
     bigqmt_account_id: str = ""
     bigqmt_timeout: float = 10.0
 
 
 class MarketDataParams(DataSourceParams):
-    """单只证券的 Big QMT 行情请求参数。"""
+    """单只证券的 Tushare 行情请求参数。"""
 
     symbol: str         # 股票代码，如 "000001"（需要加上交易所后缀，如 "000001.SZ"）
     period: str         # 数据周期，如 "1d"（日线）、"1h"（小时线）等

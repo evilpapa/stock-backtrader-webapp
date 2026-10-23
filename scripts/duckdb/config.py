@@ -22,7 +22,7 @@ DEFAULT_SECTOR_MAP: dict[str, list[str]] = {
 
 @dataclass(frozen=True)
 class SyncConfig:
-    """Runtime settings. Environment variables are intentionally QMT-compatible."""
+    """Runtime settings for Tushare and local storage."""
 
     account_id: str = ""
     timeout: float = 30.0
@@ -48,17 +48,17 @@ class SyncConfig:
     ) -> "SyncConfig":
         configured_dir = duckdb_dir or os.getenv("DUCKDB_DIR", "data")
         return cls(
-            account_id=os.getenv("BIGQMT_ACCOUNT_ID", ""),
-            timeout=float(os.getenv("BIGQMT_RPC_TIMEOUT_SECONDS", "30")),
-            batch_size=max(1, int(os.getenv("QMT_SYNC_BATCH_SIZE", "100"))),
+            account_id=os.getenv("TUSHARE_TOKEN", ""),
+            timeout=float(os.getenv("TUSHARE_TIMEOUT_SECONDS", "30")),
+            batch_size=max(1, int(os.getenv("TUSHARE_SYNC_BATCH_SIZE", "100"))),
             duckdb_dir=Path(configured_dir),
             kdb_host=os.getenv("KDB_HOST", "127.0.0.1"),
             kdb_port=int(os.getenv("KDB_PORT", "5000")),
             kdb_username=os.getenv("KDB_USERNAME", ""),
             kdb_password=os.getenv("KDB_PASSWORD", ""),
-            qmt_start_date=os.getenv("QMT_SYNC_START_DATE", "20000101"),
-            overlap_days=max(0, int(os.getenv("QMT_SYNC_OVERLAP_DAYS", "7"))),
-            dividend_type=os.getenv("QMT_SYNC_DIVIDEND_TYPE", "none"),
+            qmt_start_date=os.getenv("TUSHARE_SYNC_START_DATE", "20000101"),
+            overlap_days=max(0, int(os.getenv("TUSHARE_SYNC_OVERLAP_DAYS", "7"))),
+            dividend_type=os.getenv("TUSHARE_SYNC_DIVIDEND_TYPE", "none"),
             sector_map=sector_map or {
                 key: list(value) for key, value in DEFAULT_SECTOR_MAP.items()
             },

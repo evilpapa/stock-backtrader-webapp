@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from examples import backtest_common as backtest_common
+from src.utils.datahub_client import to_upper_ohlcv
 
 
 def test_prepare_price_data_removes_non_positive_ohlc_rows(monkeypatch):
@@ -17,8 +18,19 @@ def test_prepare_price_data_removes_non_positive_ohlc_rows(monkeypatch):
         },
         index=pd.to_datetime(["2025-01-01", "2025-01-01", "2025-01-03"]),
     )
-    monkeypatch.setattr(backtest_common, "fetch_history_ohlcv", lambda *args, **kwargs: raw_data)
-    monkeypatch.setattr(backtest_common, "to_title_case_ohlcv", lambda frame: frame)
+    monkeypatch.setattr(backtest_common, "to_upper_ohlcv", lambda frame: frame)
+
+    class FakeDataHubClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        def history_ohlcv(self, *_args, **_kwargs):
+            return raw_data.copy()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(backtest_common, "DataHubClient", FakeDataHubClient)
 
     prepared = backtest_common.prepare_price_data(["510300"], "2025-01-01", "2025-01-03", "测试")
 

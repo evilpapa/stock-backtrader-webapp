@@ -132,6 +132,9 @@ class EtfMomentumStrategy(BaseStrategy):
 					target_weights[i] = weight
 
 		# 执行再平衡
+		# 风控层按需缩放目标权重（波动率目标、总仓位与单标的上限）。
+		if self.risk.enabled:
+			target_weights = np.array(self.apply_risk_weights_to_array(target_weights), dtype=float)
 		self._rebalance_portfolio(target_weights)
 		self.rebalance_history.append(
 			{"date": self.datas[0].datetime.date(0), "weights": target_weights.copy()}

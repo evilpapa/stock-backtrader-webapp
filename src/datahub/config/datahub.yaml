@@ -1,0 +1,74 @@
+# DataHub 默认配置。Token/QMT 路径只从环境变量覆盖，不要把敏感值提交到仓库。
+providers:
+  tushare:
+    enabled: true
+    timeout: 30
+  xtquant:
+    enabled: true
+    timeout: 10
+    qmt_path: ""
+
+routing:
+  daily:
+    providers: [tushare, xtquant]
+    retries: 1
+  minute:
+    providers: [xtquant, tushare]
+    retries: 1
+  tick:
+    providers: [xtquant]
+  realtime:
+    providers: [xtquant]
+  stock_basic:
+    providers: [tushare, xtquant]
+  trade_calendar:
+    providers: [tushare, xtquant]
+  financial:
+    providers: [tushare]
+  adj_factor:
+    providers: [tushare, xtquant]
+  level2:
+    providers: [xtquant]
+  # 研究脚本使用的扩展数据仍由 DataHub 统一路由和缓存。
+  etf_basic: {providers: [tushare]}
+  etf_share: {providers: [tushare]}
+  fund_daily: {providers: [tushare]}
+  fund_adj: {providers: [tushare]}
+  index_daily: {providers: [tushare]}
+  index_member: {providers: [tushare]}
+  index_weight: {providers: [tushare]}
+  ci_daily: {providers: [tushare]}
+  daily_basic: {providers: [tushare]}
+  money_flow: {providers: [tushare]}
+  st: {providers: [tushare, xtquant]}
+  hot_rank: {providers: [tushare]}
+  board_member: {providers: [tushare]}
+  sector_member: {providers: [xtquant]}
+  daily_bulk: {providers: [tushare]}
+
+retry:
+  count: 1
+  timeout_seconds: 30
+
+storage:
+  backend: sqlite
+  directory: "data/datahub"
+
+cache:
+  enabled: true
+  ttl_seconds: 3600
+
+ticker:
+  # 不同 XtQuant 接口可以使用不同后缀；默认保留官方 code.market 格式。
+  xtquant_formats:
+    default: {SH: SH, SZ: SZ, BJ: BJ}
+    market_data: {SH: SH, SZ: SZ, BJ: BJ}
+    realtime: {SH: SH, SZ: SZ, BJ: BJ}
+    instrument: {SH: SH, SZ: SZ, BJ: BJ}
+    financial: {SH: SH, SZ: SZ, BJ: BJ}
+
+units:
+  # Tushare daily/pro_bar: vol=手, amount=千元。
+  tushare: {volume_factor: 100.0, amount_factor: 1000.0, volume_unit: share, amount_unit: CNY}
+  # XtQuant 原生字段单位按本地终端契约保存；若券商桥接配置不同，在此覆盖。
+  xtquant: {volume_factor: 1.0, amount_factor: 1.0, volume_unit: share, amount_unit: CNY}

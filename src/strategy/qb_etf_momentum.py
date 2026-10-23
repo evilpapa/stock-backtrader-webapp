@@ -120,7 +120,12 @@ class QbEtfMomentumStrategy(BaseStrategy):
 	def _build_target_weights(self, top_items: list[tuple[str, float]], exposure: float) -> dict[str, float]:
 		weight = exposure / len(top_items)
 		selected = {name for name, _ in top_items}
-		return {data._name: weight if data._name in selected else 0.0 for data in self.datas}
+		weights = {data._name: weight if data._name in selected else 0.0 for data in self.datas}
+		if not self.risk.enabled:
+			return weights
+		# 风控层可能压降权重或禁止回补，这里保持键完整以兼容调仓记录。
+		adjusted = self.apply_risk_weights(weights)
+		return {name: adjusted.get(name, 0.0) for name in weights}
 
 	def _rebalance_portfolio(self, target_weights: dict[str, float]) -> None:
 		"""先卖出非目标持仓，再将入选标的调整为目标权重。"""

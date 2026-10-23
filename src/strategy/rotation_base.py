@@ -93,6 +93,11 @@ class RotationStrategyBase(BaseStrategy):
 			target_weights[index] = score / total_adj_momentum
 			selected_indices.append(index)
 
+		# 风控层按需缩放目标权重：波动率目标、总仓位与单标的上限，
+		# 以及止损冷却期内禁止回补的标的都会在这里被裁掉。
+		if self.risk.enabled:
+			target_weights = np.array(self.apply_risk_weights_to_array(target_weights), dtype=float)
+
 		return target_weights, selected_indices, adj_momentum_by_name, momentum_by_name
 
 	def _get_tradable_indices(self) -> list[int]:

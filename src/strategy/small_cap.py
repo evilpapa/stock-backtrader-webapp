@@ -8,7 +8,7 @@ import backtrader as bt
 import numpy as np
 import pandas as pd
 
-from src.utils.qmt_universe import StockUniverseSnapshot
+from src.utils.datahub_universe import StockUniverseSnapshot
 
 from ._base import BaseStrategy
 
@@ -23,7 +23,7 @@ class SmallCapPandasData(bt.feeds.PandasData):
 class SmallCapStrategy(BaseStrategy):
 	"""按小流通市值、反转、流动性和 K 线形态评分的全市场选股策略。
 
-	``universe_snapshot`` 必须由 :class:`QmtUniverseClient` 在回测起点或每次
+	``universe_snapshot`` 必须由 :class:`DatahubUniverseClient` 在回测起点或每次
 	调仓日前构建；数据源名称使用 QMT 股票代码。 ``market_factors`` 为可选的
 	日期索引表，列为 ``nhnl`` 与 ``limit_up_count``，用于复刻 qb 市场风控。
 	"""
@@ -251,11 +251,16 @@ class SmallCapStrategy(BaseStrategy):
 
 	def _target_weights(self, selected: list[str], exposure: float) -> dict[str, float]:
 		weight = exposure / len(selected) if selected else 0.0
-		return {
+		weights = {
 			data._name: weight if data._name in selected else 0.0
 			for data in self.datas
 			if data._name in self._tradable_names
 		}
+		if not self.risk.enabled:
+			return weights
+		# 风控层可能压降权重或禁止回补，这里保持键完整以兼容调仓记录。
+		adjusted = self.apply_risk_weights(weights)
+		return {name: adjusted.get(name, 0.0) for name in weights}
 
 	def _rebalance(self, target_weights: dict[str, float]) -> None:
 		value = self.broker.getvalue()

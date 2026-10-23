@@ -8,7 +8,7 @@ import pandas as pd
 
 from scripts.duckdb.config import load_sector_map
 from scripts.duckdb.fetcher import fetch_batches
-from src.utils.bigqmt_client import QmtDataClient as QmtRpc
+from src.utils.datahub_client import DataHubClient as QmtRpc
 from scripts.duckdb.store import DuckDBStore
 from scripts.duckdb.sync import (
     _partition_bars_by_asset_type,
@@ -151,7 +151,8 @@ class DuckDbSyncTest(unittest.TestCase):
         calls = []
 
         class FakeXtdata:
-            def get_market_data_ex(self, **params):
+            @staticmethod
+            def get_market_data_ex(**params):
                 calls.append(("get_market_data_ex", params))
                 if len([item for item in calls if item[0] == "get_market_data_ex"]) == 1:
                     return {"000001.SZ": []}

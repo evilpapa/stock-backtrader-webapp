@@ -22,6 +22,7 @@ dependencies = [
     "pandas==2.2.3",
     "pandas-datareader>=0.10.0",
     "pandas-stubs~=2.2.3",
+    "pyarrow>=18.0.0",
     "pip>=26.1.1",
     "pre-commit==4.2.0",
     "pydantic==2.11.3",
@@ -34,14 +35,16 @@ dependencies = [
     "streamlit-echarts==0.4.0",
     "tables>=3.10.2",
     "tabulate>=0.10.0",
-    "xtquant-big-convert[redis]==0.3.50",
+    "tushare>=1.4.19",
+    "xtquant-big-convert>=0.3.78",
 ]
 
 [tool.setuptools]
-packages = ["src", "examples"]
+packages = ["src", "src.datahub", "src.datahub.providers", "examples"]
 
 [tool.setuptools.package-data]
 charts = ["*.ttf"]
+"src.datahub" = ["config/*.yaml"]
 
 [tool.uv]
 package = true
@@ -49,4 +52,9 @@ package = true
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: requires real Tushare credentials or a running QMT bridge",
 ]

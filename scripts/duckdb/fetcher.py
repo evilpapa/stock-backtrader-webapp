@@ -1,4 +1,4 @@
-"""Batch QMT daily-bar fetching and normalisation."""
+"""Batch Tushare daily-bar fetching and normalisation."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Iterator
 
 import pandas as pd
 
-from src.utils.bigqmt_client import QmtDataClient
+from src.utils.datahub_client import DataHubClient
 from .universe import Instrument
 
 
@@ -24,7 +24,7 @@ def chunks(items: list[Instrument], size: int) -> Iterator[list[Instrument]]:
 
 
 def fetch_batches(
-    qmt: QmtDataClient,
+    qmt: DataHubClient,
     instruments: pd.DataFrame,
     start_date: date | str,
     end_date: date | str,
@@ -60,7 +60,7 @@ def fetch_batches(
         for symbol in symbols:
             frame = payloads.get(symbol, pd.DataFrame())
             if frame.empty:
-                errors.append({"symbol": symbol, "error_type": "empty_data", "error": "QMT 未返回行情数据"})
+                errors.append({"symbol": symbol, "error_type": "empty_data", "error": "Tushare 未返回行情数据"})
                 continue
             item = metadata[symbol]
             frame = frame.copy()
@@ -70,7 +70,7 @@ def fetch_batches(
             frame["asset_type"] = item.asset_type
             frame["period"] = period
             frame["dividend_type"] = dividend_type
-            frame["source"] = "bigqmt"
+            frame["source"] = "tushare"
             frame["ingested_at"] = ingested_at
             frame = frame.dropna(subset=["bar_time"])
             frames.append(frame[

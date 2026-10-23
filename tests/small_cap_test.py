@@ -6,7 +6,7 @@ import backtrader as bt
 import pandas as pd
 
 from src.strategy import SmallCapPandasData, SmallCapStrategy
-from src.utils.qmt_universe import StockUniverseSnapshot
+from src.utils.datahub_universe import StockUniverseSnapshot
 
 
 def make_feed(base: float, daily_return: float, amount: float = 10_000_000) -> SmallCapPandasData:

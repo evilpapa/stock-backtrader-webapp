@@ -8,7 +8,7 @@ import pandas as pd
 
 from src.strategy._base import BaseStrategy
 from src.utils.load import load_strategy
-from src.utils.bigqmt_client import fetch_history_ohlcv
+from src.utils.datahub_client import DataHubClient
 
 
 class StrategyTest(unittest.TestCase):
@@ -20,7 +20,7 @@ class StrategyTest(unittest.TestCase):
 		# 加载股票历史数据
 		start_date = datetime(2024, 1, 1)
 		end_date = datetime(2025, 1, 1)
-		stock_hfq_df = fetch_history_ohlcv(
+		stock_hfq_df = DataHubClient().history_ohlcv(
 			"600070",
 			start_date,
 			end_date,

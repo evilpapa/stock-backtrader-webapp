@@ -20,7 +20,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from src.utils.bigqmt_client import QmtDataClient, QmtDataError, normalize_qmt_symbol
+from src.datahub import DataHubError, TickerMapper
+from src.utils.datahub_client import DataHubClient
+
+DataSourceError = DataHubError
 
 from scripts.qmt_tutor.fetch_000001_history import parse_date
 
@@ -45,7 +48,7 @@ def get_local_data(
     xtdata_client: Any | None = None,
 ) -> dict[str, Any]:
     """通过 ``xtdata.get_local_data`` 返回本地缓存行情。"""
-    qmt_symbol = normalize_qmt_symbol(symbol)
+    qmt_symbol = TickerMapper.normalize(symbol)
     params: dict[str, Any] = {
         "field_list": fields or DEFAULT_FIELDS,
         "stock_list": [qmt_symbol],
@@ -60,11 +63,11 @@ def get_local_data(
         params["data_dir"] = data_dir
 
     try:
-        data = QmtDataClient(timeout=timeout, xtdata_client=xtdata_client).local_data(**params)
+        data = DataHubClient(timeout=timeout, xtdata_client=xtdata_client).local_data(**params)
     except Exception as exc:
-        raise QmtDataError(f"QMT get_local_data 请求失败: {exc}") from exc
+        raise DataSourceError(f"QMT get_local_data 请求失败: {exc}") from exc
     if data is None or (isinstance(data, (dict, list, tuple, set)) and not data):
-        raise QmtDataError(f"本地缓存没有返回 {qmt_symbol} 的数据")
+        raise DataSourceError(f"本地缓存没有返回 {qmt_symbol} 的数据")
     return {"stock_code": qmt_symbol, "params": params, "data": data}
 
 

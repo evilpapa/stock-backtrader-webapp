@@ -1,4 +1,4 @@
-"""Discover and normalise QMT security universes."""
+"""Discover and normalise Tushare security universes."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from typing import Any
 
 import pandas as pd
 
-from src.utils.bigqmt_client import QmtDataClient, normalize_qmt_symbol
+from src.datahub import TickerMapper
+from src.utils.datahub_client import DataHubClient
 
 
 ASSET_PRIORITY = {
@@ -30,16 +31,15 @@ class Instrument:
 
 
 class UniverseDiscovery:
-    """Use QMT sectors as the source of truth, while retaining sector provenance."""
+    """通过 DataHub 读取证券分组，并保留来源信息。"""
 
     def __init__(
         self,
         timeout: float = 30.0,
         xtdata_client: Any | None = None,
-        qmt_client: QmtDataClient | None = None,
+        qmt_client: DataHubClient | None = None,
     ) -> None:
-        self.data_client = qmt_client or QmtDataClient(timeout=timeout, xtdata_client=xtdata_client)
-        self.xtdata = self.data_client.xtdata
+        self.data_client = qmt_client or DataHubClient(timeout=timeout, xtdata_client=xtdata_client)
 
     def list_sectors(self) -> list[str]:
         return self.data_client.sector_list()
@@ -68,7 +68,7 @@ class UniverseDiscovery:
                 for raw_symbol in data:
                     if not isinstance(raw_symbol, str) or not raw_symbol.strip():
                         continue
-                    symbol = normalize_qmt_symbol(raw_symbol)
+                    symbol = TickerMapper.normalize(raw_symbol)
                     market = symbol.rsplit(".", maxsplit=1)[-1] if "." in symbol else ""
                     current = records.get(symbol)
                     if current is None or ASSET_PRIORITY.get(asset_type, 0) > current["priority"]:

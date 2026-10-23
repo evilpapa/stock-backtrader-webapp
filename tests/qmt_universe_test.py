@@ -4,10 +4,10 @@ import unittest
 
 import pandas as pd
 
-from src.utils.qmt_universe import QmtUniverseClient
+from src.utils.datahub_universe import DatahubUniverseClient
 
 
-class QmtUniverseClientTest(unittest.TestCase):
+class DatahubUniverseClientTest(unittest.TestCase):
 	def test_snapshot_normalizes_qmt_universe_metadata(self):
 		"""验证板块、ST、合约、财务和日线数据会合成为统一快照。"""
 		class FakeXtdata:
@@ -35,7 +35,7 @@ class QmtUniverseClientTest(unittest.TestCase):
 					"600002.SH": pd.DataFrame([{"time": "20240102", "open": 8, "high": 9, "low": 7, "close": 8, "volume": 0, "amount": 0}]),
 				}
 
-		client = QmtUniverseClient(xtdata_client=FakeXtdata())
+		client = DatahubUniverseClient(xtdata_client=FakeXtdata())
 		snapshot = client.snapshot("2024-01-02")
 		stocks = snapshot.stocks.set_index("code")
 
@@ -49,7 +49,7 @@ class QmtUniverseClientTest(unittest.TestCase):
 
 	def test_eligible_codes_excludes_new_st_suspended_delisted_and_non_main_board(self):
 		"""基础池过滤应覆盖 qb/small2 的全部排除条件。"""
-		from src.utils.qmt_universe import StockUniverseSnapshot
+		from src.utils.datahub_universe import StockUniverseSnapshot
 		frame = pd.DataFrame([
 			{"code": "600001.SH", "name": "ok", "listing_date": "20200101", "is_st": False, "is_suspended": False, "is_delisted": False, "float_shares": 1, "float_market_cap": 10},
 			{"code": "300001.SZ", "name": "gem", "listing_date": "20200101", "is_st": False, "is_suspended": False, "is_delisted": False, "float_shares": 1, "float_market_cap": 6},

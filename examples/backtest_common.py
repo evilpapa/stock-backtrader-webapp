@@ -14,7 +14,8 @@ from src.strategy import CustomAnalyzer
 from src.strategy import EqualWeightStrategy
 from src.strategy import JustBuyHoldStrategy
 from src.strategy import PerformanceCalculator
-from src.utils.bigqmt_client import QmtDataClient, to_title_case_ohlcv
+from src.risk.report import build_risk_event_frame, build_risk_summary_frame, format_risk_summary
+from src.utils.datahub_client import DataHubClient, to_upper_ohlcv
 from src.utils.commission import ChinaStockCommission
 from src.utils.schemas import DataSourceParams
 
@@ -26,49 +27,67 @@ def prepare_price_data(
 	strategy_name: str,
 	data_source_params: DataSourceParams | None = None,
 ) -> dict[str, pd.DataFrame]:
-	"""拉取并清洗多标的行情数据，返回可用于 Backtrader 的价格表。"""
-	# 拉取行情，并整理为回测引擎可直接使用的开高低收量数据。
+	"""拉取并清洗多标的行情数据，返回可用于 Backtrader回测引擎 的开高低收量数据。"""
 	data_source_params = data_source_params or DataSourceParams()
-	print(f"正在通过 Big QMT RPC 获取{strategy_name}历史数据...")
+	data_source = data_source_params.data_source.lower().strip()
+	if data_source not in {"tushare", "qmt", "cache"}:
+		raise ValueError(f"不支持的 ETF 数据源模式: {data_source_params.data_source}")
+	client = DataHubClient(
+		token=data_source_params.tushare_token or None,
+		timeout=data_source_params.tushare_timeout,
+		data_source=data_source,
+		cache_path=data_source_params.cache_path if data_source == "cache" else None,
+	)
+	print(f"正在通过 DataHub/{data_source} 获取{strategy_name}历史数据...")
 	prepared: dict[str, pd.DataFrame] = {}
 
-	for symbol in symbols:
-		try:
-			df = to_title_case_ohlcv(
-				QmtDataClient(timeout=data_source_params.bigqmt_timeout).history_ohlcv(
+	try:
+		for symbol in symbols:
+			try:
+				history = client.history_ohlcv(
 					symbol,
 					start_date,
 					end_date,
 					period="1d",
 					dividend_type=data_source_params.dividend_type,
 				)
-			)
-		except Exception as exc:
-			print(f"  SKIP {symbol}: 获取失败 - {exc}")
-			continue
+				df = to_upper_ohlcv(history)
+				traces = getattr(getattr(getattr(client, "service", None), "router", None), "traces", [])
+				if traces:
+					trace = traces[-1]
+					version = history.attrs.get("data_version", "")
+					print(
+						f"  {symbol}: provider={trace.provider} records={len(history)}"
+						f" version={version or 'n/a'}"
+					)
+			except Exception as exc:
+				print(f"  SKIP {symbol}: 获取失败 - {exc}")
+				continue
 
-		required = ["Open", "High", "Low", "Close", "Volume"]
-		if not all(column in df.columns for column in required):
-			print(f"  SKIP {symbol}: 缺少必要列")
-			continue
+			required = ["Open", "High", "Low", "Close", "Volume"]
+			if not all(column in df.columns for column in required):
+				print(f"  SKIP {symbol}: 缺少必要列")
+				continue
 
-		# 仅保留必要行情列，并删除不完整或无效价格记录。回测引擎的
-		# 百分比变化指标会以此前收盘价为除数，因此收盘价为 0 会在预计算阶段
-		# 触发 ZeroDivisionError；其余 OHLC 非正值同样不构成有效 K 线。
-		df = df[required].apply(pd.to_numeric, errors="coerce").dropna().sort_index()
-		duplicate_count = int(df.index.duplicated(keep="last").sum())
-		if duplicate_count:
-			print(f"  WARN {symbol}: 已合并 {duplicate_count} 条重复日期记录")
-			df = df.loc[~df.index.duplicated(keep="last")]
-		valid_price = df[["Open", "High", "Low", "Close"]].gt(0).all(axis=1)
-		invalid_count = int((~valid_price).sum())
-		if invalid_count:
-			print(f"  WARN {symbol}: 已剔除 {invalid_count} 条 OHLC 非正值记录")
-			df = df.loc[valid_price]
-		if df.empty:
-			print(f"  SKIP {symbol}: 清洗后无可用数据")
-			continue
-		prepared[symbol] = df
+			# 仅保留必要行情列，并删除不完整或无效价格记录。回测引擎的
+			# 百分比变化指标会以此前收盘价为除数，因此收盘价为 0 会在预计算阶段
+			# 触发 ZeroDivisionError；其余 OHLC 非正值同样不构成有效 K 线。
+			df = df[required].apply(pd.to_numeric, errors="coerce").dropna().sort_index()
+			duplicate_count = int(df.index.duplicated(keep="last").sum())
+			if duplicate_count:
+				print(f"  WARN {symbol}: 已合并 {duplicate_count} 条重复日期记录")
+				df = df.loc[~df.index.duplicated(keep="last")]
+			valid_price = df[["Open", "High", "Low", "Close"]].gt(0).all(axis=1)
+			invalid_count = int((~valid_price).sum())
+			if invalid_count:
+				print(f"  WARN {symbol}: 已剔除 {invalid_count} 条 OHLC 非正值记录")
+				df = df.loc[valid_price]
+			if df.empty:
+				print(f"  SKIP {symbol}: 清洗后无可用数据")
+				continue
+			prepared[symbol] = df
+	finally:
+		client.close()
 
 	return prepared
 
@@ -114,6 +133,7 @@ def run_strategy_backtest(
 	strategy_display_name: str,
 	initial_cash: float,
 	strategy_kwargs: dict | None = None,
+	risk_config=None,
 ):
 	"""运行普通多标的策略回测并返回策略实例。"""
 	print(f"\n==> 运行{strategy_display_name}回测...")
@@ -123,10 +143,15 @@ def run_strategy_backtest(
 	if data_count == 0:
 		raise RuntimeError(f"{strategy_display_name}回测缺少可用数据")
 
-	cerebro.addstrategy(strategy_cls, **(strategy_kwargs or {}))
+	kwargs = dict(strategy_kwargs or {})
+	if risk_config is not None:
+		# 风控参数通过策略参数注入，未启用时保持原有回测路径不变。
+		kwargs["risk_config"] = risk_config
+	cerebro.addstrategy(strategy_cls, **kwargs)
 	print(f"  初始资金: {cerebro.broker.getvalue():.2f}")
 	result = cerebro.run()[0]
 	print(f"  期末资金: {cerebro.broker.getvalue():.2f}")
+	print(f"  {format_risk_summary(result)}")
 	return result
 
 
@@ -141,6 +166,7 @@ def run_rotation_strategy_backtest(
 	momentum_window: int,
 	rebalance_days: int,
 	top_l: int,
+	risk_config=None,
 ):
 	"""运行带基准索引参数的轮动策略回测。"""
 	print(f"\n==> 运行{strategy_display_name}回测...")
@@ -158,10 +184,12 @@ def run_rotation_strategy_backtest(
 		rebalance_days=rebalance_days,
 		top_l=top_l,
 		benchmark_index=benchmark_index,
+		risk_config=risk_config,
 	)
 	print(f"  初始资金: {cerebro.broker.getvalue():.2f}")
 	result = cerebro.run()[0]
 	print(f"  期末资金: {cerebro.broker.getvalue():.2f}")
+	print(f"  {format_risk_summary(result)}")
 	return result
 
 
@@ -478,8 +506,10 @@ def save_results(
 	weights_df: pd.DataFrame,
 	selection_frequency_df: pd.DataFrame | None = None,
 	rebalance_detail_df: pd.DataFrame | None = None,
+	risk_events_df: pd.DataFrame | None = None,
+	risk_summary_df: pd.DataFrame | None = None,
 ) -> None:
-	"""保存回测结果、收益、回撤、权重和可选调仓明细文件。"""
+	"""保存回测结果、收益、回撤、权重、调仓明细和风控结果文件。"""
 	# 将绩效、收益、回撤、权重和调仓明细统一导出为 UTF-8 BOM CSV，方便 Excel 打开。
 	os.makedirs(output_dir, exist_ok=True)
 	metrics_df.to_csv(output_dir / "performance_metrics.csv", index=False, encoding="utf-8-sig")
@@ -491,3 +521,13 @@ def save_results(
 		selection_frequency_df.to_csv(output_dir / "selection_frequency.csv", index=False, encoding="utf-8-sig")
 	if rebalance_detail_df is not None:
 		rebalance_detail_df.to_csv(output_dir / "rebalance_details.csv", index=False, encoding="utf-8-sig")
+	if risk_events_df is not None:
+		risk_events_df.to_csv(output_dir / "risk_events.csv", index=False, encoding="utf-8-sig")
+	if risk_summary_df is not None:
+		risk_summary_df.to_csv(output_dir / "risk_summary.csv", index=False, encoding="utf-8-sig")
+
+
+def build_risk_frames(strategy_result) -> tuple[pd.DataFrame, pd.DataFrame]:
+	"""从策略实例构建风控事件表和风控统计表。"""
+	events = getattr(strategy_result, "risk_events", None) or []
+	return build_risk_event_frame(events), build_risk_summary_frame(strategy_result)

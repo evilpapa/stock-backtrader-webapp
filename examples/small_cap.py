@@ -1,6 +1,6 @@
 """Small Cap 小市值选股策略回测示例。
 
-默认使用少量主板股票验证 QMT → 股票池快照 → 日线 → Backtrader 的完整链路：
+默认使用少量主板股票验证 Tushare → 股票池快照 → 日线 → Backtrader 的完整链路：
 
     uv run python examples/small_cap.py
 
@@ -22,7 +22,7 @@ from pathlib import Path
 import pandas as pd
 
 from src.strategy import SmallCapStrategy
-from src.utils.qmt_universe import QmtUniverseClient, StockUniverseSnapshot
+from src.utils.datahub_universe import StockUniverseSnapshot, DatahubUniverseClient
 from src.utils.small_cap_backtest import (
     build_small_cap_snapshots,
     prepare_small_cap_price_data,
@@ -35,7 +35,7 @@ DEFAULT_START_DATE = "2026-05-06"
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    """解析 Small Cap 回测范围、QMT 连接和策略参数。"""
+    """解析 Small Cap 回测范围、Tushare 连接和策略参数。"""
     parser = argparse.ArgumentParser(description="运行 Small Cap 小市值策略回测")
     parser.add_argument("--start-date", default=DEFAULT_START_DATE, help="回测开始日期 YYYY-MM-DD")
     parser.add_argument(
@@ -46,7 +46,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--initial-cash", type=float, default=1_000_000.0, help="初始资金")
     parser.add_argument("--codes", nargs="+", default=DEFAULT_CODES, help="受限股票池代码；默认用于冒烟回测")
     parser.add_argument("--full-universe", action="store_true", help="使用沪深 A 股完整股票池，耗时较长")
-    parser.add_argument("--sector", default="沪深A股", help="全市场模式使用的 QMT 板块名称")
+    parser.add_argument("--sector", default="沪深A股", help="全市场模式使用的 Tushare 标的分组")
     parser.add_argument("--stock-num", type=int, default=3, help="最终持仓股票数量")
     parser.add_argument("--pool-num", type=int, default=100, help="候选股票池数量上限")
     parser.add_argument("--rebalance-days", type=int, default=10, help="调仓间隔（交易日）")
@@ -54,12 +54,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-cap", type=float, default=5_000.0, help="流通市值上限（亿元）")
     parser.add_argument("--market-factors", type=Path, help="可选市场因子 CSV，需含 date、nhnl、limit_up_count 列")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="结果输出目录")
-    parser.add_argument("--bigqmt-account-id", default=os.getenv("BIGQMT_ACCOUNT_ID", ""), help="Big QMT 资金账号")
+    parser.add_argument("--tushare-token", default=os.getenv("TUSHARE_TOKEN", ""), help="Tushare Pro Token")
     parser.add_argument(
-        "--bigqmt-timeout",
+        "--tushare-timeout",
         type=float,
-        default=float(os.getenv("BIGQMT_RPC_TIMEOUT_SECONDS", "30")),
-        help="Big QMT RPC 超时秒数",
+        default=float(os.getenv("TUSHARE_TIMEOUT_SECONDS", "30")),
+        help="Tushare 请求超时秒数",
     )
     return parser.parse_args(argv)
 
@@ -77,15 +77,15 @@ def load_market_factors(path: Path | None) -> pd.DataFrame | None:
 
 
 def main(argv: Sequence[str] | None = None) -> SmallCapStrategy:
-    """构建 QMT 股票池快照、下载日线，并执行 Small Cap 本地回测。"""
+    """构建 Tushare 股票池快照、下载日线，并执行 Small Cap 本地回测。"""
     args = parse_args(argv)
-    if not args.bigqmt_account_id:
-        raise ValueError("请传入 --bigqmt-account-id 或设置 BIGQMT_ACCOUNT_ID")
+    if not args.tushare_token:
+        raise ValueError("请传入 --tushare-token 或设置 TUSHARE_TOKEN")
     if args.full_universe and args.codes != DEFAULT_CODES:
         raise ValueError("--full-universe 与自定义 --codes 不能同时使用")
 
     snapshot_codes = None if args.full_universe else args.codes
-    client = QmtUniverseClient(timeout=args.bigqmt_timeout)
+    client = DatahubUniverseClient(token=args.tushare_token, timeout=args.tushare_timeout)
     snapshots = build_small_cap_snapshots(
         client,
         [args.start_date],
@@ -118,10 +118,10 @@ def main(argv: Sequence[str] | None = None) -> SmallCapStrategy:
             "rebalance_days": args.rebalance_days,
             "market_guard": market_factors is not None,
             "avoid_months": (),
-		},
-		market_factors=market_factors,
-		backtest_start_date=args.start_date,
-	)
+        },
+        market_factors=market_factors,
+        backtest_start_date=args.start_date,
+    )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     snapshot.stocks.to_csv(args.output_dir / "universe_snapshot.csv", index=False, encoding="utf-8-sig")

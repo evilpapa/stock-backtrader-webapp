@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -266,6 +266,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/74/f6/cb228f5949553a5c01d1d5a3c933f0216d78540d9e0bf8dd4343bb449681/bottleneck-1.6.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:4dd7ac619570865fcb7a0e8925df418005f076286ad2c702dd0f447231d7a055", size = 386909, upload-time = "2025-09-08T16:30:34.973Z" },
     { url = "https://files.pythonhosted.org/packages/09/9a/425065c37a67a9120bf53290371579b83d05bf46f3212cce65d8c01d470a/bottleneck-1.6.0-cp314-cp314t-win32.whl", hash = "sha256:7fb694165df95d428fe00b98b9ea7d126ef786c4a4b7d43ae2530248396cadcb", size = 111636, upload-time = "2025-09-08T16:30:36.044Z" },
     { url = "https://files.pythonhosted.org/packages/ad/23/c41006e42909ec5114a8961818412310aa54646d1eae0495dbff3598a095/bottleneck-1.6.0-cp314-cp314t-win_amd64.whl", hash = "sha256:174b80930ce82bd8456c67f1abb28a5975c68db49d254783ce2cb6983b4fea40", size = 117611, upload-time = "2025-09-08T16:30:37.055Z" },
+]
+
+[[package]]
+name = "bs4"
+version = "0.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "beautifulsoup4" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c9/aa/4acaf814ff901145da37332e05bb510452ebed97bc9602695059dd46ef39/bs4-0.0.2.tar.gz", hash = "sha256:a48685c58f50fe127722417bae83fe6badf500d54b55f7e39ffe43b798653925", size = 698, upload-time = "2024-01-17T18:15:47.371Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/bb/bf7aab772a159614954d84aa832c129624ba6c32faa559dfb200a534e50b/bs4-0.0.2-py2.py3-none-any.whl", hash = "sha256:abf8742c0805ef7f662dce4b51cca104cffe52b835238afc169142ab9b3fbccc", size = 1189, upload-time = "2024-01-17T18:15:48.613Z" },
 ]
 
 [[package]]
@@ -2910,6 +2922,7 @@ dependencies = [
     { name = "pandas-stubs" },
     { name = "pip" },
     { name = "pre-commit" },
+    { name = "pyarrow" },
     { name = "pydantic" },
     { name = "pyecharts" },
     { name = "pykx", version = "3.1.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
@@ -2921,7 +2934,8 @@ dependencies = [
     { name = "streamlit-echarts" },
     { name = "tables" },
     { name = "tabulate" },
-    { name = "xtquant-big-convert", extra = ["redis"] },
+    { name = "tushare" },
+    { name = "xtquant-big-convert" },
 ]
 
 [package.dev-dependencies]
@@ -2946,6 +2960,7 @@ requires-dist = [
     { name = "pandas-stubs", specifier = "~=2.2.3" },
     { name = "pip", specifier = ">=26.1.1" },
     { name = "pre-commit", specifier = "==4.2.0" },
+    { name = "pyarrow", specifier = ">=18.0.0" },
     { name = "pydantic", specifier = "==2.11.3" },
     { name = "pyecharts", specifier = "==2.0.8" },
     { name = "pykx", specifier = ">=3.1.6" },
@@ -2956,7 +2971,8 @@ requires-dist = [
     { name = "streamlit-echarts", specifier = "==0.4.0" },
     { name = "tables", specifier = ">=3.10.2" },
     { name = "tabulate", specifier = ">=0.10.0" },
-    { name = "xtquant-big-convert", extras = ["redis"], specifier = "==0.3.50" },
+    { name = "tushare", specifier = ">=1.4.19" },
+    { name = "xtquant-big-convert", specifier = ">=0.3.78" },
 ]
 
 [package.metadata.requires-dev]
@@ -3116,6 +3132,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5a/76/4921c00511f88af86a33de770d64141170f1cfd9c00311aea689949e274e/tornado-6.5.5-cp39-abi3-win32.whl", hash = "sha256:dd3eafaaeec1c7f2f8fdcd5f964e8907ad788fe8a5a32c4426fbbdda621223b7", size = 448582, upload-time = "2026-03-10T21:30:57.142Z" },
     { url = "https://files.pythonhosted.org/packages/2c/23/f6c6112a04d28eed765e374435fb1a9198f73e1ec4b4024184f21faeb1ad/tornado-6.5.5-cp39-abi3-win_amd64.whl", hash = "sha256:6443a794ba961a9f619b1ae926a2e900ac20c34483eea67be4ed8f1e58d3ef7b", size = 448990, upload-time = "2026-03-10T21:30:58.857Z" },
     { url = "https://files.pythonhosted.org/packages/b7/c8/876602cbc96469911f0939f703453c1157b0c826ecb05bdd32e023397d4e/tornado-6.5.5-cp39-abi3-win_arm64.whl", hash = "sha256:2c9a876e094109333f888539ddb2de4361743e5d21eece20688e3e351e4990a6", size = 448016, upload-time = "2026-03-10T21:31:00.43Z" },
+]
+
+[[package]]
+name = "tqdm"
+version = "4.70.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/ea/b2a5bd54b28a324dae8211928b2d730b6547500342c7e6c6dea08bd0a485/tqdm-4.70.1.tar.gz", hash = "sha256:cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4", size = 171846, upload-time = "2026-09-11T07:25:16.601Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl", hash = "sha256:c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73", size = 80199, upload-time = "2026-09-11T07:25:14.599Z" },
 ]
 
 [[package]]
@@ -3536,6 +3564,24 @@ wheels = [
 ]
 
 [[package]]
+name = "tushare"
+version = "1.4.29"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "bs4" },
+    { name = "lxml" },
+    { name = "pandas" },
+    { name = "requests" },
+    { name = "simplejson" },
+    { name = "tqdm" },
+    { name = "websocket-client" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/a4/5ce99585209410463e4b203d13c73d356c6ac92daea48af182932af7cb61/tushare-1.4.29.tar.gz", hash = "sha256:f578fb778868c0b744ac9173a837b695fd82e8d1b1e0d39c1f882b0e4fef7ecb", size = 128623, upload-time = "2026-03-25T06:33:44.722Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/3e/d426a56e5feac9b0aaada1c6b0745ed03422d4a713295e0bbb44c8ea86fe/tushare-1.4.29-py3-none-any.whl", hash = "sha256:82554af953ea5ac3d8771d42330493181031c7e68dccce03a491c7356e9ba4b2", size = 142920, upload-time = "2026-03-25T06:33:43.111Z" },
+]
+
+[[package]]
 name = "types-pytz"
 version = "2026.2.0.20260518"
 source = { registry = "https://pypi.org/simple" }
@@ -3733,17 +3779,12 @@ wheels = [
 
 [[package]]
 name = "xtquant-big-convert"
-version = "0.3.50"
+version = "0.3.78"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyzmq" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/40/9aff50a5867529e31c8794eb132bf44775260797d0534e78da79e9c8ba0d/xtquant_big_convert-0.3.50.tar.gz", hash = "sha256:9957150f9d8a8546d6e2345af6d16002855f83eeebe74ded84756766f17f1935", size = 583583, upload-time = "2026-09-21T06:43:57.359Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/fd/04c3e06f2390c9d69b1b8a0b5d3dd5e045ea16ec2aa8ce8b94d3ad41ea61/xtquant_big_convert-0.3.78.tar.gz", hash = "sha256:b8fb062b6e81171e7ed8d9ae59c7573514ac1bf81d155429db1256b06c29f91b", size = 495252, upload-time = "2026-10-28T01:14:32.382Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/76/16fad4ca355163f9c0dc90f4508cb66522029e0462f2cd2df6255e785c46/xtquant_big_convert-0.3.50-py3-none-any.whl", hash = "sha256:ca587cdd4b1b845a5d4e03c381a4986d7abc7948f10d9b91f97e0d8692c20d9c", size = 516370, upload-time = "2026-09-21T06:43:55.793Z" },
-]
-
-[package.optional-dependencies]
-redis = [
-    { name = "redis" },
+    { url = "https://files.pythonhosted.org/packages/67/cf/817026534d169a0713ee091c6205d2451c5196684407531da1b5226f5e63/xtquant_big_convert-0.3.78-py3-none-any.whl", hash = "sha256:cecc394a5d93b103c09bc81a86ec591b17352b86f36fe764830034b0adf874fb", size = 525355, upload-time = "2026-10-28T01:14:29.987Z" },
 ]

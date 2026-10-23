@@ -1,1 +1,1 @@
-"""QMT to DuckDB daily market-data synchronisation package."""
+"""Tushare to DuckDB daily market-data synchronisation package."""

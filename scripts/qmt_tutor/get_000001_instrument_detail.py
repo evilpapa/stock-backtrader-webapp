@@ -16,7 +16,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from src.utils.bigqmt_client import QmtDataClient, QmtDataError, normalize_qmt_symbol
+from src.datahub import DataHubError, TickerMapper
+from src.utils.datahub_client import DataHubClient
+
+DataSourceError = DataHubError
 
 
 DEFAULT_SYMBOL = "000001.SZ"
@@ -30,16 +33,16 @@ def fetch_instrument_detail(
     xtdata_client: Any | None = None,
 ) -> dict[str, Any]:
     """通过兼容 ``xtdata.get_instrument_detail`` 获取合约概况。"""
-    qmt_symbol = normalize_qmt_symbol(symbol)
+    qmt_symbol = TickerMapper.normalize(symbol)
     try:
-        detail = QmtDataClient(timeout=timeout, xtdata_client=xtdata_client).instrument_detail(
+        detail = DataHubClient(timeout=timeout, xtdata_client=xtdata_client).instrument_detail(
             qmt_symbol,
             is_detail=is_detail,
         )
     except Exception as exc:
-        raise QmtDataError(f"QMT get_instrument_detail 请求失败: {exc}") from exc
+        raise DataSourceError(f"QMT get_instrument_detail 请求失败: {exc}") from exc
     if not isinstance(detail, dict):
-        raise QmtDataError(f"未找到合约概况: {qmt_symbol}")
+        raise DataSourceError(f"未找到合约概况: {qmt_symbol}")
     return detail
 
 
@@ -55,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    symbol = normalize_qmt_symbol(args.symbol)
+    symbol = TickerMapper.normalize(args.symbol)
     try:
         detail = fetch_instrument_detail(
             symbol,

@@ -19,8 +19,7 @@ python -m streamlit run app.py
 
 ## 数据源
 
-- 数据来自 `utils.qmt_client.fetch_history_ohlcv`。
-- 脚本通过 `to_title_case_ohlcv()` 转换为 Backtrader 需要的 `Open/High/Low/Close/Volume` 列。
+- 脚本通过 `to_upper_ohlcv()` 转换为 Backtrader 需要的 `Open/High/Low/Close/Volume` 列。
 - 运行前需确保 QMT API 服务可用，且对应 ETF 历史数据可查询。
 
 默认标的位于 `examples/etf_momentum/backtest_etf_momentum.py`：

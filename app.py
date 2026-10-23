@@ -7,7 +7,7 @@ import streamlit as st
 from streamlit_echarts import st_pyecharts
 
 from src.charts import draw_multi_line, draw_pro_kline, draw_result_bar, draw_weight_area
-from src.frames import backtrader_selector_ui, market_data_selector_ui, market_data_source_ui, params_selector_ui
+from src.frames import backtrader_selector_ui, market_data_selector_ui, market_data_source_ui, params_selector_ui, risk_control_ui
 from src.utils.etf_momentum_backtest import (
 	BENCHMARK_NAME as ETF_BENCHMARK_NAME,
 	DEFAULT_ASSETS as ETF_DEFAULT_ASSETS,
@@ -233,6 +233,13 @@ def render_strategy_result_frames(frames: EtfMomentumFrames | RotationFrames) ->
 		optional_frames.append(("入选频率", frames.selection_frequency))
 	if getattr(frames, "rebalance_details", None) is not None:
 		optional_frames.append(("调仓明细", frames.rebalance_details))
+	# 启用风控的回测会额外输出风控统计与事件明细。
+	risk_summary = getattr(frames, "risk_summary", None)
+	if risk_summary is not None and not risk_summary.empty:
+		optional_frames.append(("风控统计", risk_summary))
+	risk_events = getattr(frames, "risk_events", None)
+	if risk_events is not None and not risk_events.empty:
+		optional_frames.append(("风控事件", risk_events))
 	# 基础结果固定展示四个标签页，扩展结果按数据对象能力追加。
 	tabs = st.tabs(tab_names + [name for name, _ in optional_frames])
 	with tabs[0]:
@@ -267,6 +274,7 @@ def render_etf_momentum_page(qb_strategy: bool = False) -> None:
 		rebalance_days = st.sidebar.number_input("rebalance days", min_value=1, value=5, step=1)
 	benchmark_symbol = st.sidebar.text_input("benchmark symbol", value="510300")
 	benchmark_name = st.sidebar.text_input("benchmark name", value=ETF_BENCHMARK_NAME)
+	risk_config = risk_control_ui("ETF" if not qb_strategy else "QB")
 
 	assets_df = st.data_editor(
 		pd.DataFrame(ETF_DEFAULT_ASSETS),
@@ -302,6 +310,7 @@ def render_etf_momentum_page(qb_strategy: bool = False) -> None:
 						if qb_strategy
 						else None
 					),
+					risk_config=risk_config,
 				)
 			st.success(f"{strategy_name} 结果已更新: {output_dir}")
 		except Exception as exc:
@@ -343,6 +352,7 @@ def render_rotation_page(spec: RotationSpec) -> None:
 	top_l = st.sidebar.number_input(f"{spec.key} top L", min_value=1, value=spec.default_top_l, step=1)
 	benchmark_symbol = st.sidebar.text_input(f"{spec.key} benchmark symbol", value=spec.benchmark_symbol)
 	benchmark_name = st.sidebar.text_input(f"{spec.key} benchmark name", value=spec.benchmark_name)
+	risk_config = risk_control_ui(spec.key)
 
 	assets_df = st.data_editor(
 		pd.DataFrame(spec.assets),
@@ -369,6 +379,7 @@ def render_rotation_page(spec: RotationSpec) -> None:
 					rebalance_days=int(rebalance_days),
 					top_l=int(top_l),
 					data_source_params=data_source_params,
+					risk_config=risk_config,
 				)
 			st.success(f"{spec.title} 结果已更新: {spec.output_dir}")
 		except Exception as exc:
@@ -483,7 +494,7 @@ def render_single_symbol_strategy(name: str) -> None:
 	if not submitted:
 		return
 
-	logger.info(f"qmt market data: {market_data_params}")
+	logger.info(f"tushare market data: {market_data_params}")
 	logger.info(f"backtrader: {bt_params}")
 	# Backtrader 数据源使用英文 OHLCV 字段名，这里在入参前统一映射。
 	stock_df = stock_df.rename(

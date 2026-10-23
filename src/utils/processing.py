@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from .logs import logger
-from .bigqmt_client import QmtDataClient, to_chinese_ohlcv
+from .datahub_client import DataHubClient, to_chinese_ohlcv
 from .schemas import BacktraderParams, MarketDataParams, StrategyBase
 
 logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR)
@@ -19,15 +19,18 @@ model_hash_func = lambda x: x.model_dump()
 
 @st.cache_data(hash_funcs={MarketDataParams: model_hash_func})
 def gen_stock_df(market_data_params: MarketDataParams) -> pd.DataFrame:
-    """根据行情参数从 Big QMT 拉取并转换股票历史数据。
+    """根据行情参数通过 DataHub 拉取并转换股票历史数据。
 
     Args:
-        market_data_params (MarketDataParams): Big QMT RPC 参数
+        market_data_params (MarketDataParams): 统一行情请求参数
 
     Returns:
         pd.DataFrame: 股票历史数据
     """
-    df = QmtDataClient(timeout=market_data_params.bigqmt_timeout).history_ohlcv(
+    df = DataHubClient(
+        token=market_data_params.tushare_token or None,
+        timeout=market_data_params.tushare_timeout,
+    ).history_ohlcv(
         symbol=market_data_params.symbol,
         period=market_data_params.period,
         start_date=market_data_params.start_date,
