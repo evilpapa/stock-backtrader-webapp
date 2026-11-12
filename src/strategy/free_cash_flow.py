@@ -8,7 +8,8 @@
 4. 加权：自由现金流绝对值加权、单只上限 10%（或等权）；季度调样（3/6/9/12 月第二个周五收盘定样，下一交易日生效），
    期间权重随价格漂移。
 
-纯 pandas 实现：财务数据按首次公告日 ``f_ann_date`` 做 point-in-time 过滤，不依赖 Backtrader。
+纯 pandas 实现，不依赖 Backtrader。注意：调用方必须先按截面过滤财报修订公告日；
+直接对全历史版本调用 build_fundamentals 会将修订值回填到首次公告日，存在前视偏差。
 """
 
 from __future__ import annotations

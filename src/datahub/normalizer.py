@@ -48,6 +48,7 @@ class Normalizer:
     unit_configs: Mapping[str, UnitConfig] = field(default_factory=lambda: {
         "tushare": UnitConfig(volume_factor=100.0, amount_factor=1000.0, volume_unit="share", amount_unit="CNY"),
         "xtquant": UnitConfig(),
+        "xtquant_minute": UnitConfig(volume_factor=100.0),
         # QMT 同步到 DuckDB 后已经是股、元，不再做 Tushare 的手/千元换算。
         "cache": UnitConfig(),
         "mock": UnitConfig(),
@@ -84,7 +85,7 @@ class Normalizer:
             return pd.DataFrame(columns=BAR_COLUMNS)
         frame = self._rename(frame, {
             "ts_code": "symbol", "code": "symbol", "ticker": "symbol",
-            "trade_date": "datetime", "date": "datetime", "time": "datetime", "bar_time": "datetime",
+            "trade_date": "datetime", "trade_time": "datetime", "date": "datetime", "time": "datetime", "bar_time": "datetime",
             "vol": "volume", "lastPrice": "close", "lastClose": "pre_close",
             "preClose": "pre_close", "adj": "adj_factor",
         })
@@ -95,7 +96,9 @@ class Normalizer:
         if "datetime" not in frame:
             raise DataValidationError(f"{result.source} 行情缺少时间字段")
         frame["datetime"] = self._datetime(frame["datetime"])
-        config = self.unit_configs.get(result.source, UnitConfig())
+        config = self.unit_configs.get(f"{result.source}_{result.data_kind.value}", self.unit_configs.get(result.source, UnitConfig()))
+        if result.metadata.get("provider_unit_contract") == "tushare-stk-mins-share-cny":
+            config = UnitConfig()
         for column in ("open", "high", "low", "close", "pre_close", "adj_factor", "volume", "amount"):
             if column not in frame:
                 frame[column] = pd.NA
@@ -178,9 +181,19 @@ class Normalizer:
     def _datetime(self, values: pd.Series) -> pd.Series:
         if values.empty:
             return pd.to_datetime(values)
+        # 已经解析成 datetime 的无时区行情时间是本地交易所时间；
+        # 不应先转整数再当作 UTC epoch，造成整体偏移八小时。
+        if pd.api.types.is_datetime64_any_dtype(values.dtype):
+            if values.dt.tz is None:
+                return values.dt.tz_localize(self.timezone)
+            return values.dt.tz_convert(self.timezone)
         numeric = pd.to_numeric(values, errors="coerce")
         if numeric.notna().all() and numeric.abs().between(10_000_000, 99_999_999).all():
             return pd.to_datetime(numeric.astype("Int64").astype(str), format="%Y%m%d", errors="coerce").dt.tz_localize(self.timezone)
+        # XtQuant K 线索引也可能是 YYYYMMDDhhmmss 格式，而非毫秒 epoch。
+        text = values.astype(str).str.replace(r"\.0$", "", regex=True)
+        if text.str.fullmatch(r"\d{14}").all():
+            return pd.to_datetime(text, format="%Y%m%d%H%M%S", errors="coerce").dt.tz_localize(self.timezone)
         # DuckDB/Pandas 读取 DATE/TIMESTAMP 可能暴露为微秒或纳秒整数；
         # 不能把它们误当成毫秒，否则会全部变成 NaT，并在去重时只剩一行。
         if numeric.notna().all() and numeric.abs().median() > 1e17:

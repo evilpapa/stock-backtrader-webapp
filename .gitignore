@@ -161,3 +161,4 @@ __marimo__
 .omx/
 *.log
 /.codebase-memory/
+/bigqmt_signal_trader_client_config.py

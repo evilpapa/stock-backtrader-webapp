@@ -64,6 +64,19 @@ class MarketDataService:
                 continue
         return policy.providers[0] if policy.providers else None
 
+    def get_cached(self, data_kind: DataKind | str, request: DataRequest, *, source: str | None = None) -> pd.DataFrame | None:
+        """从配置的 Repository 读取已规范的缓存或显式标注口径的原始快照。"""
+        if self.repository is None:
+            raise ValueError('尚未配置数据仓库')
+        kind = data_kind if isinstance(data_kind, DataKind) else DataKind(str(data_kind))
+        result = self.repository.query(kind, request, source=source)
+        if result is None:
+            return None
+        frame = result.data.copy()
+        frame.attrs.update(result.metadata)
+        frame.attrs.update({'source': result.source, 'data_kind': kind.value})
+        return frame
+
     def get_daily(self, request: DataRequest, **kwargs: bool) -> pd.DataFrame:
         return self.get(DataKind.DAILY, request, **kwargs)
 

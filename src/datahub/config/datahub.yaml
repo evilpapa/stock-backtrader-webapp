@@ -69,6 +69,9 @@ ticker:
 
 units:
   # Tushare daily/pro_bar: vol=手, amount=千元。
+  # stk_mins 返回股、元，Normalizer 根据 Provider 的单位契约单独处理。
   tushare: {volume_factor: 100.0, amount_factor: 1000.0, volume_unit: share, amount_unit: CNY}
   # XtQuant 原生字段单位按本地终端契约保存；若券商桥接配置不同，在此覆盖。
   xtquant: {volume_factor: 1.0, amount_factor: 1.0, volume_unit: share, amount_unit: CNY}
+  # 当前 QMT 股票分钟线 volume 为手、amount 为元；其他接入环境按实测覆盖。
+  xtquant_minute: {volume_factor: 100.0, amount_factor: 1.0, volume_unit: share, amount_unit: CNY}

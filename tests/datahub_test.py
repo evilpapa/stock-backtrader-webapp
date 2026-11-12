@@ -66,6 +66,11 @@ class NormalizerTest(unittest.TestCase):
         with self.assertRaises(DataValidationError):
             Normalizer().normalize(DataResult(raw, "mock", DataKind.DAILY), self.request)
 
+    def test_compact_xtquant_minute_timestamp_is_local_time(self):
+        raw = pd.DataFrame([{"symbol": "600000.SH", "time": "20210104093000", "open": 10, "high": 10, "low": 10, "close": 10, "volume": 1, "amount": 10}])
+        frame = Normalizer().normalize(DataResult(raw, "xtquant", DataKind.MINUTE), self.request).data
+        self.assertEqual(frame.loc[0, 'datetime'].strftime('%Y-%m-%d %H:%M %z'), '2021-01-04 09:30 +0800')
+
     def test_financial_as_of_filters_future_announcements(self):
         request = DataRequest(symbols=("000001.SZ",), as_of="2024-04-01")
         raw = pd.DataFrame([
@@ -77,6 +82,25 @@ class NormalizerTest(unittest.TestCase):
 
 
 class ProviderTest(unittest.TestCase):
+    def test_tushare_minute_dates_units_and_adjustment(self):
+        calls = []
+
+        class FakePro:
+            def stk_mins(self, **kwargs):
+                calls.append(kwargs)
+                return pd.DataFrame([{"ts_code": "600000.SH", "trade_time": "2021-01-04 09:31:00", "open": 10, "high": 10, "low": 10, "close": 10, "vol": 300, "amount": 3000}])
+
+        provider = TushareProvider(pro_client=FakePro())
+        request = DataRequest(symbols=("600000.SH",), start="2021-01-04", end="2021-01-04", frequency="1m")
+        result = Normalizer().normalize(provider.get_minute(request), request)
+        self.assertEqual(calls[0]["start_date"], "2021-01-04 00:00:00")
+        self.assertEqual(calls[0]["end_date"], "2021-01-04 23:59:59")
+        self.assertEqual(result.data.loc[0, "volume"], 300)
+        self.assertEqual(result.data.loc[0, "amount"], 3000)
+        self.assertEqual(result.data.attrs["timestamp_semantics"], "end")
+        with self.assertRaises(ValueError):
+            provider.get_minute(DataRequest(symbols=("600000.SH",), frequency="1m", adjust="qfq"))
+
     def test_tushare_extension_stays_inside_provider_adapter(self):
         calls = []
 
@@ -163,6 +187,28 @@ class ProviderTest(unittest.TestCase):
         frame = Normalizer().normalize(result, DataRequest(symbols=("000001.SZ",))).data
         self.assertEqual(frame["close"].iloc[0], 10.5)
         self.assertEqual(frame["symbol"].iloc[0], "000001.SZ")
+
+    def test_xtquant_history_disables_subscribe_when_supported(self):
+        calls = []
+
+        class FakeXt:
+            def get_market_data_ex(self, *, subscribe=True, **kwargs):
+                calls.append((subscribe, kwargs))
+                return {}
+
+        provider = XtQuantProvider(xtdata_client=FakeXt())
+        provider.get_minute(DataRequest(symbols=('000001.SZ',), frequency='1m', options={'download': False, 'fill_data': False}))
+        self.assertFalse(calls[0][0])
+        self.assertFalse(calls[0][1]['fill_data'])
+
+    def test_xtquant_history_supports_sdk_without_subscribe(self):
+        class FakeXt:
+            def get_market_data_ex(self, field_list, stock_list, period, start_time, end_time, count, dividend_type, fill_data):
+                return {}
+
+        result = XtQuantProvider(xtdata_client=FakeXt()).get_minute(
+            DataRequest(symbols=('000001.SZ',), frequency='1m', options={'download': False}))
+        self.assertTrue(result.data.empty)
 
     def test_duckdb_cache_provider_reads_normalized_daily_data(self):
         import duckdb

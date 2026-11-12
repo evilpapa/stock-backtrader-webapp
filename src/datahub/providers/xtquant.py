@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import itertools
+import inspect
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -91,6 +92,14 @@ class XtQuantProvider(MarketDataProvider, RealtimeProvider):
         }
         try:
             getter = getattr(api, "get_market_data_ex", None) or getattr(api, "get_market_data")
+            # 桥接扩展支持 subscribe；历史查询不需要常驻订阅，避免批量读取时
+            # QMT 持续累积订阅。官方 SDK 的部分版本没有此参数，保持兼容。
+            try:
+                parameters = inspect.signature(getter).parameters
+            except (TypeError, ValueError):
+                parameters = {}
+            if "subscribe" in parameters:
+                kwargs["subscribe"] = False
             payload = getter(**kwargs)
         except (TimeoutError, ConnectionError) as exc:
             raise DataSourceTimeout(f"XtQuant 历史行情请求失败: {exc}") from exc

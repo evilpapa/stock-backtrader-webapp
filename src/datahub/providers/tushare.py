@@ -7,12 +7,13 @@
 from __future__ import annotations
 
 import os
+from datetime import date, datetime
 from typing import Any
 
 import pandas as pd
 
 from ..exceptions import DataSourceTimeout, ProviderPermissionError, ProviderUnavailable
-from ..models import DataKind, DataRequest, DataResult
+from ..models import BarTimestamp, DataKind, DataRequest, DataResult
 from ..provider import MarketDataProvider
 from ..ticker import TickerMapper
 
@@ -146,16 +147,35 @@ class TushareProvider(MarketDataProvider):
         return merged
 
     def get_minute(self, request: DataRequest) -> DataResult:
+        if request.adjust.value != "none":
+            raise ValueError("Tushare stk_mins 仅支持未复权数据；请显式使用 adjust='none'")
         frames = []
         for symbol in request.symbols:
             frame = self._call(
                 "stk_mins",
                 ts_code=self.ticker_mapper.to_tushare(symbol),
                 freq=self._freq(request),
-                **self._date_kwargs(request),
+                **self._minute_date_kwargs(request),
             )
-            frames.append(self._frame(frame))
-        return self._result(pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(), DataKind.MINUTE, request)
+            frame = self._frame(frame)
+            if len(frame) >= 8000:
+                raise ValueError("Tushare stk_mins 可能达到 8000 行上限，请缩短请求时间范围")
+            frames.append(frame)
+        return DataResult(pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(), self.name,
+                          DataKind.MINUTE, request.request_id, BarTimestamp.END,
+                          {"provider_unit_contract": "tushare-stk-mins-share-cny"})
+
+    @staticmethod
+    def _minute_date_kwargs(request: DataRequest) -> dict[str, str]:
+        result = {}
+        for name, value in (("start_date", request.start), ("end_date", request.end)):
+            if value is not None:
+                timestamp = pd.Timestamp(value)
+                date_only = (isinstance(value, str) and len(value.strip()) in (8, 10)) or (isinstance(value, date) and not isinstance(value, datetime))
+                if date_only and name == "end_date":
+                    timestamp += pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+                result[name] = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        return result
 
     def _pro_bar(self, code: str, request: DataRequest) -> Any:
         try:
