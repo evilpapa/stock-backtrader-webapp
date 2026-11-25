@@ -1,4 +1,4 @@
-"""将年月 RAR 内逐日集合竞价 CSV 无损整理为按日 Parquet。"""
+"""重现历史缓存，将指定目录的年月 RAR 无损整理为按日 Parquet。"""
 from __future__ import annotations
 
 import argparse
@@ -95,7 +95,7 @@ def convert_stream(stream, target: Path, date: str, source: dict) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--input-dir', type=Path, default=Path('data/tick_auction'))
+    parser.add_argument('--input-dir', type=Path, required=True, help='旧版年月 RAR 所在目录')
     parser.add_argument('--output-dir', type=Path, default=Path('data/tick_auction_parquet'))
     parser.add_argument('--start-month', default='202001')
     parser.add_argument('--end-month', default='202610')

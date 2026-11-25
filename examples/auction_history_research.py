@@ -16,6 +16,7 @@ from src.datahub.service import MarketDataService
 from src.datahub.router import DataRouter
 from src.strategy.auction_factors import FACTOR_COLUMNS
 from src.strategy.intraday_factor_research import weekly_research
+from src.strategy.intraday_artifacts import load_factors
 
 
 def adjust_open_returns(quotes: pd.DataFrame, days: pd.DatetimeIndex) -> pd.DataFrame:
@@ -99,12 +100,7 @@ def main():
         factor_path = args.factor_dir / (key + '.parquet');
         info = args.factor_dir / (key + '.json')
         if not factor_path.exists() or not info.exists(): raise ValueError(f'缺少竞价因子缓存 {key}')
-        f = pd.read_parquet(factor_path);
-        meta = json.loads(info.read_text(encoding='utf-8'))
-        if (len(f) != meta['rows'] or not pd.to_datetime(f.date).eq(day).all()
-                or meta.get('symbols_sha256') != symbols_hash or meta.get(
-                    'implementation_sha256') != implementation_hash):
-            raise ValueError(f'竞价缓存日期、行数、股票范围或实现版本异常 {key}')
+        f, meta = load_factors(factor_path, day, list(symbols), args.snapshots, auction=True)
         req = DataRequest(symbols=symbols, start=day, end=day, frequency='1d', adjust='none')
         quote = local.get_cached(DataKind.DAILY_BULK, req);
         st = local.get_cached(DataKind.ST, req)

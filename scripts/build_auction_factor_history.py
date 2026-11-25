@@ -9,7 +9,7 @@ import pandas as pd
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from src.datahub import create_service,DataRequest
 from src.datahub.models import DataKind
-from src.datahub.auction_tick_repository import AuctionTickRepository
+from src.datahub.auction_tick_repository import DEFAULT_AUCTION_DIR, AuctionTickRepository
 from src.datahub.service import MarketDataService
 from src.datahub.router import DataRouter
 from src.strategy.auction_factors import auction_daily_factors_vectorized
@@ -18,9 +18,10 @@ from src.strategy.auction_factors import auction_daily_factors_vectorized
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--start',default='2021-01-04');p.add_argument('--end',default='2026-02-27')
-    p.add_argument('--output-dir',type=Path,default=Path('data/intraday_factors/auction_history'))
+    p.add_argument('--output-dir',type=Path)
     p.add_argument('--snapshots',type=Path,default=Path('data/intraday_factors/csi500/snapshots.parquet'))
-    p.add_argument('--auction-dir',type=Path,default=Path('data/tick_auction_parquet'))
+    p.add_argument('--auction-dir',type=Path)
+    p.add_argument('--auction-storage',choices=('csv','parquet'),default='csv')
     args=p.parse_args()
     snapshot=pd.read_parquet(args.snapshots)
     symbols=tuple(sorted(snapshot.con_code.dropna().unique()))
@@ -33,9 +34,12 @@ def main():
     finally:service.close()
     if cal.empty or cal.attrs.get('source')!='tushare':raise ValueError('交易日历为空或来源异常')
     days=pd.to_datetime(cal.loc[cal.is_open.astype(str).eq('1'),'trade_date']).sort_values()
-    repo=AuctionTickRepository(args.auction_dir)
+    is_csv=args.auction_storage=='csv'
+    auction_dir=args.auction_dir or (DEFAULT_AUCTION_DIR if is_csv else Path('data/tick_auction_parquet'))
+    repo=AuctionTickRepository(auction_dir,storage=args.auction_storage)
     local=MarketDataService(DataRouter({}),repository=repo)
-    output=args.output_dir/'daily'
+    output=(args.output_dir or Path('data/intraday_factors') /
+            ('auction_history_csv' if is_csv else 'auction_history'))/'daily'
     output.mkdir(parents=True,exist_ok=True)
     for i,day in enumerate(days,1):
         key=day.strftime('%Y%m%d'); path=output/(key+'.parquet'); info=output/(key+'.json')
@@ -52,9 +56,11 @@ def main():
         f,q=auction_daily_factors_vectorized(result)
         data=f.merge(q[['symbol','date','auction_open','auction_pre_close','stage1_valid','stage2_valid']],on=['symbol','date'],validate='one_to_one')
         data.to_parquet(path,index=False)
+        provenance={k:result.attrs[k] for k in ('source_path','source_csv_sha256','archive_sha256','duplicates_removed')
+                    if k in result.attrs}
         info.write_text(json.dumps({'version':1,'date':key,'rows':len(data),'symbols_sha256':symbols_hash,
                                    'auction_data_version':result.attrs['data_version'],'implementation_sha256':implementation_hash,
-                                   'archive_sha256':result.attrs['archive_sha256'],'source':repo.source,
+                                   **provenance,'source':repo.source,
                                    'frequency':'tick','adjust':'none','quality_rule':'bid1=ask1=last, 限价内, 每阶段至少2条'},ensure_ascii=False,indent=2),encoding='utf-8')
         if i%25==0 or i==len(days):print(f'{i}/{len(days)} {key} 股票日 {len(data)}',flush=True)
 

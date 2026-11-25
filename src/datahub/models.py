@@ -41,6 +41,7 @@ class DataKind(StrEnum):
     BOARD_MEMBER = "board_member"
     SECTOR_MEMBER = "sector_member"
     DAILY_BULK = "daily_bulk"
+    INSTRUMENT = "instrument"  # Unabridged instrument/price-limit metadata for execution.
 
 
 class Adjust(StrEnum):

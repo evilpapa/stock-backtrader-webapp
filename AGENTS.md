@@ -12,6 +12,9 @@
   - `python -m unittest tests.macross_test.MaCrossStrategyTest`
   - `python -m pytest -s -k <pattern>`
 
+## python code skills
+@CODE_SKILLS.md
+
 ## 项目结构
 
 - `app.py`：Streamlit 主入口与协调逻辑。
@@ -39,6 +42,7 @@
 - 修改 Streamlit 缓存相关逻辑时，注意缓存键和数据模式变更。
 - 运行 ETF 动量示例时使用 `--data-source tushare|qmt|cache` 选择 DataHub 数据源；不要在示例或策略中直接调用 Tushare/XtQuant 原生 API。
 - `cache` 模式读取 `data/etf.duckdb` 等只读本地 QMT 日线缓存；该缓存保存 `none` 口径，运行时必须显式传 `--dividend-type none`。
+- 回测结果均需计算：年华收益/累计收益、年化波动、最大回撤、夏普比率、卡玛比率。
 
 ## 数据流
 

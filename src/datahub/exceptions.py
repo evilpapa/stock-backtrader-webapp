@@ -11,6 +11,10 @@ class ProviderUnavailable(DataHubError):
     """Provider 未安装、未连接或暂时不可用。"""
 
 
+class ProviderCapacityError(ProviderUnavailable):
+    """数据源无法分配本次请求所需的资源。"""
+
+
 class ProviderPermissionError(DataHubError):
     """Provider 已连接，但当前账号没有所需权限。"""
 

@@ -41,12 +41,36 @@ class BaseStrategy(RiskControlMixin, bt.Strategy):
 			dt = dt or self.datas[0].datetime.date(0)
 			logger.info("%s, %s" % (dt.isoformat(), txt))
 
+	def _next_open(self):
+		"""标记开盘决策上下文，导出时使用上一交易日信号和当前开盘价。"""
+		self._execution_in_open = True
+		try:
+			return super()._next_open()
+		finally:
+			self._execution_in_open = False
+
+	def _oncepost_open(self):
+		"""Backtrader 向量化模式下的开盘决策上下文。"""
+		self._execution_in_open = True
+		try:
+			return super()._oncepost_open()
+		finally:
+			self._execution_in_open = False
+
 	def _track_order(self, order: bt.OrderBase | None) -> bt.OrderBase | None:
 		"""登记订单，防止策略在订单进入终态前重复提交调仓请求。"""
 		if order is not None:
+			from src.trading.strategies import record_order_intent
+			record_order_intent(self, order)
 			self.order = order
 			self.pending_orders[order.ref] = order
 		return order
+
+	def export_execution_targets(self, calendar, output_path, *, strategy_id=None, symbol_map=None):
+		"""按真实交易日历导出本策略的下一交易日目标，供公共交易模块执行。"""
+		from src.trading.strategies import export_backtrader_targets
+		return export_backtrader_targets(self, calendar, output_path,
+			strategy_id=strategy_id, symbol_map=symbol_map)
 
 	def _has_pending_orders(self) -> bool:
 		"""返回当前是否仍有等待经纪商处理的订单。"""

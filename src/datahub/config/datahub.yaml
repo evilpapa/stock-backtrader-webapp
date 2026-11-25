@@ -45,6 +45,8 @@ routing:
   board_member: {providers: [tushare]}
   sector_member: {providers: [xtquant]}
   daily_bulk: {providers: [tushare]}
+  # 保留涨跌停价、最小价位等原始合约字段，独立于精简的stock_basic。
+  instrument: {providers: [xtquant], retries: 0}
 
 retry:
   count: 1
@@ -75,3 +77,5 @@ units:
   xtquant: {volume_factor: 1.0, amount_factor: 1.0, volume_unit: share, amount_unit: CNY}
   # 当前 QMT 股票分钟线 volume 为手、amount 为元；其他接入环境按实测覆盖。
   xtquant_minute: {volume_factor: 100.0, amount_factor: 1.0, volume_unit: share, amount_unit: CNY}
+  # 收盘归档专用日线对账：当前 Big QMT 桥接的日线成交量也以手返回。
+  xtquant_postclose_daily: {volume_factor: 100.0, amount_factor: 1.0, volume_unit: share, amount_unit: CNY}

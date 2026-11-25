@@ -149,12 +149,18 @@ uv run python -m pytest -q tests/datahub_test.py
 
 ## 本地集合竞价快照 Repository
 
-`src.datahub.auction_tick_repository.AuctionTickRepository` 只读已整理的本地日分区，
+`src.datahub.auction_tick_repository.AuctionTickRepository` 默认只读
+`/data3/stock_data/stk_open_auction/YYYYMM/YYYYMMDD.csv`，
 通过 `DataRequest`（单日、`frequency="tick"`、`adjust="none"`）和
-`DataKind.TICK` 查询。证券代码和盘口字段保持原始格式，结果记录数据源、
-分区版本、源 RAR 哈希和原始价格口径未知；该仓库不注册默认路由，也不替代
-常规 XtQuant Tick。版本由源归档哈希、日期和整理版本生成，不是 Parquet
-逐字节校验和。
+`DataKind.TICK` 查询。默认来源为 `auction_tick_csv`，返回的元信息包含源路径、
+CSV SHA-256 和按解析规则生成的 `data_version`。证券代码、盘口字段和原始单位沿用供应商口径。
+该仓库不注册默认路由。历史 Parquet 分区可通过 `storage="parquet"` 和指定历史目录读取，
+继续使用原归档来源和分区版本。
+
+读取竞价分区时仅折叠**所有字段完全相同**的重复行，避免将同一快照重复计作
+两次有效观察；同一证券、日期、时间戳有不同字段值则报错。结果记录
+`duplicates_removed` 和 `duplicate_policy=dedup_exact_rows_v1`；实际发生去重时，
+`data_version` 额外包含清洗规则版本。
 
 
 ## 本地研究日数据缓存
@@ -181,3 +187,44 @@ XtQuant 历史行情读取会在 `get_market_data_ex` 显式支持 `subscribe` �
 支持按日和证券过滤逐年/逐日文件，记录源文件 SHA-256，并显式标注分钟末、
 未复权和单位均为待进一步确认的假设。不得将该来源自动混同于 QMT 或 Tushare。
 详细目录、验证和局限见 `docs/intraday_factors/README.md`。
+
+## 交易执行补充（2026-11-16）
+
+新增`DataKind.INSTRUMENT`及YAML的`instrument`路由，仅通过XtQuant Provider读取完整合约
+资料，保留`UpStopPrice`、`DownStopPrice`、`PriceTick`等字段；不改动既有精简的
+`stock_basic`字段集合。请求仍使用`DataRequest`，结果保留source、adjust、frequency与
+data_version，数据类型参与缓存键。桥接0.3.78使用单参数`get_instrument_detail`。
+
+`src/datahub/config/trading.yaml`提供独立执行行情配置：realtime/instrument/trade_calendar
+仅使用XtQuant，关闭缓存与重试。交易SDK调用封装在`providers/qmt_trading.py`，
+公共资金、持仓、订单与成交账本位于`src/trading`。详见[公共交易层](../trading/README.md)。
+新增类型和Adapter通过`tests.trading_execution_test`的Fake SDK验证，不依赖真实账号。
+
+## QMT 执行状态补充（2026-11-18）
+
+XtQuant 实时报价除统一 OHLCV 列外，通过 `DataFrame.attrs["execution_state"]`
+保留每证券的 `security_status`、`status_field`、`bid_prices`、`ask_prices`。
+现金证券优先使用大 QMT `get_full_tick.openInt` 状态，回退 `stockStatus`；
+大 QMT 内置手册注明后者已作废。状态13表示连续交易。该元数据随实时结果规范化保留，
+执行专用 `src/datahub/config/trading.yaml` 关闭缓存，未改变历史行情列及价格/数量单位。
+`live_quotes()` 优先使用当前盘口状态，避免静态 `IsTrading=false` 误阻止交易。
+详情见[订单生命周期](../trading/order_lifecycle.md)。
+## Big QMT 收盘分钟归档
+
+`scripts.sync_qmt_minute` 通过 DataHub 的 XtQuant Adapter，以 `subscribe=False`、`fill_data=False` 读取 Big QMT 已缓存的沪深京 A 股当日不复权 `1m` 数据，再补下载缺失或未通过校验的股票。下载后读取超时时，下次运行会先检查已落入 QMT 缓存的数据。沪深京总板块与分市场板块必须一致。任务逐股检查当日交易时段、重复键、OHLC、成交量和成交额，并与 QMT 日线对账。只有日线确认零成交且带停牌标志的股票才可缺少分钟记录，名单写入 Parquet 元数据。
+
+每次行情请求最多 16 只股票。QMT 返回内存分配错误时，脚本对读取请求继续拆分，单只股票仍失败时由定时任务重试。对至少 8 只股票的批次，整批零成交的旧断点需要重新核验。整批缺少有效成交日线时先补下载日线，仍无有效成交则标记该批校验失败，防止把 QMT 填充的占位行情当成停牌。
+
+两套原始 QMT 成交量均按 YAML 配置从手转股。日线 OHLC 与有成交的分钟对账，归档保留原始零成交分钟。日线对账允许最多 100 股的成交量取整差，以及 300 元和当日成交额 0.05% 中较大的成交额误差。日分区路径为 `data/tick_1m_parquet/year=YYYY/month=MM/day=DD/YYYYMMDD.parquet`。先校验全部批次和 Parquet 回读，再原子发布。目标目录若已有其他来源的同名文件，先保留带内容摘要的 `.previous-*` 原文件。
+
+用户级 systemd 定时器按北京时间每天 16:00 启动。休市日由 QMT 交易日历跳过，失败后 5 分钟重启，已通过校验的批次从本地状态库继续。待补交易日会保留，用户级 systemd 启动后会检查积压。桥接或校验故障写入 journal，图形会话可用时同一交易日首次失败会弹出通知。若积压日此前从未取得股票池，需由桥接提供该日的历史板块快照。
+
+```bash
+systemctl --user link "$PWD/scripts/systemd/qmt-minute-sync@.service" \
+  "$PWD/scripts/systemd/qmt-minute-sync@.timer"
+instance=$(systemd-escape --path "$PWD")
+systemctl --user enable --now "qmt-minute-sync@$instance.timer"
+journalctl --user -u "qmt-minute-sync@$instance.service" -f
+```
+
+手动指定交易日可运行 `.venv/bin/python -m scripts.sync_qmt_minute --date YYYY-MM-DD`。该命令执行单次尝试，默认分区与定时任务相同。

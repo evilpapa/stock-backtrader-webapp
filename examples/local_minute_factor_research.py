@@ -9,6 +9,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.strategy.auction_factors import FACTOR_COLUMNS
 from src.strategy.intraday_factor_research import weekly_research
+from src.strategy.intraday_artifacts import load_factors
 
 
 def sha(path):
@@ -25,6 +26,8 @@ def main():
     p.add_argument('--auction-dir',type=Path,default=Path('data/intraday_factors/auction_history/daily'))
     p.add_argument('--coverage',type=Path,default=Path('examples/intraday_factors/auction_history/coverage.parquet'))
     p.add_argument('--output-dir',type=Path,default=Path('examples/intraday_factors/local_minute_research'))
+    p.add_argument('--snapshots',type=Path,default=Path('data/intraday_factors/csi500/snapshots.parquet'))
+    p.add_argument('--reference-dir',type=Path,default=Path('data/micro_cap_timing_plus'))
     args=p.parse_args(); start=pd.Timestamp(args.start);end=pd.Timestamp(args.end)
     if start>end: p.error('开始日期晚于结束日期')
     cov=pd.read_parquet(args.coverage);cov['date']=pd.to_datetime(cov.date).dt.normalize()
@@ -33,7 +36,7 @@ def main():
     cov=cov[cov.date.between(start-pd.Timedelta(days=14),end+pd.Timedelta(days=14))].copy()
     calendar=pd.DatetimeIndex(sorted(cov.date.unique()))
     if calendar.empty or calendar.max() < end:raise ValueError('资格数据不覆盖研究终点')
-    snapshots=Path('data/intraday_factors/csi500/snapshots.parquet')
+    snapshots=args.snapshots
     symbols=sorted(pd.read_parquet(snapshots).con_code.dropna().unique().tolist())
     symbol_hash=hashlib.sha256('\n'.join(symbols).encode()).hexdigest()
     impl=sha('src/strategy/intraday_factors.py');builder=sha('scripts/build_local_minute_factors.py')
@@ -42,14 +45,11 @@ def main():
     for day in calendar[calendar<=end]:
         key=day.strftime('%Y%m%d');path=args.factor_dir/(key+'.parquet');meta_path=path.with_suffix('.json')
         if not path.exists() or not meta_path.exists():raise ValueError(f'缺少分钟因子 {key}')
-        m=json.loads(meta_path.read_text()); f=pd.read_parquet(path)
-        if (m.get('output_sha256')!=sha(path) or m.get('implementation_sha256')!=impl or m.get('builder_sha256')!=builder or m.get('repository_sha256')!=repo or m.get('snapshot_sha256')!=snap or m.get('symbols')!=symbols or len(f)!=m.get('rows') or not pd.to_datetime(f.date).eq(day).all()):
-            raise ValueError(f'分钟因子来源、日期或版本异常 {key}')
+        f,m=load_factors(path,day,symbols,snapshots)
         minutes.append(f); versions.append({'date':key,'input_sha256':m['input_sha256'],'output_sha256':m['output_sha256']})
         ap=args.auction_dir/(key+'.parquet');am=ap.with_suffix('.json')
         if not ap.exists() or not am.exists():raise ValueError(f'缺少竞价因子 {key}')
-        info=json.loads(am.read_text()); af=pd.read_parquet(ap)
-        if len(af)!=info.get('rows') or info.get('symbols_sha256')!=symbol_hash or info.get('implementation_sha256')!=auction_impl or not pd.to_datetime(af.date).eq(day).all():raise ValueError(f'竞价因子版本或日期异常 {key}')
+        af,info=load_factors(ap,day,symbols,snapshots,auction=True)
         auctions.append(af[['symbol','date']+FACTOR_COLUMNS])
     minute=pd.concat(minutes,ignore_index=True); auction=pd.concat(auctions,ignore_index=True)
     minute['date']=pd.to_datetime(minute.date).dt.normalize();auction['date']=pd.to_datetime(auction.date).dt.normalize()
@@ -59,7 +59,7 @@ def main():
     weekly=weekly_research(panel,calendar,eligibility_column='eligible',returns_column='forward_return')
     if weekly.empty:raise ValueError('没有可计算的周度截面')
     weekly=weekly[weekly.signal_date.between(start,end)].copy()
-    bench=pd.read_parquet('data/micro_cap_timing_plus/reference/index_000905.SH.parquet')
+    bench=pd.read_parquet(args.reference_dir/'reference/index_000905.SH.parquet')
     bench['date']=pd.to_datetime(bench.trade_date.astype(str),format='%Y%m%d');index_open=bench.set_index('date').open
     weekly['benchmark_return']=weekly.exit_date.map(index_open).div(weekly.entry_date.map(index_open)).sub(1)
     summary=weekly.groupby('factor',as_index=False).agg(weeks=('rank_ic','count'),mean_rank_ic=('rank_ic','mean'),median_n=('n','median'),mean_low=('group_1','mean'),mean_high=('group_10','mean'),mean_benchmark=('benchmark_return','mean'))

@@ -162,3 +162,7 @@ __marimo__
 *.log
 /.codebase-memory/
 /bigqmt_signal_trader_client_config.py
+qmt-adapter
+/claude.sh
+sync.sh
+/.stfolder/syncthing-folder-48040e.txt

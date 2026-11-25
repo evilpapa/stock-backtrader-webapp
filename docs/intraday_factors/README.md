@@ -1,5 +1,10 @@
 # 广发《高频价量数据的因子化方法》复现进度
 
+2026-11-13更新：已将月度成分快照、39个分钟因子和7个竞价因子统一补至
+2026-10-30，按原组合规则重新回测至2026-11-02开盘。新增结果独立保存；
+完整48只调仓名单、净值、数据清洗审计和复现命令见
+[本次刷新报告](refresh_20261030.md)。
+
 研报：广发多因子系列41，2021-07-12，本地研报库 `6.广发多因子系列/广发多因子系列41：高频价量数据的因子化方法.pdf`。本工作已对 46 个因子建立计算流程，但包括数据口径假设，尚不是完整复现。
 
 报告考察 46 因子，筛选 12 个（第 34 页）。目前 `src/strategy/intraday_factors.py` 实现了其中由连续竞价分钟线计算的 39 个因子，包括筛选结果中 10 个分钟因子。新增本地竞价快照后，已尝试构造 6 个竞价路径因子和隔夜收益因子，数据有效性及公式口径仍需核验。分钟数据可能包含收盘集合竞价时段，当前并未将其排除。
@@ -88,7 +93,9 @@ QMT 超时会中止运行，不会静默切换 Tushare。较长覆盖抽样：60
 
 ## 集合竞价原始行情
 
-用户提供的按年月归档集合竞价 Tick 已单独整理；来源、字段口径、断点续跑和日期覆盖核验方法见[集合竞价 Tick 数据整理](auction_tick_data.md)。竞价因子已用于下述小样本研究。
+新增集合竞价 Tick 默认从 `/data3/stock_data/stk_open_auction/YYYYMM/YYYYMMDD.csv` 读取。
+数据口径见[集合竞价 Tick 日分区](auction_tick_data.md)。最新完整回测和目标名单见
+[2026-11-23 数据刷新](refresh_20261123.md)。
 
 ## 竞价因子与周度模拟
 
@@ -124,12 +131,12 @@ QMT 超时会中止运行，不会静默切换 Tushare。较长覆盖抽样：60
 
 ```bash
 .venv/bin/python scripts/build_auction_factor_history.py --start 2021-01-04 --end 2026-02-27
-.venv/bin/python examples/auction_history_research.py
+.venv/bin/python examples/auction_history_research.py --factor-dir data/intraday_factors/auction_history_csv/daily --output-dir examples/intraday_factors/auction_history_csv
 ```
 
-第一步从本地竞价 Tick 仓库生成可断点续跑的每日因子缓存；每日元信息记录源归档、
+第一步从本地竞价 Tick 仓库生成可断点续跑的每日因子缓存；每日元信息记录源文件、
 证券集合和实现代码的哈希。第二步读取 Tushare 本地日线、历史 ST、证券基础信息、
-中证500指数日线与月度成分快照，输出到 `examples/intraday_factors/auction_history/`：
+中证500指数日线与月度成分快照，输出到 `examples/intraday_factors/auction_history_csv/`：
 `factor_summary.csv`、`weekly_research.csv`、`coverage.parquet`、
 `universe_snapshots.csv` 和 `manifest.json`。原始 ST 日文件缺失或为空时中止，
 不会将缺失数据当作全市场无 ST。
@@ -385,3 +392,13 @@ Tushare 行情；两份行情也可能存在共同上游，不能视为完全独
 601555.SH 缺少当日可用开盘价未买入，目标和分数在 `latest_selection.csv`。
 这份历史名单不可当作 2026 年 11 月的当前持仓；要生成当前名单，需要更新历史
 中证 500 资格和竞价因子到近期并重新计算分钟因子。
+
+## 公共持仓与回测下单入口（2026-11-16）
+
+新增`examples/intraday_execution.py`，支持历史模拟、最后一次调仓的本地下单模拟、
+QMT行情计划、执行、订单监听、持仓状态和撤单。公共资金/持仓/订单账本在`src/trading/`，
+按账户和策略隔离，可由未来股票策略共用；第三方交易调用只在DataHub Provider内。
+原研究回测保持不变，当前真实桥接端禁用下单的设置没有更改。
+
+使用方法见[公共交易模块](../trading/README.md)，本次模拟结果和验证见
+[执行验证](execution_20261116.md)。当前历史目标不能直接作为今天的委托。

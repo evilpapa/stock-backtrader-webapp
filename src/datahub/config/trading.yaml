@@ -1,0 +1,11 @@
+# Explicit QMT-only market-data routing for execution; independent of research.
+# Realtime attrs.execution_state retains tick security status and bid/ask.
+# Cash securities: openInt takes precedence over obsolete stockStatus.
+providers:
+  xtquant: {enabled: true, timeout: 10}
+routing:
+  realtime: {providers: [xtquant], retries: 0}
+  instrument: {providers: [xtquant], retries: 0}
+  trade_calendar: {providers: [xtquant], retries: 0}
+cache:
+  enabled: false

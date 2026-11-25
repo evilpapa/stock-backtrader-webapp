@@ -212,6 +212,9 @@ def main() -> None:
 
     out = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
+    from src.trading.strategies import write_native_weights
+    for name, native_weights in targets.items():
+        write_native_weights(native_weights, out / "trading" / name / "native_weights.csv")
     metrics.to_csv(out / "performance_metrics.csv")
     yearly.to_csv(out / "yearly_returns.csv")
     groups.to_csv(out / "group_annual_returns.csv")

@@ -13,7 +13,9 @@ from typing import Any
 
 import pandas as pd
 
-from ..exceptions import DataSourceTimeout, ProviderPermissionError, ProviderUnavailable, SubscriptionError
+from ..exceptions import (
+    DataSourceTimeout, ProviderCapacityError, ProviderPermissionError, ProviderUnavailable, SubscriptionError,
+)
 from ..models import DataKind, DataRequest, DataResult
 from ..provider import Callback, MarketDataProvider, RealtimeProvider
 from ..ticker import TickerMapper
@@ -27,12 +29,14 @@ class XtQuantProvider(MarketDataProvider, RealtimeProvider):
         DataKind.DAILY, DataKind.MINUTE, DataKind.TICK, DataKind.REALTIME,
         DataKind.STOCK_BASIC, DataKind.TRADE_CALENDAR, DataKind.FINANCIAL,
         DataKind.ADJ_FACTOR, DataKind.LEVEL2,
-        DataKind.ST, DataKind.SECTOR_MEMBER,
+        DataKind.ST, DataKind.SECTOR_MEMBER, DataKind.INSTRUMENT,
     }
 
-    def __init__(self, xtdata_client: Any | None = None, ticker_mapper: TickerMapper | None = None) -> None:
+    def __init__(self, xtdata_client: Any | None = None, ticker_mapper: TickerMapper | None = None,
+                 require_bridge: bool = False) -> None:
         self.xtdata = xtdata_client
         self.ticker_mapper = ticker_mapper or TickerMapper()
+        self.require_bridge = require_bridge
         self._callbacks: list[Callback] = []
         self._subscriptions: dict[str, list[Any]] = {}
         self._counter = itertools.count(1)
@@ -42,7 +46,9 @@ class XtQuantProvider(MarketDataProvider, RealtimeProvider):
             return self.xtdata
         try:
             from bigqmt_signal_trader.xtquant_compat import xtdata  # type: ignore
-        except ImportError:
+        except ImportError as bridge_error:
+            if self.require_bridge:
+                raise ProviderUnavailable("未安装 Big QMT 桥接客户端 xtquant-big-convert") from bridge_error
             try:
                 from xtquant import xtdata  # type: ignore
             except ImportError as exc:  # pragma: no cover - deployment guard
@@ -73,7 +79,20 @@ class XtQuantProvider(MarketDataProvider, RealtimeProvider):
         api = self._api()
         symbols = [self.ticker_mapper.to_xtquant(item, "market_data") for item in request.symbols]
         start, end = _date(request.start), _date(request.end)
-        if request.options.get("download", True) and hasattr(api, "download_history_data2") and symbols:
+        postclose = bool(request.options.get("postclose"))
+        if postclose and period == "1m":
+            start, end = start[:8] + "093000", end[:8] + "160000"
+        if postclose and request.options.get("download") and symbols:
+            try:
+                accepted = api.call_method(
+                    "download_history_data2", stock_list=symbols, period=period,
+                    start_time=start, end_time=end, incrementally=False,
+                )
+                if not accepted:
+                    raise ProviderUnavailable("QMT 端未受理历史行情下载")
+            except Exception as exc:
+                raise ProviderUnavailable(f"QMT 桥接端下载 {period} 失败: {exc}") from exc
+        elif not postclose and request.options.get("download", True) and hasattr(api, "download_history_data2") and symbols:
             try:
                 api.download_history_data2(stock_list=symbols, period=period, start_time=start, end_time=end)
             except (TimeoutError, ConnectionError) as exc:
@@ -100,12 +119,23 @@ class XtQuantProvider(MarketDataProvider, RealtimeProvider):
                 parameters = {}
             if "subscribe" in parameters:
                 kwargs["subscribe"] = False
+            if postclose:
+                if "subscribe" not in parameters:
+                    raise ProviderUnavailable("QMT 桥接行情 Adapter 缺少 subscribe=False 支持")
+                for option in ("use_formula", "heal", "backfill_pre_close"):
+                    if option in parameters:
+                        kwargs[option] = False
+                if "timeout_seconds" in parameters:
+                    kwargs["timeout_seconds"] = 60
             payload = getter(**kwargs)
         except (TimeoutError, ConnectionError) as exc:
             raise DataSourceTimeout(f"XtQuant 历史行情请求失败: {exc}") from exc
         except PermissionError as exc:
             raise ProviderPermissionError(f"XtQuant 行情权限不足: {exc}") from exc
         except Exception as exc:
+            if postclose and (isinstance(exc, MemoryError) or
+                              str(exc).startswith(("MemoryError:", "std::bad_alloc", "bad allocation"))):
+                raise ProviderCapacityError(f"QMT 读取 {period} 资源不足，共 {len(symbols)} 只: {exc}") from exc
             raise ProviderUnavailable(f"XtQuant 历史行情请求失败: {exc}") from exc
         frame = self._market_payload(payload, symbols)
         if not frame.empty and "symbol" in frame.columns:
@@ -123,11 +153,21 @@ class XtQuantProvider(MarketDataProvider, RealtimeProvider):
         except Exception as exc:
             raise ProviderUnavailable(f"XtQuant 实时行情请求失败: {exc}") from exc
         rows = []
+        execution_state = {}
         for symbol, value in (payload or {}).items():
             row = dict(value) if isinstance(value, dict) else {"value": value}
             row["symbol"] = symbol
             rows.append(row)
-        return DataResult(pd.DataFrame(rows), self.name, DataKind.REALTIME, request.request_id)
+            # Big QMT get_full_tick documents stockStatus as obsolete:
+            # cash securities use openInt (13 = continuous trading). Preserve
+            # this separately because the canonical OHLCV columns omit it.
+            state_field = "openInt" if "openInt" in row else "stockStatus"
+            execution_state[self.ticker_mapper.normalize(symbol)] = {
+                "security_status": row.get(state_field), "status_field": state_field,
+                "bid_prices": row.get("bidPrice", []), "ask_prices": row.get("askPrice", []),
+            }
+        return DataResult(pd.DataFrame(rows), self.name, DataKind.REALTIME, request.request_id,
+                          metadata={"execution_state": execution_state})
 
     def get_stock_basic(self, request: DataRequest) -> DataResult:
         api = self._api()
@@ -187,12 +227,29 @@ class XtQuantProvider(MarketDataProvider, RealtimeProvider):
 
     def get_extension(self, data_kind: DataKind, request: DataRequest) -> DataResult:
         api = self._api()
+        if data_kind == DataKind.INSTRUMENT:
+            rows = []
+            for symbol in request.symbols:
+                external = self.ticker_mapper.to_xtquant(symbol, "instrument")
+                # Bridge 0.3.78 accepts only stock_code; official SDK also
+                # permits the single-argument form.
+                detail = api.get_instrument_detail(external)
+                if detail:
+                    rows.append({**detail, "symbol": self.ticker_mapper.normalize(symbol)})
+            return DataResult(pd.DataFrame(rows), self.name, data_kind, request.request_id,
+                              metadata={"adjust": "none", "frequency": "snapshot"})
         if data_kind == DataKind.SECTOR_MEMBER:
             sector_name = str(request.options.get("sector_name", ""))
             getter = getattr(api, "get_stock_list_in_sector", None)
             if getter is None:
                 raise ProviderUnavailable("XtQuant 未提供板块成分查询")
-            values = getter(sector_name)
+            if request.as_of is not None and request.options.get("postclose"):
+                point = pd.Timestamp(request.as_of)
+                if point.tzinfo is None:
+                    point = point.tz_localize("Asia/Shanghai")
+                values = getter(sector_name, real_timetag=int(point.timestamp() * 1000))
+            else:
+                values = getter(sector_name)
             return DataResult(pd.DataFrame({"symbol": list(values or [])}), self.name, data_kind, request.request_id)
         if data_kind == DataKind.ST:
             getter = getattr(api, "get_his_st_data", None)

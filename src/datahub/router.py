@@ -70,6 +70,7 @@ class DataRouter:
         DataKind.BOARD_MEMBER: RoutePolicy(("tushare",)),
         DataKind.SECTOR_MEMBER: RoutePolicy(("xtquant", "tushare")),
         DataKind.DAILY_BULK: RoutePolicy(("tushare",)),
+        DataKind.INSTRUMENT: RoutePolicy(("xtquant",)),
     }
 
     def __init__(

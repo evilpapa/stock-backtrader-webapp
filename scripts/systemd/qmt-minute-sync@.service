@@ -1,0 +1,12 @@
+[Unit]
+Description=Big QMT 沪深京 A 股 1 分钟收盘归档
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+WorkingDirectory=%f
+ExecStart="%f/.venv/bin/python" -m scripts.sync_qmt_minute
+Environment=PYTHONUNBUFFERED=1
+TimeoutStartSec=2h
+Restart=on-failure
+RestartSec=5min

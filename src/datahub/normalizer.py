@@ -96,7 +96,10 @@ class Normalizer:
         if "datetime" not in frame:
             raise DataValidationError(f"{result.source} 行情缺少时间字段")
         frame["datetime"] = self._datetime(frame["datetime"])
-        config = self.unit_configs.get(f"{result.source}_{result.data_kind.value}", self.unit_configs.get(result.source, UnitConfig()))
+        unit_key = f"{result.source}_{result.data_kind.value}"
+        if request.options.get("postclose") and result.data_kind == DataKind.DAILY:
+            unit_key = f"{result.source}_postclose_daily"
+        config = self.unit_configs.get(unit_key, self.unit_configs.get(result.source, UnitConfig()))
         if result.metadata.get("provider_unit_contract") == "tushare-stk-mins-share-cny":
             config = UnitConfig()
         for column in ("open", "high", "low", "close", "pre_close", "adj_factor", "volume", "amount"):
@@ -109,10 +112,19 @@ class Normalizer:
         frame["source"] = result.source
         frame["frequency"] = request.frequency
         frame["adjust"] = Adjust(request.adjust).value
-        frame = frame.drop_duplicates(subset=["symbol", "datetime"], keep="last")
+        keys = ["symbol", "datetime"]
+        if request.options.get("postclose") and frame.duplicated(keys).any():
+            raise DataValidationError(f"{result.source} 返回重复行情主键")
+        frame = frame.drop_duplicates(subset=keys, keep="last")
         frame = frame.sort_values(["symbol", "datetime"]).reset_index(drop=True)
         self._validate_ohlc(frame, result.source)
-        return frame[BAR_COLUMNS]
+        bars = frame[BAR_COLUMNS]
+        if request.options.get("postclose") and "suspendFlag" in frame:
+            suspended = pd.to_numeric(frame["suspendFlag"], errors="coerce").eq(1)
+            bars.attrs["zero_trade_symbols"] = sorted(
+                frame.loc[suspended & frame["volume"].eq(0) & frame["amount"].eq(0), "symbol"].unique()
+            )
+        return bars
 
     def _normalize_basic(self, frame: pd.DataFrame, result: DataResult) -> pd.DataFrame:
         frame = self._rename(frame, {

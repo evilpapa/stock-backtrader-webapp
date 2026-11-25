@@ -1,18 +1,22 @@
-# 集合竞价 Tick 原始数据整理
+# 集合竞价 Tick 日分区
 
 ## 输入与输出
 
-`data/tick_auction/` 保存供应商原始年月 RAR，含按日 CSV 和字段说明。
-`data/tick_auction_parquet/YYYY/MM/YYYYMMDD.parquet` 是逐日整理结果；同名 JSON 记录原始压缩包、包内成员、压缩包 SHA-256、记录行数、时间范围、整理版本和输出大小。Parquet 文件自身也带来源元信息。原始压缩包不修改。
+日常数据存放在 `/data3/stock_data/stk_open_auction/YYYYMM/YYYYMMDD.csv`。新增 CSV 可由
+`AuctionTickRepository` 直接读取。`scripts/refresh_intraday_factors.py` 默认从该目录计算新增日因子，
+可用 `--auction-dir` 指定替代目录。日因子仍保存为 Parquet 和元信息 JSON，记录源 CSV 的 SHA-256。
+缺少交易日、日期与文件名不一致或同一证券时间戳存在冲突报价时停止处理。
 
-保持原有 19 列、原始数值和行顺序，压缩为 Zstandard Parquet。`security_id` 为字符串；日期、时间和成交笔数为整数；价格、成交量、成交额和盘口数量为 float64，部分日期的数量字段确有小数。`md_time` 保留供应商的整数编码，例如 `91500000` 代表 09:15:00.000；它并非时区时间戳。字段 `min`、`max` 是当日价格上下限，不是集合竞价期间价格极值。成交量单位、价格与前收复权口径依供应商原始口径保留。
+读取原有 19 列。`security_id` 为字符串；日期、时间和成交笔数为整数；价格、成交量、成交额和盘口数量为 float64，部分日期的数量字段确有小数。`md_time` 保留供应商的整数编码，例如 `91500000` 代表 09:15:00.000。字段 `min`、`max` 是当日价格上下限。成交量单位、价格与前收复权口径依供应商原始口径保留。
 
 原始数据可能包含无效报价或仍未成交的行情；例如第一阶段盘口为零时 `last` 可能不是有效虚拟撮合价。此流程不填充、不剔除、不声称逐笔完整或因子可直接使用。计算阶段极值时应独立实施并记录报价质量规则，同时以日线核对正式开盘价；应保留未通过过滤的数据，避免把缺失视为零。
 
-## 执行和校验
+## 历史 Parquet 缓存
+
+`data/tick_auction_parquet/YYYY/MM/YYYYMMDD.parquet` 是旧版逐日整理结果。同名 JSON 保留原始压缩包、包内成员、压缩包 SHA-256、记录行数、时间范围和整理版本。可用 `storage="parquet"` 读取这些分区，用于重现历史结果。
 
 ```bash
-.venv/bin/python scripts/organize_auction_ticks.py
+.venv/bin/python scripts/organize_auction_ticks.py --input-dir /path/to/original-rar-files
 .venv/bin/python scripts/catalog_auction_ticks.py
 ```
 

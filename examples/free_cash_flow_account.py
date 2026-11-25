@@ -85,7 +85,9 @@ def main():
     pd.DataFrame(coverage).to_csv(out / 'industry_coverage.csv', index=False)
     bench = load_index('932365CNY010.CSI')
     metrics, all_daily, all_orders, all_positions = [], [], [], []
+    from src.trading.strategies import write_native_weights
     for name in scenarios:
+        write_native_weights(targets[name], out / 'trading' / name / 'native_weights.csv')
         ledger, orders, positions = simulate(prices, targets[name], industries, args.start, args.end, ExecutionParams())
         ledger['return'] = ledger.nav.pct_change().fillna(ledger.nav.iloc[0] / 200_000 - 1)
         ledger['benchmark_return'] = bench.pct_change(fill_method=None).reindex(ledger.index)
