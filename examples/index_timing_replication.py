@@ -8,7 +8,8 @@ import matplotlib
 import numpy as np
 import pandas as pd
 
-from src.datahub import DataKind, DataRequest, ParquetRepository, create_service
+from src.datahub import DataKind, DataRequest, DuckDBRepository, create_service
+from src.datahub.duckdb_frames import write_frame
 from src.strategy_evaluation import evaluate_returns
 
 SYMBOL = "000300.SH"
@@ -31,7 +32,7 @@ def load_bars(cache_dir: Path) -> tuple[pd.DataFrame, dict]:
         adjust="none",
         fields=("ts_code", "trade_date", "open", "high", "low", "close"),
     )
-    service = create_service(repository=ParquetRepository(cache_dir))
+    service = create_service(repository=DuckDBRepository(cache_dir))
     try:
         raw = service.get_cached(DataKind.INDEX_DAILY, request, source="tushare")
         if raw is None or raw.empty:
@@ -174,7 +175,7 @@ def main() -> None:
         ).assign(period=name, **metadata))
 
     summary = {"data": metadata, "periods": summaries}
-    pd.concat(daily_tables).reset_index().to_parquet(args.output_dir / "daily.parquet", index=False)
+    write_frame(args.output_dir / "daily.duckdb", pd.concat(daily_tables).reset_index())
     plot_nav(curves, args.output_dir / "nav.png")
     text = json.dumps(summary, ensure_ascii=False, indent=2, allow_nan=False)
     (args.output_dir / "summary.json").write_text(text + "\n", encoding="utf-8")

@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import pandas as pd
+from filelock import FileLock
 
+from .duckdb_frames import frame_exists, frame_paths, read_frame, write_frame
 from .exceptions import StorageError
 from .models import DataKind, DataRequest, DataResult
 
@@ -52,8 +54,8 @@ class MemoryCache:
         self._items.clear()
 
 
-class ParquetRepository:
-    """按 data_kind/provider/symbol 分区的 Parquet Repository。"""
+class DuckDBRepository:
+    """按 data_kind/provider/symbol 分区的 DuckDB Repository。"""
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root)
@@ -65,32 +67,33 @@ class ParquetRepository:
         frame["__data_version"] = version
         try:
             groups = frame.groupby("symbol", dropna=False) if "symbol" in frame.columns else [(None, frame)]
-            for symbol, group in groups:
-                path = self._path(result, request, symbol)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                if path.exists():
-                    old = pd.read_parquet(path)
-                    group = pd.concat([old, group], ignore_index=True)
+            with FileLock(str(self.root / ".write.lock")):
+                for symbol, group in groups:
+                    path = self._path(result, request, symbol)
+                    if frame_exists(path):
+                        group = pd.concat([read_frame(path), group], ignore_index=True)
                     keys = [column for column in ("symbol", "datetime", "trade_date", "end_date", "ann_date") if column in group]
                     if keys:
                         group = group.drop_duplicates(keys, keep="last")
-                group.to_parquet(path, index=False)
-                path.with_suffix(".meta.json").write_text(json.dumps({"source": result.source, "version": version, "request": request.cache_key(result.source)}, ensure_ascii=False, indent=2), encoding="utf-8")
+                    write_frame(path, group, metadata={
+                        "source": result.source,
+                        "data_version": version,
+                        "request": request.cache_key(result.source),
+                    })
         except Exception as exc:
-            raise StorageError(f"Parquet 写入失败: {exc}; 请安装 pyarrow 或 fastparquet") from exc
+            raise StorageError(f"DuckDB 写入失败: {exc}") from exc
         return version
 
     def query(self, data_kind: DataKind | str, request: DataRequest, *, source: str | None = None) -> DataResult | None:
         kind = DataKind(str(data_kind))
-        candidates = list(self.root.glob(f"{kind.value}/**/*.parquet"))
-        if source:
-            candidates = [path for path in candidates if f"/{source}/" in path.as_posix()]
+        directory = self.root / kind.value
+        candidates = frame_paths(directory / source if source else directory, "**/data")
         frames = []
         for path in candidates:
             try:
-                frames.append(pd.read_parquet(path))
+                frames.append(read_frame(path))
             except Exception as exc:
-                raise StorageError(f"Parquet 读取失败 {path}: {exc}") from exc
+                raise StorageError(f"DuckDB 读取失败 {path}: {exc}") from exc
         if not frames:
             return None
         frame = pd.concat(frames, ignore_index=True)
@@ -100,7 +103,7 @@ class ParquetRepository:
         version = str(frame["__data_version"].iloc[0]) if "__data_version" in frame and not frame.empty else ""
         frame = frame.drop(columns=["__data_version"], errors="ignore")
         actual_source = source or (str(frame["source"].iloc[0]) if "source" in frame and not frame.empty else "storage")
-        return DataResult(frame, actual_source, kind, metadata={"storage": "parquet", "data_version": version})
+        return DataResult(frame, actual_source, kind, metadata={"storage": "duckdb", "data_version": version})
 
     def close(self) -> None:
         return None
@@ -108,7 +111,7 @@ class ParquetRepository:
     def _path(self, result: DataResult, request: DataRequest, symbol: Any | None = None) -> Path:
         value = request.symbol if symbol is None or pd.isna(symbol) else symbol
         partition = str(value or "_market").replace(".", "_")
-        return self.root / result.data_kind.value / result.source / f"symbol={partition}" / "data.parquet"
+        return self.root / result.data_kind.value / result.source / f"symbol={partition}" / "data.duckdb"
 
 
 class SQLiteRepository:

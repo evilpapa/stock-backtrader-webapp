@@ -13,6 +13,7 @@ if script_dir in sys.path:
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd
 from src.datahub import DataRequest
+from src.datahub.duckdb_frames import frame_exists, promote_frame, read_frame, write_frame
 from src.datahub.models import DataKind
 from src.datahub.local_minute_repository import LocalMinuteRepository
 from src.datahub.auction_tick_repository import DEFAULT_AUCTION_DIR, AuctionTickRepository
@@ -32,19 +33,19 @@ def main():
     p.add_argument("--base-root", type=Path, help="上次完整刷新，复用已验证且股票池未受影响的日因子")
     p.add_argument("--auction-dir", type=Path, default=DEFAULT_AUCTION_DIR)
     args = p.parse_args()
-    snapshots = args.root / "csi500/snapshots.parquet"
-    snap = pd.read_parquet(snapshots)
+    snapshots = promote_frame(args.root / "csi500/snapshots.duckdb")
+    snap = read_frame(snapshots)
     symbols = sorted(snap.con_code.unique())
-    old_snap = args.base_root / "csi500/snapshots.parquet" if args.base_root else snapshots
+    old_snap = args.base_root / "csi500/snapshots.duckdb" if args.base_root else snapshots
     if args.base_root and args.base_root.resolve() == args.root.resolve():
         p.error("--base-root 与 --root 必须是不同的目录")
-    old_symbols = sorted(pd.read_parquet(old_snap).con_code.unique())
+    old_symbols = sorted(read_frame(old_snap).con_code.unique())
     base_manifest = json.loads((args.base_root / "factor_manifest.json").read_text()) if args.base_root else {}
     base_end = pd.Timestamp(base_manifest["end"]) if base_manifest else None
     extra = set(symbols) - set(old_symbols)
     first_extra = pd.to_datetime(snap.loc[snap.con_code.isin(extra), "trade_date"].astype(str),
                                  format="%Y%m%d").min() + pd.Timedelta(days=31)
-    calendar = pd.DatetimeIndex(pd.read_parquet(args.root / "calendar.parquet").date)
+    calendar = pd.DatetimeIndex(read_frame(args.root / "calendar.duckdb").date)
     end = pd.Timestamp(args.end)
     if end not in calendar or calendar.has_duplicates or not calendar.is_monotonic_increasing:
         raise ValueError("交易日历无效或不覆盖截止日")
@@ -64,10 +65,10 @@ def main():
             counts = {}
             for auction in [False, True]:
                 folder = "auction/daily" if auction else "minute"
-                output = args.root / folder / f"{key}.parquet"
+                output = args.root / folder / f"{key}.duckdb"
                 output.parent.mkdir(parents=True, exist_ok=True)
                 impl = sha("src/strategy/auction_factors.py" if auction else "src/strategy/intraday_factors.py")
-                if output.exists() and output.with_suffix(".json").exists():
+                if frame_exists(output) and output.with_suffix(".json").exists():
                     result, metadata = load_factors(output, day, symbols, snapshots, auction=auction)
                     if auction and metadata["mode"] == "computed":
                         source = auction_repo.csv_path(key)
@@ -78,7 +79,7 @@ def main():
                 meta = dict(common, date=key, implementation_sha256=impl)
                 # 为新增证券的五日滚动窗口留出余量。
                 if base_end is not None and day <= base_end and (not extra or day + pd.Timedelta(days=14) < first_extra):
-                    parent = args.base_root / folder / output.name
+                    parent = promote_frame(args.base_root / folder / output.name)
                     result, old = load_factors(parent, day, old_symbols, old_snap, auction=auction)
                     if old["refresh_builder_sha256"] != base_manifest["refresh_builder_sha256"]:
                         raise ValueError(f"父缓存构建版本与其清单不一致: {parent}")
@@ -92,7 +93,10 @@ def main():
                     meta.update(mode="reused", parent_file=str(parent), parent_sha256=sha(parent),
                                 parent_metadata={k: v for k, v in old.items() if k != "parent_metadata"},
                                 computed_symbols=old.get("computed_symbols", old_symbols))
-                    os.link(parent, output)
+                    if parent.suffix == ".duckdb":
+                        os.link(parent, output)
+                    else:
+                        write_frame(output, result)
                 else:
                     request = DataRequest(symbols=tuple(symbols), start=day, end=day,
                                           frequency="tick" if auction else "1m", adjust="none")
@@ -126,7 +130,7 @@ def main():
                                 frequency="tick" if auction else "1m", adjust="none_assumed" if not auction else "none")
                     if result.empty:
                         raise ValueError(f"因子结果为空 {day} {folder}")
-                    result.to_parquet(output, index=False)
+                    write_frame(output, result)
                 meta.update(rows=len(result), output_sha256=sha(output))
                 output.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False, indent=2))
                 counts[folder] = len(result)

@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from scripts.fetch_citic_industry_by_stock import REF, OUTPUT
+from src.datahub.duckdb_frames import read_frame, write_frame
 from src.utils.industry_history import build_industry_matrix
 
 
@@ -15,9 +16,9 @@ def main():
     parser.add_argument('--end', default='2025-12-31')
     parser.add_argument('--out', type=Path, default=Path('examples/free_cash_flow/industry_validation'))
     args = parser.parse_args()
-    old = pd.read_parquet(REF / 'citic_member_by_industry.parquet')
-    new = pd.read_parquet(OUTPUT)
-    basic = pd.read_parquet(REF / 'stock_basic.parquet').drop_duplicates('ts_code').set_index('ts_code')
+    old = read_frame(REF / 'citic_member_by_industry.duckdb')
+    new = read_frame(OUTPUT)
+    basic = read_frame(REF / 'stock_basic.duckdb').drop_duplicates('ts_code').set_index('ts_code')
     listed = pd.to_datetime(basic['list_date'], errors='coerce')
     delisted = pd.to_datetime(basic['delist_date'], errors='coerce')
     dates = pd.date_range(args.start, args.end, freq='YE')
@@ -37,7 +38,7 @@ def main():
                      'different': (both & left.ne(right)).sum()})
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
-    by_stock.to_parquet(out / 'industry_matrix_by_stock.parquet')
+    write_frame(out / 'industry_matrix_by_stock.duckdb', by_stock.reset_index())
     pd.DataFrame(rows).to_csv(out / 'year_end_coverage.csv', index=False)
     print(pd.DataFrame(rows).to_string(index=False))
 

@@ -19,11 +19,12 @@ from pathlib import Path
 import pandas as pd
 
 from src.utils.datahub_client import DataHubClient
+from src.datahub.duckdb_frames import frame_exists, read_frame, write_frame
 
 REF = Path('data/free_cash_flow/reference')
-SOURCE = REF / 'stock_basic.parquet'
+SOURCE = REF / 'stock_basic.duckdb'
 BATCH_DIR = REF / 'citic_stock_batches'
-OUTPUT = REF / 'citic_member_by_stock.parquet'
+OUTPUT = REF / 'citic_member_by_stock.duckdb'
 MANIFEST = REF / 'citic_member_by_stock_manifest.json'
 PAGE_SIZE = 3000
 
@@ -66,14 +67,14 @@ def fetch_all(codes: list[str], client_factory=DataHubClient, batch_dir: Path = 
 
     def one(job):
         code, status = job
-        path = batch_dir / f'{code}_{status}.parquet'
-        if path.exists():
-            frame = pd.read_parquet(path)
+        path = batch_dir / f'{code}_{status}.duckdb'
+        if frame_exists(path):
+            frame = read_frame(path)
         else:
             for attempt in range(retries):
                 try:
                     frame = fetch_stock(get_client(), code, status)
-                    frame.to_parquet(path, index=False)
+                    write_frame(path, frame)
                     break
                 except Exception:
                     if attempt + 1 == retries:
@@ -110,12 +111,12 @@ def main():
     parser.add_argument('--workers', type=int, default=2)
     parser.add_argument('--retries', type=int, default=3)
     args = parser.parse_args()
-    basic = pd.read_parquet(SOURCE)
+    basic = read_frame(SOURCE)
     codes = stock_codes(basic)
     if not codes:
         raise ValueError('股票代码池为空')
     data, records = fetch_all(codes, workers=args.workers, retries=args.retries)
-    data.to_parquet(OUTPUT, index=False)
+    write_frame(OUTPUT, data)
     manifest = {'provider': 'tushare', 'data_kind': 'index_member', 'api': 'ci_index_member',
                 'stock_universe': str(SOURCE), 'stock_count': len(codes), 'rows': len(data),
                 'completed_at_utc': datetime.now(timezone.utc).isoformat(), 'batches': records}

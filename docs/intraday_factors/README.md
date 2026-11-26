@@ -51,7 +51,7 @@
 `data/intraday_factors/csi500/` 中保存 Tushare `index_weight` 的 `000905.SH`
 月度权重快照：2020-12-31 至 2026-01-30，共 62 期、31,000 行。每期 500
 只、共 930 个不同证券；相邻快照的变动表包含观察到的 505 次增加和 505 次移出。
-`snapshots.parquet` 是原始快照，`observed_changes.parquet` 的两个日期仅是变动
+`snapshots.duckdb` 保存原始快照，`observed_changes.duckdb` 的两个日期仅是变动
 发生的区间边界，**不是实际进出或公告生效日**，也无法发现一个月内进出又恢复的
 变动；快照的可获得时点尚未核实。`manifest.json` 记录批次、快照日期、来源和覆盖，
 `index_weight.sqlite` 是 DataHub Repository 的断点缓存。
@@ -137,7 +137,7 @@ QMT 超时会中止运行，不会静默切换 Tushare。较长覆盖抽样：60
 第一步从本地竞价 Tick 仓库生成可断点续跑的每日因子缓存；每日元信息记录源文件、
 证券集合和实现代码的哈希。第二步读取 Tushare 本地日线、历史 ST、证券基础信息、
 中证500指数日线与月度成分快照，输出到 `examples/intraday_factors/auction_history_csv/`：
-`factor_summary.csv`、`weekly_research.csv`、`coverage.parquet`、
+`factor_summary.csv`、`weekly_research.csv`、`coverage.duckdb`、
 `universe_snapshots.csv` 和 `manifest.json`。原始 ST 日文件缺失或为空时中止，
 不会将缺失数据当作全市场无 ST。
 

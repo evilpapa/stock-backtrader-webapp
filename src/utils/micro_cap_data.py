@@ -12,13 +12,14 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from src.datahub.duckdb_frames import frame_paths, read_frame
 
 DATA_DIR = Path("data") / "micro_cap_timing_plus"
 
 
 def _load_daily_files(api: str, columns: list[str], raw_dir: Path) -> pd.DataFrame:
-    files = sorted((raw_dir / api).glob("*.parquet"))
-    frames = [pd.read_parquet(path, columns=columns) for path in files]
+    files = frame_paths(raw_dir / api)
+    frames = [read_frame(path, columns=columns) for path in files]
     frames = [frame for frame in frames if not frame.empty]
     return pd.concat(frames, ignore_index=True)
 
@@ -54,7 +55,7 @@ def load_raw_panels(data_dir: Path = DATA_DIR) -> dict[str, pd.DataFrame]:
 
 def listing_matrix(index: pd.DatetimeIndex, columns: pd.Index, data_dir: Path = DATA_DIR) -> pd.DataFrame:
     """每只股票累计已上市交易日数矩阵，用于剔除次新股。"""
-    basic = pd.read_parquet(data_dir / "reference" / "stock_basic.parquet").drop_duplicates("ts_code")
+    basic = read_frame(data_dir / "reference" / "stock_basic.duckdb").drop_duplicates("ts_code")
     listed = pd.to_datetime(basic.set_index("ts_code")["list_date"], errors="coerce").reindex(columns)
     filled = listed.fillna(pd.Timestamp("1990-01-01"))
     start_pos = index.searchsorted(filled.to_numpy())  # 首个不早于上市日的交易日位置

@@ -10,8 +10,11 @@ import time
 
 import pandas as pd
 
+if str(Path(__file__).resolve().parent) in sys.path:
+    sys.path.remove(str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.datahub import DataRequest, create_service
+from src.datahub.duckdb_frames import write_frame
 from src.datahub.models import DataKind
 from src.datahub.storage import SQLiteRepository
 
@@ -81,8 +84,8 @@ def main() -> None:
     months = set(pd.PeriodIndex(pd.to_datetime(counts.index, format='%Y%m%d'), freq='M'))
     expected = set(pd.period_range(start, end, freq='M'))
     changes = changes_between_snapshots(data)
-    data.to_parquet(args.output_dir / 'snapshots.parquet', index=False)
-    changes.to_parquet(args.output_dir / 'observed_changes.parquet', index=False)
+    write_frame(args.output_dir / 'snapshots.duckdb', data)
+    write_frame(args.output_dir / 'observed_changes.duckdb', changes)
     manifest = {'source':'tushare', 'interface':'index_weight', 'index_code':'000905.SH',
                 'retrieved_at':datetime.now().astimezone().isoformat(), 'start':args.start, 'end':args.end,
                 'rows':len(data), 'unique_stocks':int(data.con_code.nunique()),

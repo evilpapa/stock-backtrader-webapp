@@ -6,8 +6,11 @@ import json
 from pathlib import Path
 import sys
 import pandas as pd
+if str(Path(__file__).resolve().parent) in sys.path:
+    sys.path.remove(str(Path(__file__).resolve().parent))
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from src.datahub import create_service,DataRequest
+from src.datahub.duckdb_frames import file_sha256, frame_exists, matches_frame_hash, promote_frame, read_frame, write_frame
 from src.datahub.models import DataKind
 from src.datahub.auction_tick_repository import DEFAULT_AUCTION_DIR, AuctionTickRepository
 from src.datahub.service import MarketDataService
@@ -19,11 +22,11 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--start',default='2021-01-04');p.add_argument('--end',default='2026-02-27')
     p.add_argument('--output-dir',type=Path)
-    p.add_argument('--snapshots',type=Path,default=Path('data/intraday_factors/csi500/snapshots.parquet'))
+    p.add_argument('--snapshots',type=Path,default=Path('data/intraday_factors/csi500/snapshots.duckdb'))
     p.add_argument('--auction-dir',type=Path)
-    p.add_argument('--auction-storage',choices=('csv','parquet'),default='csv')
+    p.add_argument('--auction-storage',choices=('csv','duckdb','parquet'),default='csv')
     args=p.parse_args()
-    snapshot=pd.read_parquet(args.snapshots)
+    snapshot=read_frame(args.snapshots)
     symbols=tuple(sorted(snapshot.con_code.dropna().unique()))
     if not symbols:
         raise ValueError('股票池快照为空')
@@ -42,23 +45,27 @@ def main():
             ('auction_history_csv' if is_csv else 'auction_history'))/'daily'
     output.mkdir(parents=True,exist_ok=True)
     for i,day in enumerate(days,1):
-        key=day.strftime('%Y%m%d'); path=output/(key+'.parquet'); info=output/(key+'.json')
+        key=day.strftime('%Y%m%d'); path=output/(key+'.duckdb'); info=path.with_suffix('.json')
         result=local.get_cached(DataKind.TICK,DataRequest(symbols=symbols,start=day,end=day,frequency='tick',adjust='none'))
         if result is None or result.empty:
             raise ValueError(f'{key} 竞价分区缺失或股票池为空')
-        if path.exists() or info.exists():
-            if path.exists() and info.exists():
+        if frame_exists(path) or info.exists():
+            if frame_exists(path) and info.exists():
                 meta=json.loads(info.read_text(encoding='utf-8'))
                 if meta['symbols_sha256']==symbols_hash and meta['auction_data_version']==result.attrs['data_version'] and meta['version']==1 and meta.get('implementation_sha256')==implementation_hash:
+                    promote_frame(path)
+                    if meta.get('output_sha256') and not matches_frame_hash(path, meta['output_sha256']):
+                        raise ValueError(f'{key} 因子输出校验失败: {path}')
                     if i%50==0:print(f'{i}/{len(days)} {key} 已缓存',flush=True)
                     continue
             raise ValueError(f'{key} 缓存存在但来源不匹配；请检查 {path} 和 {info}')
         f,q=auction_daily_factors_vectorized(result)
         data=f.merge(q[['symbol','date','auction_open','auction_pre_close','stage1_valid','stage2_valid']],on=['symbol','date'],validate='one_to_one')
-        data.to_parquet(path,index=False)
+        write_frame(path, data)
         provenance={k:result.attrs[k] for k in ('source_path','source_csv_sha256','archive_sha256','duplicates_removed')
                     if k in result.attrs}
         info.write_text(json.dumps({'version':1,'date':key,'rows':len(data),'symbols_sha256':symbols_hash,
+                                   'output_sha256':file_sha256(path),
                                    'auction_data_version':result.attrs['data_version'],'implementation_sha256':implementation_hash,
                                    **provenance,'source':repo.source,
                                    'frequency':'tick','adjust':'none','quality_rule':'bid1=ask1=last, 限价内, 每阶段至少2条'},ensure_ascii=False,indent=2),encoding='utf-8')

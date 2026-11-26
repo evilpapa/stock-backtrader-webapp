@@ -1,4 +1,4 @@
-"""重现历史缓存，将指定目录的年月 RAR 无损整理为按日 Parquet。"""
+"""将指定目录的年月 RAR 无损整理为按日 DuckDB。"""
 from __future__ import annotations
 
 import argparse
@@ -11,11 +11,15 @@ import subprocess
 import sys
 import time
 import uuid
+from tempfile import TemporaryDirectory
 
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.csv as csv
-import pyarrow.parquet as pq
+if str(Path(__file__).resolve().parent) in sys.path:
+    sys.path.remove(str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from src.datahub.duckdb_frames import frame_exists, inspect_frame, promote_frame, read_frame, write_frame
 
 FIELDS = ['security_id', 'md_date', 'md_time', 'min', 'max', 'pre_close', 'last', 'open',
           'num_trades', 'total_volume_trade', 'total_value_trade', 'bid1', 'bid2', 'bid_size1',
@@ -65,31 +69,30 @@ def convert_stream(stream, target: Path, date: str, source: dict) -> dict:
         raise ValueError(f'字段不一致: {reader.schema.names}')
     if any(reader.schema.field(k).type != v for k, v in TYPES.items()):
         raise ValueError('字段类型不一致')
-    metadata = {b'source_archive': source['archive'].encode(), b'source_member': source['member'].encode(),
-                b'archive_sha256': source['archive_sha256'].encode(), b'organizer_version': str(VERSION).encode(),
-                b'price_adjust': b'unknown', b'volume_unit': b'provider_raw'}
-    schema = reader.schema.with_metadata(metadata)
+    metadata = dict(source, source_member=source['member'], organizer_version=str(VERSION),
+                    price_adjust='unknown', volume_unit='provider_raw')
     rows = 0
     min_time = None
     max_time = None
-    with pq.ParquetWriter(target, schema, compression='zstd') as writer:
-        for batch in reader:
-            if batch.num_rows == 0:
-                continue
-            for col in ('security_id', 'md_date', 'md_time'):
-                if batch.column(col).null_count:
-                    raise ValueError(f'{date} {col} 含空值')
-            dates = batch.column('md_date')
-            if pc.min(dates).as_py() != int(date) or pc.max(dates).as_py() != int(date):
-                raise ValueError(f'{date} 文件含其他行情日期')
-            tmin = pc.min(batch.column('md_time')).as_py()
-            tmax = pc.max(batch.column('md_time')).as_py()
-            min_time = tmin if min_time is None else min(min_time, tmin)
-            max_time = tmax if max_time is None else max(max_time, tmax)
-            writer.write_batch(batch)
-            rows += batch.num_rows
+    batches = []
+    for batch in reader:
+        if batch.num_rows == 0:
+            continue
+        for col in ('security_id', 'md_date', 'md_time'):
+            if batch.column(col).null_count:
+                raise ValueError(f'{date} {col} 含空值')
+        dates = batch.column('md_date')
+        if pc.min(dates).as_py() != int(date) or pc.max(dates).as_py() != int(date):
+            raise ValueError(f'{date} 文件含其他行情日期')
+        tmin = pc.min(batch.column('md_time')).as_py()
+        tmax = pc.max(batch.column('md_time')).as_py()
+        min_time = tmin if min_time is None else min(min_time, tmin)
+        max_time = tmax if max_time is None else max(max_time, tmax)
+        batches.append(batch)
+        rows += batch.num_rows
     if rows == 0:
         raise ValueError(f'{date} 文件无行情行')
+    write_frame(target, pa.Table.from_batches(batches, schema=reader.schema), metadata=metadata)
     return {'rows': rows, 'min_md_time': min_time, 'max_md_time': max_time}
 
 
@@ -114,63 +117,58 @@ def main() -> None:
         dest_dir.mkdir(parents=True, exist_ok=True)
         n_new = n_skip = 0
         for date, member in files:
-            target = dest_dir / f'{date}.parquet'
+            target = dest_dir / f'{date}.duckdb'
             info_path = dest_dir / f'{date}.json'
             source = {'archive': str(archive), 'member': member, 'archive_sha256': archive_hash}
-            if target.exists() or info_path.exists():
-                if target.exists() and info_path.exists():
+            if frame_exists(target) or info_path.exists():
+                if frame_exists(target) and info_path.exists():
                     old = json.loads(info_path.read_text(encoding='utf-8'))
-                    pf = pq.ParquetFile(target)
-                    meta = pf.schema_arrow.metadata or {}
+                    rows, meta = inspect_frame(target)
                     consistent = (old.get('archive_sha256') == archive_hash
-                                  and old.get('rows') == pf.metadata.num_rows
-                                  and meta.get(b'archive_sha256') == archive_hash.encode()
-                                  and meta.get(b'source_member') == member.encode())
-                    file_version = meta.get(b'organizer_version', b'').decode()
+                                  and old.get('member') == member
+                                  and old.get('rows') == rows
+                                  and meta.get('archive_sha256') == archive_hash
+                                  and meta.get('source_member', old.get('member')) == member)
+                    file_version = meta.get('organizer_version', str(old.get('version')))
                     if consistent and old.get('version') in (1, VERSION) and file_version in ('1', str(VERSION)):
                         if file_version == '1':
                             # 原版本数量列为整数；安全检查后升级为统一 float64 类型。
-                            table = pf.read()
-                            float_fields = [k for k,v in TYPES.items() if pa.types.is_float64(v)]
-                            for name in float_fields:
-                                col = table[name]
-                                if pa.types.is_integer(col.type) and len(col):
-                                    max_abs = pc.max(pc.abs(col)).as_py()
-                                    if max_abs is not None and max_abs > 2**53:
+                            frame = read_frame(target)
+                            for name, dtype in TYPES.items():
+                                if pa.types.is_float64(dtype) and frame[name].dtype.kind in 'iu':
+                                    if frame[name].abs().max() > 2**53:
                                         raise ValueError(f'{target}: {name} 超过 float64 精确整数范围')
-                            new_meta = dict(meta)
-                            new_meta[b'organizer_version'] = str(VERSION).encode()
-                            new_schema = pa.schema([pa.field(name, TYPES[name]) for name in FIELDS], metadata=new_meta)
-                            upgraded = table.cast(new_schema)
-                            temp = dest_dir / (date + '.' + uuid.uuid4().hex + '.partial')
-                            pq.write_table(upgraded, temp, compression='zstd')
-                            os.replace(temp, target)
-                        if file_version == '1' or old.get('version') != VERSION:
+                            schema = pa.schema([pa.field(name, TYPES[name]) for name in FIELDS])
+                            upgraded = pa.Table.from_pandas(frame, schema=schema, preserve_index=False)
+                            write_frame(target, upgraded, metadata=dict(meta, organizer_version=str(VERSION)))
+                        persisted = promote_frame(target)
+                        if old.get('version') != VERSION or 'duckdb_bytes' not in old:
                             old['version'] = VERSION
-                            old['parquet_bytes'] = target.stat().st_size
+                            old['duckdb_bytes'] = persisted.stat().st_size
                             atomic_json(info_path, old)
                         n_skip += 1
                         continue
                 raise RuntimeError(f'已存在不匹配或不完整的输出，请检查: {target} {info_path}')
-            tmp = dest_dir / (date + '.' + uuid.uuid4().hex + '.partial')
-            proc = subprocess.Popen(['unrar', 'p', '-inul', '-c-', str(archive), member], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            try:
-                result = convert_stream(proc.stdout, tmp, date, source)
-                proc.stdout.close()
-                stderr = proc.stderr.read().decode('utf-8', errors='replace')
-                code = proc.wait()
-                if code:
-                    raise RuntimeError(f'解压失败 {archive} {member}: {code} {stderr[:500]}')
-            except BaseException:
-                proc.kill()
-                proc.wait()
-                raise
-            os.replace(tmp, target)
-            info = {'date': date, 'version': VERSION, **source, **result, 'parquet_bytes': target.stat().st_size}
+            with TemporaryDirectory(dir=dest_dir) as staging:
+                tmp = Path(staging) / target.name
+                with subprocess.Popen(['unrar', 'p', '-inul', '-c-', str(archive), member],
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+                    try:
+                        result = convert_stream(proc.stdout, tmp, date, source)
+                        proc.stdout.close()
+                        stderr = proc.stderr.read().decode('utf-8', errors='replace')
+                        code = proc.wait()
+                        if code:
+                            raise RuntimeError(f'解压失败 {archive} {member}: {code} {stderr[:500]}')
+                    except BaseException:
+                        proc.kill()
+                        raise
+                os.replace(tmp, target)
+            info = {'date': date, 'version': VERSION, **source, **result, 'duckdb_bytes': target.stat().st_size}
             atomic_json(info_path, info)
             n_new += 1
         print(f'{index}/{len(archives)} {archive.stem}: {len(files)} 天、新增 {n_new}、跳过 {n_skip}，{time.monotonic()-started:.1f} 秒', flush=True)
-    print('逐日 Parquet 整理完成。')
+    print('逐日 DuckDB 整理完成。')
 
 
 if __name__ == '__main__':

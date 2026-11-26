@@ -60,10 +60,12 @@ def draw_multi_line(df: pd.DataFrame, title: str = "") -> Line:
 	for column in df.columns:
 		if column == "Date":
 			continue
-		# 非日期列均视作需要展示的指标序列。
+		# 非日期列均视作需要展示的指标序列；缺失值转为 None 避免 ECharts JSON 出现 NaN。
+		series = pd.to_numeric(df[column], errors="coerce").round(6)
+		values = [None if pd.isna(v) else float(v) for v in series]
 		line.add_yaxis(
 			column,
-			df[column].round(6).tolist(),
+			values,
 			is_smooth=True,
 			is_symbol_show=False,
 			label_opts=opts.LabelOpts(is_show=False),

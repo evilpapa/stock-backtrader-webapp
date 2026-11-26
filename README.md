@@ -157,7 +157,7 @@ finally:
 | **TUSHARE_TOKEN**         | Tushare Adapter 使用的访问令牌；从环境变量读取。                   |
 | **QMT_PATH**              | XtQuant/QMT Adapter 使用的本地 QMT 路径；从环境变量读取。           |
 | **timeout / retries**     | 在 DataHub YAML 中配置请求超时和重试次数。                          |
-| **cache / storage**       | 在 DataHub YAML 中配置内存缓存、SQLite/Parquet 持久化和版本记录。    |
+| **cache / storage**       | DataHub 支持内存缓存、SQLite 和 DuckDB 持久化及版本记录。    |
 
 ### Backtrader 回测参数
 

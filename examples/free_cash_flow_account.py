@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from src.datahub.duckdb_frames import frame_exists, frame_paths, read_frame, write_frame
 
 from examples.free_cash_flow import DATA_DIR, _load_daily, load_panels, load_index, market_snapshot
 from src.strategy.free_cash_flow import (FreeCashFlowParams, build_fundamentals, candidate_pool,
@@ -19,23 +20,23 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--start', default='2014-01-02')
     parser.add_argument('--end', default='2026-10-30')
-    parser.add_argument('--industry-members', type=Path, default=DATA_DIR / 'reference/citic_member_by_industry.parquet')
+    parser.add_argument('--industry-members', type=Path, default=DATA_DIR / 'reference/citic_member_by_industry.duckdb')
     parser.add_argument('--output-dir', type=Path, default=Path('examples/free_cash_flow/account_industry'))
     args = parser.parse_args()
     params = FreeCashFlowParams()
     panels = load_panels('2012-10-01')
     trading_days = panels['returns'].index
-    basic = pd.read_parquet(DATA_DIR / 'reference/stock_basic.parquet').drop_duplicates('ts_code').set_index('ts_code')
+    basic = read_frame(DATA_DIR / 'reference/stock_basic.duckdb').drop_duplicates('ts_code').set_index('ts_code')
     basic['list_date'] = pd.to_datetime(basic['list_date'], errors='coerce')
-    if not args.industry_members.exists():
+    if not frame_exists(args.industry_members):
         raise FileNotFoundError(f'缺少分行业成员缓存 {args.industry_members}；先运行 python -m scripts.fetch_citic_industry_history')
-    members = pd.read_parquet(args.industry_members)
+    members = read_frame(args.industry_members)
     # 原有财务构造将最新修订数回填至首次公告日。这里在每个截面先按公告日截断原始版本，
     # 再计算 TTM，避免使用已知晚于该截面的修订；供应商覆盖式修订仍无法从缓存恢复。
     raw = {}
     for name in ('income', 'cashflow', 'balancesheet'):
-        files = sorted((DATA_DIR / 'financial' / name).glob('*.parquet'))
-        raw[name] = pd.concat([pd.read_parquet(p) for p in files], ignore_index=True)
+        files = frame_paths(DATA_DIR / 'financial' / name)
+        raw[name] = pd.concat([read_frame(path) for path in files], ignore_index=True)
         for col in ('ann_date', 'f_ann_date', 'end_date'):
             values = pd.to_datetime(raw[name][col], errors='coerce')
             raw[name][col] = values.dt.tz_localize(None) if values.dt.tz is not None else values
@@ -81,7 +82,7 @@ def main():
               for name, col in [('open', 'open'), ('high', 'high'), ('low', 'low'), ('close', 'close'), ('pre_close', 'pre_close'), ('volume', 'vol')]}
     out = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
-    industry_matrix.to_parquet(out / 'industry_matrix.parquet')
+    write_frame(out / 'industry_matrix.duckdb', industry_matrix.reset_index())
     pd.DataFrame(coverage).to_csv(out / 'industry_coverage.csv', index=False)
     bench = load_index('932365CNY010.CSI')
     metrics, all_daily, all_orders, all_positions = [], [], [], []

@@ -9,8 +9,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+if str(Path(__file__).resolve().parent) in sys.path:
+    sys.path.remove(str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.datahub import DataRequest
+from src.datahub.duckdb_frames import promote_frame, read_frame
 from src.datahub.models import DataKind
 from src.datahub.auction_tick_repository import AuctionTickRepository
 from src.datahub.service import MarketDataService
@@ -30,19 +33,20 @@ def main():
     metrics = json.loads((out / "metrics.json").read_text())
     manifest = json.loads((args.root / "factor_manifest.json").read_text())
     cutoff = pd.Timestamp(manifest["end"])
-    calendar = pd.DatetimeIndex(pd.read_parquet(args.root / "calendar.parquet").date)
+    calendar = pd.DatetimeIndex(read_frame(args.root / "calendar.duckdb").date)
     days = calendar[calendar <= cutoff]
-    snapshots = args.root / "csi500/snapshots.parquet"
-    symbols = sorted(pd.read_parquet(snapshots).con_code.unique())
+    snapshots = args.root / "csi500/snapshots.duckdb"
+    snapshot_frame = read_frame(snapshots)
+    symbols = sorted(snapshot_frame.con_code.unique())
     versions = []
     duplicates = []
     service = MarketDataService(DataRouter({}), repository=AuctionTickRepository(
-        "data/tick_auction_parquet", storage="parquet"))
+        "data/tick_auction_parquet", storage="duckdb"))
     try:
         for day in days:
             key = f"{day:%Y%m%d}"
             for auction in [False, True]:
-                path = args.root / ("auction/daily" if auction else "minute") / (key + ".parquet")
+                path = promote_frame(args.root / ("auction/daily" if auction else "minute") / (key + ".duckdb"))
                 frame, meta = load_factors(path, day, symbols, snapshots, auction=auction)
                 versions.append(dict(date=key, kind="auction" if auction else "minute",
                                      output_sha256=sha(path), rows=len(frame), mode=meta["mode"]))
@@ -72,7 +76,8 @@ def main():
         service.close()
     pd.DataFrame(versions).to_csv(args.results / "factor_versions.csv", index=False)
     pd.DataFrame(duplicates).to_csv(args.results / "duplicate_cleanup.csv", index=False)
-    cov = pd.read_parquet(args.results / "auction_history/coverage.parquet")
+    coverage = promote_frame(args.results / "auction_history/coverage.duckdb")
+    cov = read_frame(coverage)
     cov["date"] = pd.to_datetime(cov.date)
     if not pd.DatetimeIndex(sorted(cov.date.unique())).equals(days):
         raise ValueError("资格与因子交易日不一致")
@@ -93,8 +98,8 @@ def main():
     pieces = []
     for day in last_days:
         key = f"{day:%Y%m%d}"
-        minute = pd.read_parquet(args.root / "minute" / (key + ".parquet"))
-        auction = pd.read_parquet(args.root / "auction/daily" / (key + ".parquet"))
+        minute = read_frame(args.root / "minute" / (key + ".duckdb"))
+        auction = read_frame(args.root / "auction/daily" / (key + ".duckdb"))
         pieces.append(minute.merge(auction[["symbol", "date"] + FACTOR_COLUMNS], on=["symbol", "date"],
                                     how="outer", validate="one_to_one"))
     recent = pd.concat(pieces, ignore_index=True)
@@ -128,8 +133,8 @@ def main():
     summary = dict(
         factor_start=manifest["start"], factor_end=manifest["end"], latest_signal=str(last_signal.date()),
         minute_dates=len(days), auction_dates=len(days), factors=len(factors), symbols_union=len(symbols),
-        monthly_snapshot_count=int(pd.read_parquet(snapshots).trade_date.nunique()),
-        latest_snapshot=str(pd.read_parquet(snapshots).trade_date.max()), latest_used_snapshot=used_snapshot,
+        monthly_snapshot_count=int(snapshot_frame.trade_date.nunique()),
+        latest_snapshot=str(snapshot_frame.trade_date.max()), latest_used_snapshot=used_snapshot,
         latest_execution=str(schedule[last_signal].date()), latest_candidate_count=len(score), latest_targets=len(selection),
         latest_priced_targets=int(selection.can_price.sum()), latest_holdings=len(holdings),
         ic_latest_realized_exit=str(ic.exit_date.max().date()),
@@ -138,7 +143,7 @@ def main():
         fee_reconciliation=True, cash_position_reconciliation=True,
         before_2026_overlap_dates=len(overlap), before_2026_max_equity_difference=before_2026_delta,
         duplicate_cleanup=duplicates, auction_repository_sha256=sha("src/datahub/auction_tick_repository.py"),
-        metrics_sha256=sha(out / "metrics.json"), coverage_sha256=sha(args.results / "auction_history/coverage.parquet")
+        metrics_sha256=sha(out / "metrics.json"), coverage_sha256=sha(coverage)
     )
     (args.results / "audit.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2))
     print(json.dumps(summary, ensure_ascii=False, indent=2))

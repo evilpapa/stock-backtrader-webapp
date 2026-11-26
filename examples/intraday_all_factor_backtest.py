@@ -10,6 +10,7 @@ from src.strategy.auction_factors import FACTOR_COLUMNS
 from src.utils.commission import ChinaStockCommission
 from src.strategy.intraday_artifacts import load_factors
 from src.datahub import DataRequest, create_service
+from src.datahub.duckdb_frames import frame_exists, promote_frame, read_frame, write_frame
 from src.datahub.models import DataKind
 from src.datahub.research_daily_repository import ResearchDailyRepository
 from src.datahub.service import MarketDataService
@@ -18,7 +19,7 @@ from src.strategy_evaluation import evaluate_returns
 
 ROOT=Path('data/intraday_factors/local_minute_factors')
 AUCTION=Path('data/intraday_factors/auction_history/daily')
-COVERAGE=Path('examples/intraday_factors/auction_history/coverage.parquet')
+COVERAGE=Path('examples/intraday_factors/auction_history/coverage.duckdb')
 HISTORY=Path('examples/intraday_factors/local_minute_research/weekly_research.csv')
 OUT=Path('examples/intraday_factors/all_factor_backtest')
 
@@ -60,21 +61,23 @@ def main():
     parser.add_argument('--coverage',type=Path,default=COVERAGE)
     parser.add_argument('--history',type=Path,default=HISTORY)
     parser.add_argument('--output-dir',type=Path,default=OUT)
-    parser.add_argument('--snapshots',type=Path,default=Path('data/intraday_factors/csi500/snapshots.parquet'))
+    parser.add_argument('--snapshots',type=Path,default=Path('data/intraday_factors/csi500/snapshots.duckdb'))
     parser.add_argument('--reference-dir',type=Path,default=Path('data/micro_cap_timing_plus'))
-    parser.add_argument('--calendar',type=Path,help='参考准备脚本生成的交易所日历 Parquet')
+    parser.add_argument('--calendar',type=Path,help='参考准备脚本生成的交易所日历 DuckDB')
     parser.add_argument('--valuation-end',help='开盘估值结束日；默认取资格截止日或已缓存的下一交易日')
     args=parser.parse_args()
     root,auction_dir,coverage,history_path,out=args.factor_dir,args.auction_dir,args.coverage,args.history,args.output_dir
-    snapshots=args.snapshots
-    cov=pd.read_parquet(coverage);cov['date']=pd.to_datetime(cov.date).dt.normalize()
+    snapshots=promote_frame(args.snapshots)
+    coverage=promote_frame(coverage)
+    cov=read_frame(coverage);cov['date']=pd.to_datetime(cov.date).dt.normalize()
     if cov.duplicated(['symbol','date']).any():raise ValueError('资格表重复')
     symbols=sorted(cov.symbol.unique());calendar=pd.DatetimeIndex(sorted(cov.date.unique()))
     if calendar.min()!=pd.Timestamp('2021-01-04'):raise ValueError('资格数据起点发生变化')
     factor_end=calendar.max()
-    calendar_path=args.calendar or snapshots.parent.parent/'calendar.parquet'
-    if calendar_path.is_file():
-        exchange_days=pd.DatetimeIndex(pd.read_parquet(calendar_path).date)
+    calendar_path=args.calendar or snapshots.parent.parent/'calendar.duckdb'
+    if frame_exists(calendar_path):
+        calendar_path=promote_frame(calendar_path)
+        exchange_days=pd.DatetimeIndex(read_frame(calendar_path).date)
         calendar_version=sha(calendar_path)
     elif args.calendar:
         raise FileNotFoundError(calendar_path)
@@ -92,7 +95,7 @@ def main():
     next_session=exchange_days[exchange_days > factor_end]
     if next_session.empty:
         raise ValueError('日历必须覆盖因子截止日之后的开市日')
-    has_next_price=(args.reference_dir/'raw/daily'/f'{next_session[0]:%Y%m%d}.parquet').is_file()
+    has_next_price=frame_exists(args.reference_dir/'raw/daily'/f'{next_session[0]:%Y%m%d}.duckdb')
     valuation_end=pd.Timestamp(args.valuation_end) if args.valuation_end else next_session[0] if has_next_price else factor_end
     entries=weekly_execution_dates(exchange_days,factor_end,valuation_end)
     dates=exchange_days[exchange_days <= valuation_end]
@@ -102,13 +105,12 @@ def main():
     for day in ends:
         i=calendar.get_loc(day)
         if i>=4:required.update(calendar[i-4:i+1])
-    minute=[];auction=[]; impl=sha('src/strategy/intraday_factors.py');builder=sha('scripts/build_local_minute_factors.py');repo=sha('src/datahub/local_minute_repository.py');auction_impl=sha('src/strategy/auction_factors.py')
+    minute=[];auction=[]
     snap=sha(snapshots)
-    symbol_hash=hashlib.sha256('\n'.join(symbols).encode()).hexdigest()
     for i,day in enumerate(sorted(required),1):
-        key=day.strftime('%Y%m%d'); p=root/(key+'.parquet')
+        key=day.strftime('%Y%m%d'); p=root/(key+'.duckdb')
         f,info=load_factors(p,day,symbols,snapshots)
-        q=auction_dir/(key+'.parquet')
+        q=auction_dir/(key+'.duckdb')
         a,ainfo=load_factors(q,day,symbols,snapshots,auction=True)
         minute.append(f);auction.append(a[['symbol','date']+FACTOR_COLUMNS])
         if i%250==0:print('载入因子',i,'/',len(required),flush=True)
@@ -197,17 +199,18 @@ def main():
                 cash-=delta+fee;positions[s]=positions.get(s,0.)+qty;trades.append({'date':day,'symbol':s,'side':'buy','notional':delta,'fee':fee})
         mv=sum(v*mark[s] for s,v in positions.items());equity.append({'date':day,'cash':cash,'market_value':mv,'equity':cash+mv,'positions':len(positions),'stale_positions':sum(not np.isfinite(row.get(s,np.nan)) for s in positions),'rebalance':day in schedules})
     nav=pd.DataFrame(equity);trade=pd.DataFrame(trades);target=pd.DataFrame(targets)
-    bench_path=args.reference_dir/'reference/index_000905.SH.parquet'
-    bench=pd.read_parquet(bench_path);bench['date']=pd.to_datetime(bench.trade_date.astype(str),format='%Y%m%d');bench=bench.set_index('date').open
+    bench_path=promote_frame(args.reference_dir/'reference/index_000905.SH.duckdb')
+    bench=read_frame(bench_path);bench['date']=pd.to_datetime(bench.trade_date.astype(str),format='%Y%m%d');bench=bench.set_index('date').open
     nav['benchmark_open']=nav.date.map(bench);nav['benchmark_nav']=nav.benchmark_open/nav.benchmark_open.iloc[0]
     if nav.benchmark_nav.isna().any():raise ValueError('缺少基准指数开盘价')
     nav['nav']=nav.equity/1_000_000;nav['relative_nav']=nav.nav/nav.benchmark_nav
     years = (nav.date.iloc[-1] - nav.date.iloc[0]).days / 365.25
     annual_relative = float(nav.relative_nav.iloc[-1] ** (1 / years) - 1) if years > 0 else None
     metrics={'first_trade_date':str(nav.date.iloc[0].date()),'end_date':str(nav.date.iloc[-1].date()),'latest_signal_date':str(max(schedules.values(),key=lambda x:x[0])[0].date()),'rebalance_count':len(schedules),'stock_pool':'中证500月度快照滞后31自然日近似，ST、上市不足一年和未成交筛除','factors':46,'train':'最近52个已结束持有期的单因子周度秩IC均值定向；历史IC按输入覆盖范围滚动更新','min_input_factors':46,'top_fraction':0.1,'window_days':5,'initial_cash':1000000,'final_equity':float(nav.equity.iloc[-1]),'benchmark_total_return':float(nav.benchmark_nav.iloc[-1]-1),'relative_total_return':float(nav.relative_nav.iloc[-1]-1),'annual_relative_return':annual_relative,'total_commission':float(trade.fee.sum()),'stale_position_days':int(nav.stale_positions.sum()),'input_coverage_sha256':sha(coverage),'input_ic_sha256':sha(history_path),'snapshot_sha256':snap,'limitations':'日线开盘近似成交，无涨跌停、市场冲击、滑点、印花税和过户费；连续股数无整手；手续费使用项目佣金（万0.854，每笔最低5元）；复权使用前收比值近似，公司行为等效再投资，停牌沿用上次估值；未来缺失开盘不能成交，长期缺价不自动退市清算；月度权重非精确历史成分；竞价因子快照口径和分钟时间语义未完全确认；因子方向来自历史单因子IC，非研报指定组合。'}
-    out.mkdir(parents=True,exist_ok=True);nav.to_csv(out/'nav.csv',index=False);trade.to_csv(out/'trades.csv',index=False);target.to_csv(out/'targets.csv',index=False);pd.DataFrame(scores).to_parquet(out/'scores.parquet',index=False);pd.DataFrame(directions).to_csv(out/'directions.csv',index=False)
+    out.mkdir(parents=True,exist_ok=True);nav.to_csv(out/'nav.csv',index=False);trade.to_csv(out/'trades.csv',index=False);target.to_csv(out/'targets.csv',index=False);pd.DataFrame(directions).to_csv(out/'directions.csv',index=False)
+    write_frame(out/'scores.duckdb', pd.DataFrame(scores))
     pd.DataFrame(training_windows).to_csv(out/'training_windows.csv',index=False)
-    latest=target[(target.signal_date==target.signal_date.max()) & target.selected].copy();names=pd.read_parquet(args.reference_dir/'reference/stock_basic.parquet')[['ts_code','name']].rename(columns={'ts_code':'symbol'});latest=latest.merge(names,on='symbol',how='left',validate='many_to_one');score_frame=pd.DataFrame(scores);last_scores=score_frame[score_frame.signal_date.eq(target.signal_date.max())][['symbol','rank','score']];latest=latest.merge(last_scores,on='symbol',validate='one_to_one').sort_values('rank');latest.to_csv(out/'latest_selection.csv',index=False)
+    latest=target[(target.signal_date==target.signal_date.max()) & target.selected].copy();names=read_frame(args.reference_dir/'reference/stock_basic.duckdb', columns=['ts_code','name']).rename(columns={'ts_code':'symbol'});latest=latest.merge(names,on='symbol',how='left',validate='many_to_one');score_frame=pd.DataFrame(scores);last_scores=score_frame[score_frame.signal_date.eq(target.signal_date.max())][['symbol','rank','score']];latest=latest.merge(last_scores,on='symbol',validate='one_to_one').sort_values('rank');latest.to_csv(out/'latest_selection.csv',index=False)
     final_mark=marks.loc[nav.date.iloc[-1]]
     holdings=pd.DataFrame([{'symbol':s,'adjusted_shares':qty,
                            'market_value':qty*final_mark[s],

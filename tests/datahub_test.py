@@ -16,7 +16,7 @@ from src.datahub.providers.local_cache import DuckDBCacheProvider
 from src.datahub.realtime import RealtimeDataService
 from src.datahub.router import DataRouter
 from src.datahub.service import MarketDataService
-from src.datahub.storage import MemoryCache, ParquetRepository, SQLiteRepository
+from src.datahub.storage import DuckDBRepository, MemoryCache, SQLiteRepository
 from src.datahub.ticker import TickerMapper
 from src.datahub.mock import MockProvider
 
@@ -274,11 +274,11 @@ class RouterAndServiceTest(unittest.TestCase):
             self.assertEqual(stored.data.iloc[0]["symbol"], "000001.SZ")
             repo.close()
 
-    def test_parquet_repository_round_trip_and_idempotent_update(self):
+    def test_duckdb_repository_round_trip_and_idempotent_update(self):
         request = DataRequest(symbols=("000001.SZ",))
         frame = pd.DataFrame([{"symbol": "000001.SZ", "datetime": pd.Timestamp("2024-01-02"), "close": 10.0}])
         with TemporaryDirectory() as directory:
-            repo = ParquetRepository(directory)
+            repo = DuckDBRepository(directory)
             result = DataResult(frame, "mock", DataKind.DAILY)
             first_version = repo.save(result, request)
             repo.save(DataResult(frame.assign(close=11.0), "mock", DataKind.DAILY), request)
@@ -286,6 +286,7 @@ class RouterAndServiceTest(unittest.TestCase):
             self.assertIsNotNone(stored)
             self.assertEqual(len(stored.data), 1)
             self.assertEqual(stored.data["close"].iloc[0], 11.0)
+            self.assertEqual(stored.metadata["storage"], "duckdb")
             self.assertEqual(len(first_version), 20)
 
 

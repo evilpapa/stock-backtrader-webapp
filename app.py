@@ -1,5 +1,5 @@
 import datetime
-import math
+from functools import partial
 from pathlib import Path
 
 import pandas as pd
@@ -7,9 +7,26 @@ import streamlit as st
 from streamlit_echarts import st_pyecharts
 
 from src.charts import draw_multi_line, draw_pro_kline, draw_result_bar, draw_weight_area
-from src.frames import backtrader_selector_ui, market_data_selector_ui, market_data_source_ui, params_selector_ui, risk_control_ui
+from src.frames import (
+	SUMMARY_CARD_CSS,
+	backtrader_selector_ui,
+	cumulative_return_from_frame,
+	market_data_selector_ui,
+	market_data_source_ui,
+	params_selector_ui,
+	render_free_cash_flow_page,
+	render_index_timing_page,
+	render_intraday_all_factor_page,
+	render_micro_cap_timing_page,
+	render_mysterious_spiral_page,
+	render_performance_summary,
+	render_sector_rotation_dual_page,
+	render_small_cap_page,
+	render_summary_from_metric_row,
+	render_turnover_stability_page,
+	risk_control_ui,
+)
 from src.frames.asset_management import render_asset_management
-from src.strategy_evaluation import GRADE_THRESHOLDS
 from src.utils.etf_momentum_backtest import (
 	BENCHMARK_NAME as ETF_BENCHMARK_NAME,
 	DEFAULT_ASSETS as ETF_DEFAULT_ASSETS,
@@ -50,180 +67,23 @@ from src.utils.turtle_backtest import (
 
 st.set_page_config(page_title="backtrader", page_icon=":chart_with_upwards_trend:", layout="wide")
 
-SUMMARY_CARD_CSS = """
-<style>
-.performance-summary {
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 16px 18px;
-    background: #ffffff;
-    min-height: 116px;
+STRATEGY_LABELS = {
+	"Ma": "Ma · 单均线",
+	"MaCross": "MaCross · 双均线",
+	"EtfMomentum": "EtfMomentum · ETF动量轮动",
+	"QbEtfMomentum": "QbEtfMomentum · QB ETF周频动量",
+	"LeadingRotation": "LeadingRotation · 龙头动量轮动",
+	"SectorRotation": "SectorRotation · 行业ETF动量轮动",
+	"Small2": "Small2 · 全市场小市值选股",
+	"MysteriousSpiral": "MysteriousSpiral · 神秘螺旋月度轮动",
+	"TurtleTrading": "TurtleTrading · 海龟交易",
+	"SectorRotationDual": "SectorRotationDual · 双轮配置行业ETF",
+	"FreeCashFlow": "FreeCashFlow · 增强型自由现金流",
+	"MicroCapTimingPlus": "MicroCapTimingPlus · 微盘股择时增强",
+	"TurnoverStability": "TurnoverStability · 量稳换手率(STR/SCR)",
+	"IntradayAllFactor": "IntradayAllFactor · 高频46因子中证500",
+	"IndexTiming": "IndexTiming · 指数择时(MA/RSRS)",
 }
-.performance-summary-primary {
-    min-height: 116px;
-}
-.performance-summary-label {
-    color: #6b7280;
-    font-size: 0.9rem;
-    margin-bottom: 8px;
-}
-.performance-summary-annual {
-    color: #d62728;
-    font-size: 2.45rem;
-    font-weight: 700;
-    line-height: 1.05;
-}
-.performance-summary-sub {
-    color: #374151;
-    font-size: 0.98rem;
-    margin-top: 10px;
-}
-.performance-summary-value {
-    color: #111827;
-    font-size: 1.6rem;
-    font-weight: 650;
-    line-height: 1.15;
-}
-</style>
-"""
-
-
-def _number_or_none(value) -> float | None:
-    """将输入安全转换为有限浮点数，无法转换时返回空值。"""
-    if value is None:
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return None
-    if not math.isfinite(number):
-        return None
-    return number
-
-
-def _row_value(row: pd.Series | dict, names: list[str]) -> float | None:
-    """按候选字段名从指标行中取出第一个有效数值。"""
-    for name in names:
-        if name in row:
-            value = _number_or_none(row[name])
-            if value is not None:
-                return value
-    return None
-
-
-def _annual_return_from_row(row: pd.Series | dict) -> float | None:
-    """从不同来源的指标字段中解析年化收益率。"""
-    value = _row_value(row, ["年化收益率", "annual_return", "annualized_return"])
-    if value is not None:
-        return value
-    value = _row_value(row, ["return"])
-    return value / 100.0 if value is not None else None
-
-
-def _cumulative_return_from_row(row: pd.Series | dict) -> float | None:
-    """从指标行中解析累计收益率。"""
-    return _row_value(row, ["累计收益率", "total_return", "cumulative_return"])
-
-
-def _max_drawdown_from_row(row: pd.Series | dict) -> float | None:
-    """从指标行中解析最大回撤，并统一为负数展示。"""
-    value = _row_value(row, ["最大回撤", "max_drawdown"])
-    if value is not None:
-        return -abs(value)
-    value = _row_value(row, ["dd"])
-    return -abs(value / 100.0) if value is not None else None
-
-
-def _ratio_from_row(row: pd.Series | dict, names: list[str]) -> float | None:
-    """按候选字段名读取夏普、卡玛等比率类指标。"""
-    return _row_value(row, names)
-
-
-def _format_percent(value: float | None) -> str:
-    """将小数形式的收益或回撤格式化为百分比文本。"""
-    if value is None:
-        return "N/A"
-    return f"{value * 100:.2f}%"
-
-
-def _format_ratio(value: float | None) -> str:
-    """将比率类数值格式化为固定精度文本。"""
-    if value is None:
-        return "N/A"
-    return f"{value:.3f}"
-
-
-def render_performance_summary(
-    annual_return: float | None,
-    cumulative_return: float | None,
-    max_drawdown: float | None,
-    sharpe_ratio: float | None,
-    calmar_ratio: float | None,
-    scoring: pd.Series | dict,
-) -> None:
-    """渲染顶部绩效摘要卡片。"""
-    st.markdown(SUMMARY_CARD_CSS, unsafe_allow_html=True)
-    score_col, left, dd_col, sharpe_col, calmar_col = st.columns([1.4, 2.2, 1, 1, 1])
-    score = _number_or_none(scoring.get("score"))
-    grade = next((grade for _, grade in GRADE_THRESHOLDS if grade == scoring.get("score_grade")), "—")
-    score_text = f"{score:.2f} / 100 · {grade}" if score is not None else "暂无法评分"
-    with left:
-        st.markdown(
-            f"""
-            <div class="performance-summary performance-summary-primary">
-                <div class="performance-summary-label">年化收益</div>
-                <div class="performance-summary-annual">{_format_percent(annual_return)}</div>
-                <div class="performance-summary-sub">累计收益 {_format_percent(cumulative_return)}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    for column, label, value, formatter in [
-        (score_col, "策略评分", score_text, str),
-        (dd_col, "最大回撤", max_drawdown, _format_percent),
-        (sharpe_col, "夏普比率", sharpe_ratio, _format_ratio),
-        (calmar_col, "卡玛比率", calmar_ratio, _format_ratio),
-    ]:
-        with column:
-            st.markdown(
-                f"""
-                <div class="performance-summary">
-                    <div class="performance-summary-label">{label}</div>
-                    <div class="performance-summary-value">{formatter(value)}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-    if score is not None:
-        st.caption(
-            f"评分 {scoring['score_version']} · "
-            f"收益 {scoring['return_points']:.2f} 分 · "
-            f"回撤 {scoring['drawdown_points']:.2f} 分 · "
-            f"夏普 {scoring['sharpe_points']:.2f} 分"
-        )
-    note = scoring.get("score_note")
-    if isinstance(note, str) and note:
-        st.caption(note)
-
-
-def render_summary_from_metric_row(row: pd.Series | dict, cumulative_return: float | None = None) -> None:
-    """从一行绩效指标中抽取摘要字段并渲染指标卡片。"""
-    render_performance_summary(
-        annual_return=_annual_return_from_row(row),
-        cumulative_return=cumulative_return if cumulative_return is not None else _cumulative_return_from_row(row),
-        max_drawdown=_max_drawdown_from_row(row),
-        sharpe_ratio=_ratio_from_row(row, ["夏普比率", "sharpe", "sharpe_ratio"]),
-        calmar_ratio=_ratio_from_row(row, ["卡玛比率", "卡尔马比率", "calmar", "calmar_ratio"]),
-        scoring=row,
-    )
-
-
-def cumulative_return_from_frame(cumulative: pd.DataFrame, strategy_name: str) -> float | None:
-    """从累计净值表中计算指定策略最终累计收益率。"""
-    if strategy_name not in cumulative.columns or cumulative.empty:
-        return None
-    value = _number_or_none(cumulative[strategy_name].iloc[-1])
-    return value - 1.0 if value is not None else None
 
 
 def render_strategy_result_frames(frames: EtfMomentumFrames | RotationFrames) -> None:
@@ -299,7 +159,7 @@ def render_etf_momentum_page(qb_strategy: bool = False) -> None:
 		column_order=["symbol", "name"],
 		num_rows="dynamic",
 		use_container_width=True,
-		key="etf_momentum_assets",
+		key="qb_etf_momentum_assets" if qb_strategy else "etf_momentum_assets",
 	)
 	assets = normalize_assets(assets_df)
 
@@ -538,23 +398,35 @@ def render_single_symbol_strategy(name: str) -> None:
 	st_pyecharts(bar, height="500px")
 
 
+CUSTOM_STRATEGY_RENDERERS = {
+	"EtfMomentum": render_etf_momentum_page,
+	"QbEtfMomentum": partial(render_etf_momentum_page, qb_strategy=True),
+	**{key: partial(render_rotation_page, spec) for key, spec in ROTATION_SPECS.items()},
+	"TurtleTrading": render_turtle_page,
+	"Small2": render_small_cap_page,
+	"MysteriousSpiral": render_mysterious_spiral_page,
+	"SectorRotationDual": render_sector_rotation_dual_page,
+	"FreeCashFlow": render_free_cash_flow_page,
+	"MicroCapTimingPlus": render_micro_cap_timing_page,
+	"TurnoverStability": render_turnover_stability_page,
+	"IntradayAllFactor": render_intraday_all_factor_page,
+	"IndexTiming": render_index_timing_page,
+}
+
+
 def main():
 	"""根据侧边栏选择分发到资产管理或策略回测。"""
 	if st.sidebar.radio("页面", ("策略回测", "资产管理")) == "资产管理":
 		render_asset_management()
 		return
-	name = st.sidebar.selectbox("strategy", list(strategy_dict.keys()))
-	if name == "EtfMomentum":
-		render_etf_momentum_page()
-		return
-	if name == "QbEtfMomentum":
-		render_etf_momentum_page(qb_strategy=True)
-		return
-	if name in ROTATION_SPECS:
-		render_rotation_page(ROTATION_SPECS[name])
-		return
-	if name == "TurtleTrading":
-		render_turtle_page()
+	name = st.sidebar.selectbox(
+		"strategy",
+		list(strategy_dict.keys()),
+		format_func=lambda key: STRATEGY_LABELS.get(key, key),
+	)
+	renderer = CUSTOM_STRATEGY_RENDERERS.get(name)
+	if renderer is not None:
+		renderer()
 		return
 	render_single_symbol_strategy(name)
 

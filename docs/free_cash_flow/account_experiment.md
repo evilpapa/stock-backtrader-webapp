@@ -16,9 +16,9 @@
 
 ## 分行业获取与历史矩阵
 
-分批输入为原始 `citic_member.parquet` 中的 30 个一级行业代码，通过 DataHub `ci_index_member` 对每个代码分别请求在编、调出数据；结果保存在 `data/free_cash_flow/reference/citic_industry_batches/` 和 `citic_member_by_industry.parquet`，不覆盖原始缓存。`citic_member_by_industry_manifest.json` 记录数据源、获取时间、行业代码种子及各批次数量；行业代码来自既有缓存，并非独立权威的完整行业目录。Tushare 的 `index_classify` 实测 `src=CI` 返回空结果。
+分批输入为 `citic_member.duckdb` 中的 30 个一级行业代码，通过 DataHub `ci_index_member` 对每个代码分别请求在编、调出数据；结果保存在 `data/free_cash_flow/reference/citic_industry_batches/` 和 `citic_member_by_industry.duckdb`。`citic_member_by_industry_manifest.json` 记录数据源、获取时间、行业代码种子及各批次数量；行业代码来自既有缓存，并非独立权威的完整行业目录。Tushare 的 `index_classify` 实测 `src=CI` 返回空结果。
 
-回测使用每个定样截止日的 `in_date <= date < out_date` 区间构造 `industry_matrix.parquet`（行是截止日，列是证券）。缺少起始日期或重叠的不同一级行业不会猜测；缺少结束日期视为开放区间。剔除日为不含当天的约定尚需向供应商核实。`industry_coverage.csv` 给出各期全市场和候选池的已知行业数量。
+回测使用每个定样截止日的 `in_date <= date < out_date` 区间构造 `industry_matrix.duckdb`（每行对应一个截止日，每只证券占一列）。缺少起始日期或重叠的不同一级行业不会猜测；缺少结束日期视为开放区间。剔除日为不含当天的约定尚需向供应商核实。`industry_coverage.csv` 给出各期全市场和候选池的已知行业数量。
 
 2026-11-05 拉取对账：旧缓存 6,745 行、5,740 只；分行业新数据 6,750 行、5,741 只。2013 至 2019 各年末可唯一分类股票数分别为 1,231、1,277、1,439、1,508、1,867、2,010、3,637，**与原缓存逐年相同**。因此分批拉取并未补足这段历史；仍需从拥有历史分类的数据源补齐，不能用未来行业回填。
 
@@ -26,7 +26,7 @@
 
 ### 逐股查询验证
 
-通过 `uv run python -m scripts.fetch_citic_industry_by_stock --workers 2` 逐股查询股票基础缓存中的合法代码，分别获取 `is_new=Y/N` 并保存到 `data/free_cash_flow/reference/citic_stock_batches/`；各分片可断点续传，全部完成后合并为 `citic_member_by_stock.parquet`，数据来源和批次见同目录 manifest。该股票池自身可能有缺漏，缓存不自动刷新。使用 `uv run python -m scripts.validate_citic_industry_by_stock` 生成逐股矩阵和年末与逐行业数据的覆盖、冲突对比；输出至 `examples/free_cash_flow/industry_validation/`。相同接口以不同参数查询不能证明数据完整性。
+通过 `uv run python -m scripts.fetch_citic_industry_by_stock --workers 2` 逐股查询股票基础缓存中的合法代码，分别获取 `is_new=Y/N` 并保存到 `data/free_cash_flow/reference/citic_stock_batches/`；各分片可断点续传，全部完成后合并为 `citic_member_by_stock.duckdb`，数据来源和批次见同目录 manifest。该股票池自身可能有缺漏，缓存不自动刷新。使用 `uv run python -m scripts.validate_citic_industry_by_stock` 生成逐股矩阵和年末与逐行业数据的覆盖、冲突对比；输出至 `examples/free_cash_flow/industry_validation/`。相同接口以不同参数查询不能证明数据完整性。
 
 2026-11-05 完成对 5,918 只合法证券的 11,836 个状态分片请求，得到 6,750 条去重成员记录，与逐行业结果完全相同。按基础信息中的上市、退市日期限定股票池后，2013–2025 每年末两种方式均无单边新增分类或行业差异。例如 2014 年末分别覆盖 1,277/2,592 只，2018 年末覆盖 2,009/3,567 只；分母是本地股票基础缓存中的上市股票，不保证历史完整性。逐股查询没有补齐早年缺口；这说明本次查询参数切换无改善，不足以证明供应商不存在其他历史数据接口。
 
@@ -72,7 +72,7 @@
 
 ## 输出
 
-- `industry_matrix.parquet`、`industry_coverage.csv`：每期定样时点行业矩阵，以及市场、候选池覆盖率计数。
+- `industry_matrix.duckdb` 和 `industry_coverage.csv` 分别保存每期定样时点行业矩阵，以及市场、候选池覆盖率计数。
 - `metrics.csv`：扣上述交易摩擦后收益、回撤、实际持股权重、费用及现金比例。
 - `yearly.csv`：逐年策略、现金流全收益基准及两者直接相减的差额；起止不完整年度不能当完整年度比较。
 - `daily.csv`：每日资产、现金、持仓数、收益和基准收益。

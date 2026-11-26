@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from examples.free_cash_flow import DATA_DIR, load_panels, market_snapshot
+from src.datahub.duckdb_frames import frame_paths, read_frame
 from src.strategy.free_cash_flow import FreeCashFlowParams, build_fundamentals, candidate_pool
 from src.strategy.free_cash_flow_execution import constrained_weights, select_with_buffer
 from src.utils.industry_history import build_industry_matrix
@@ -21,13 +22,13 @@ def main():
     if eligible.empty:
         raise ValueError('指定截止日前无行情')
     cutoff = eligible[-1]
-    basic = pd.read_parquet(DATA_DIR / 'reference/stock_basic.parquet').drop_duplicates('ts_code').set_index('ts_code')
+    basic = read_frame(DATA_DIR / 'reference/stock_basic.duckdb').drop_duplicates('ts_code').set_index('ts_code')
     basic['list_date'] = pd.to_datetime(basic['list_date'], errors='coerce')
-    members = pd.read_parquet(DATA_DIR / 'reference/citic_member_by_stock.parquet')
+    members = read_frame(DATA_DIR / 'reference/citic_member_by_stock.duckdb')
     raw = {}
     for table in ('income', 'cashflow', 'balancesheet'):
-        files = sorted((DATA_DIR / 'financial' / table).glob('*.parquet'))
-        frame = pd.concat([pd.read_parquet(p) for p in files], ignore_index=True)
+        files = frame_paths(DATA_DIR / 'financial' / table)
+        frame = pd.concat([read_frame(path) for path in files], ignore_index=True)
         for col in ('ann_date', 'f_ann_date', 'end_date'):
             value = pd.to_datetime(frame[col], errors='coerce')
             frame[col] = value.dt.tz_localize(None) if value.dt.tz is not None else value

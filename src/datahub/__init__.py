@@ -33,7 +33,7 @@ from .router import DataRouter
 from .service import MarketDataService
 from .normalizer import Normalizer
 from .provider import MarketDataProvider, RealtimeProvider
-from .storage import MemoryCache, ParquetRepository, SQLiteRepository
+from .storage import DuckDBRepository, MemoryCache, SQLiteRepository
 from .providers.local_cache import DuckDBCacheProvider
 from .ticker import TickerMapper
 
@@ -55,7 +55,7 @@ __all__ = [
     "MemoryCache",
     "MockProvider",
     "Normalizer",
-    "ParquetRepository",
+    "DuckDBRepository",
     "ProviderFactory",
     "ProviderPermissionError",
     "ProviderUnavailable",

@@ -12,11 +12,12 @@ from pathlib import Path
 import pandas as pd
 
 from src.utils.datahub_client import DataHubClient
+from src.datahub.duckdb_frames import frame_exists, read_frame, write_frame
 
 REFERENCE = Path('data/free_cash_flow/reference')
-SOURCE = REFERENCE / 'citic_member.parquet'
+SOURCE = REFERENCE / 'citic_member.duckdb'
 BATCH_DIR = REFERENCE / 'citic_industry_batches'
-OUTPUT = REFERENCE / 'citic_member_by_industry.parquet'
+OUTPUT = REFERENCE / 'citic_member_by_industry.duckdb'
 MANIFEST = REFERENCE / 'citic_member_by_industry_manifest.json'
 PAGE_SIZE = 3000
 
@@ -40,12 +41,12 @@ def fetch_all(client, codes, batch_dir: Path = BATCH_DIR) -> tuple[pd.DataFrame,
     frames, records = [], []
     for code in sorted(codes):
         for status in ('Y', 'N'):
-            path = batch_dir / f'{code}_{status}.parquet'
-            if path.exists():
-                frame = pd.read_parquet(path)
+            path = batch_dir / f'{code}_{status}.duckdb'
+            if frame_exists(path):
+                frame = read_frame(path)
             else:
                 frame = fetch_batch(client, code, status)
-                frame.to_parquet(path, index=False)
+                write_frame(path, frame)
             if not frame.empty and not frame['l1_code'].eq(code).all():
                 raise ValueError(f'{code}/{status} 返回了其他行业数据')
             frames.append(frame)
@@ -55,9 +56,9 @@ def fetch_all(client, codes, batch_dir: Path = BATCH_DIR) -> tuple[pd.DataFrame,
 
 
 def main() -> None:
-    if not SOURCE.exists():
+    if not frame_exists(SOURCE):
         raise FileNotFoundError(f'缺少一级行业代码种子: {SOURCE}')
-    old = pd.read_parquet(SOURCE)
+    old = read_frame(SOURCE)
     codes = sorted(old.l1_code.dropna().unique())
     if not codes:
         raise ValueError('行业代码种子为空')
@@ -66,7 +67,7 @@ def main() -> None:
         data, records = fetch_all(client, codes)
     finally:
         client.close()
-    data.to_parquet(OUTPUT, index=False)
+    write_frame(OUTPUT, data)
     manifest = {'source': 'tushare', 'data_kind': 'index_member', 'provider_api': 'ci_index_member',
                 'retrieved_at_utc': datetime.now(timezone.utc).isoformat(), 'code_source': str(SOURCE),
                 'code_count': len(codes), 'rows': len(data), 'batches': records,

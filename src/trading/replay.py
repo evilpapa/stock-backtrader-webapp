@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from src.datahub import DataRequest
+from src.datahub.duckdb_frames import frame_paths
 from src.datahub.models import DataKind
 from src.datahub.research_daily_repository import ResearchDailyRepository
 from src.datahub.router import DataRouter
@@ -49,8 +50,8 @@ def run_replay(target_path, reference_dir, output_dir, *, initial_cash=1_000_000
         raise ValueError("replay output already has a ledger; use a new output directory")
     start, end = targets.trade_date.min(), end or targets.trade_date.max()
     source = Path(reference_dir) / "raw/daily"
-    days = sorted(p for p in source.glob("*.parquet") if p.stem.isdigit()
-                  and start.replace("-", "") <= p.stem <= end.replace("-", ""))
+    days = [path for path in frame_paths(source) if path.stem.isdigit()
+            and start.replace("-", "") <= path.stem <= end.replace("-", "")]
     if not days:
         raise ValueError("no cached daily prices")
     schedules = {day: group for day, group in targets.groupby("trade_date", sort=True)}

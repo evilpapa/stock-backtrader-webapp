@@ -10,6 +10,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.datahub import create_service, DataRequest
+from src.datahub.duckdb_frames import file_sha256, frame_exists, promote_frame, read_frame, write_frame
 from src.datahub.models import DataKind
 from src.datahub.research_daily_repository import ResearchDailyRepository
 from src.datahub.service import MarketDataService
@@ -50,14 +51,15 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--start', default='2021-01-04');
     p.add_argument('--end', default='2026-02-27')
-    p.add_argument('--snapshots', type=Path, default=Path('data/intraday_factors/csi500/snapshots.parquet'))
+    p.add_argument('--snapshots', type=Path, default=Path('data/intraday_factors/csi500/snapshots.duckdb'))
     p.add_argument('--factor-dir', type=Path, default=Path('data/intraday_factors/auction_history/daily'))
     p.add_argument('--reference-dir', type=Path, default=Path('data/micro_cap_timing_plus'))
     p.add_argument('--output-dir', type=Path, default=Path('examples/intraday_factors/auction_history'))
     p.add_argument('--snapshot-lag-days', type=int, default=31)
     args = p.parse_args()
     if args.snapshot_lag_days < 1: raise ValueError('快照滞后至少一天')
-    snap = pd.read_parquet(args.snapshots).copy();
+    snapshots = promote_frame(args.snapshots)
+    snap = read_frame(snapshots)
     snap['snapshot_date'] = pd.to_datetime(snap.trade_date.astype(str), format='%Y%m%d')
     symbols = tuple(sorted(snap.con_code.unique()))
     symbols_hash = hashlib.sha256('\n'.join(symbols).encode()).hexdigest()
@@ -97,9 +99,9 @@ def main():
     inputs = []
     for i, day in enumerate(days, 1):
         key = day.strftime('%Y%m%d');
-        factor_path = args.factor_dir / (key + '.parquet');
+        factor_path = args.factor_dir / (key + '.duckdb')
         info = args.factor_dir / (key + '.json')
-        if not factor_path.exists() or not info.exists(): raise ValueError(f'缺少竞价因子缓存 {key}')
+        if not frame_exists(factor_path) or not info.exists(): raise ValueError(f'缺少竞价因子缓存 {key}')
         f, meta = load_factors(factor_path, day, list(symbols), args.snapshots, auction=True)
         req = DataRequest(symbols=symbols, start=day, end=day, frequency='1d', adjust='none')
         quote = local.get_cached(DataKind.DAILY_BULK, req);
@@ -145,8 +147,8 @@ def main():
     research = merged[['symbol', 'date', 'open_proxy', 'eligible', 'forward_return'] + FACTOR_COLUMNS].copy()
     weekly = weekly_research(research, days, eligibility_column='eligible', returns_column='forward_return')
     # 指数只是参考，不具备可交易性；使用同一持有期的指数开盘到开盘收益。
-    index_path = args.reference_dir / 'reference' / 'index_000905.SH.parquet'
-    benchmark = pd.read_parquet(index_path)
+    index_path = args.reference_dir / 'reference' / 'index_000905.SH.duckdb'
+    benchmark = read_frame(index_path)
     benchmark['date'] = pd.to_datetime(benchmark.trade_date.astype(str), format='%Y%m%d')
     if benchmark.date.duplicated().any(): raise ValueError('指数行情日期重复')
     index_open = benchmark.set_index('date')['open']
@@ -156,9 +158,9 @@ def main():
         weekly['benchmark_return'] = (b / a - 1).where(a.gt(0) & b.gt(0))
     args.output_dir.mkdir(parents=True, exist_ok=True)
     weekly.to_csv(args.output_dir / 'weekly_research.csv', index=False)
-    merged[['symbol', 'date', 'in_pool', 'is_st', 'eligible', 'daily_open', 'auction_open', 'pre_close',
+    write_frame(args.output_dir / 'coverage.duckdb', merged[['symbol', 'date', 'in_pool', 'is_st', 'eligible', 'daily_open', 'auction_open', 'pre_close',
             'auction_pre_close', 'vol', 'listed_one_year', 'signal_traded', 'open_match', 'pre_close_match',
-            'forward_return']].to_parquet(args.output_dir / 'coverage.parquet', index=False)
+            'forward_return']])
     day_snapshot.to_csv(args.output_dir / 'universe_snapshots.csv', index=False)
     summary = weekly.groupby('factor', as_index=False).agg(weeks=('rank_ic', 'count'), mean_rank_ic=('rank_ic', 'mean'),
                                                            median_n=('n', 'median'), mean_low=('group_1', 'mean'),
@@ -167,12 +169,12 @@ def main():
     summary.to_csv(args.output_dir / 'factor_summary.csv', index=False)
     manifest = {'start': args.start, 'end': args.end, 'calendar_source': cal.attrs.get('source'),
                 'calendar_data_version': cal.attrs.get('data_version'),
-                'snapshot_file': str(args.snapshots),
-                'snapshot_sha256': hashlib.sha256(args.snapshots.read_bytes()).hexdigest(),
+                'snapshot_file': str(snapshots),
+                'snapshot_sha256': file_sha256(snapshots),
                 'snapshot_lag_days': args.snapshot_lag_days,
                 'pool_rule': '最近一个快照日期至少滞后31自然日；发布时点未核实，月度近似', 'symbols_union': len(symbols),
                 'auction_factor_implementation_sha256': implementation_hash,
-                'basic_file': str(args.reference_dir / 'reference' / 'stock_basic.parquet'),
+                'basic_file': str(basic_result.attrs['path']),
                 'basic_sha256': basics_hash, 'dates': len(days), 'eligible_stock_days': int(merged.eligible.sum()),
                 'weekly_rows': len(weekly),
                 'signal_dates': int(weekly.signal_date.nunique()) if not weekly.empty else 0,

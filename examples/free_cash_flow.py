@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.datahub.duckdb_frames import frame_exists, frame_paths, read_frame, write_frame
 from src.strategy.free_cash_flow import (
     FACTORS,
     FreeCashFlowParams,
@@ -52,8 +53,8 @@ BENCHMARKS = {
 
 
 def _load_daily(api: str, columns: list[str], start: str) -> pd.DataFrame:
-    files = sorted(p for p in (DAILY_DIR / api).glob("*.parquet") if p.stem >= start.replace("-", ""))
-    frames = [pd.read_parquet(p, columns=columns) for p in files]
+    files = [path for path in frame_paths(DAILY_DIR / api) if path.stem >= start.replace("-", "")]
+    frames = [read_frame(path, columns=columns) for path in files]
     frame = pd.concat([f for f in frames if not f.empty], ignore_index=True)
     frame["trade_date"] = pd.to_datetime(frame["trade_date"])
     return frame
@@ -83,8 +84,8 @@ def load_panels(start: str) -> dict[str, pd.DataFrame]:
 def load_financials() -> tuple[pd.DataFrame, pd.DataFrame]:
     tables = {}
     for table in ("income", "cashflow", "balancesheet"):
-        files = sorted((DATA_DIR / "financial" / table).glob("*.parquet"))
-        tables[table] = pd.concat([pd.read_parquet(p) for p in files], ignore_index=True)
+        files = frame_paths(DATA_DIR / "financial" / table)
+        tables[table] = pd.concat([read_frame(path) for path in files], ignore_index=True)
     return build_fundamentals(tables["income"], tables["cashflow"], tables["balancesheet"])
 
 
@@ -114,20 +115,20 @@ def market_snapshot(panels: dict[str, pd.DataFrame], basic: pd.DataFrame, member
 
 
 def load_index(code: str) -> pd.Series:
-    frame = pd.read_parquet(DATA_DIR / "reference" / f"index_{code}.parquet")
+    frame = read_frame(DATA_DIR / "reference" / f"index_{code}.duckdb")
     frame["trade_date"] = pd.to_datetime(frame["trade_date"])
     return frame.set_index("trade_date")["close"].sort_index()
 
 
 def index_members(code: str) -> pd.DataFrame:
     """中证自由现金流官方成分（Tushare 仅 2024-12 起），缓存到本地。"""
-    path = DATA_DIR / "reference" / f"index_weight_{code}.parquet"
-    if not path.exists():
+    path = DATA_DIR / "reference" / f"index_weight_{code}.duckdb"
+    if not frame_exists(path):
         from src.utils.datahub_client import DataHubClient
 
         client = DataHubClient(token=os.environ.get("TUSHARE_TOKEN"))
-        client.query("index_weight", index_code=code, start_date="20130101", end_date="20261231").to_parquet(path)
-    frame = pd.read_parquet(path)
+        write_frame(path, client.query("index_weight", index_code=code, start_date="20130101", end_date="20261231"))
+    frame = read_frame(path)
     frame["trade_date"] = pd.to_datetime(frame["trade_date"])
     return frame
 
@@ -148,9 +149,9 @@ def main() -> None:
 
     panels = load_panels(args.data_start)
     fundamentals, annual = load_financials()
-    basic = pd.read_parquet(DATA_DIR / "reference" / "stock_basic.parquet").drop_duplicates("ts_code").set_index("ts_code")
+    basic = read_frame(DATA_DIR / "reference" / "stock_basic.duckdb").drop_duplicates("ts_code").set_index("ts_code")
     basic["list_date"] = pd.to_datetime(basic["list_date"], errors="coerce")
-    members = pd.read_parquet(DATA_DIR / "reference" / "citic_member.parquet")
+    members = read_frame(DATA_DIR / "reference" / "citic_member.duckdb")
 
     trading_days = panels["returns"].index
     dates = [d for d in rebalance_dates(trading_days, "2012-12-01", args.end) if d >= pd.Timestamp("2012-12-01")]

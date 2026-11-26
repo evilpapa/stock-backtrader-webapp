@@ -94,8 +94,12 @@ XtQuant 订阅。断线后调用 `reconnect()` 重建仍有引用的底层订阅
 ## 存储和复现
 
 - `SQLiteRepository`：默认无额外驱动，保存 payload、source、version、request_key，适合测试和轻量研究。
-- `ParquetRepository`：按 `data_kind/provider/symbol` 分区，要求 `pyarrow` 或 `fastparquet`。
+- `DuckDBRepository`：按 `data_kind/provider/symbol` 分区，以 `data.duckdb` 保存行和版本。
 - `MemoryCache`：历史请求缓存 Key 包含数据类型、symbol、时间范围、周期、复权和 Provider 口径；实时数据可设置短 TTL。
+
+策略生成的分区和产物使用 `.duckdb` 文件，数据表为 `data`，附带信息存于 `artifact_metadata`。
+仓库内若只有同名旧 Parquet，首次访问会原子生成 DuckDB，并保留旧文件与原始 SHA-256。
+仓库外的旧数据源和指向外部的软链接继续按原格式读取，包括 `/data3/stock_data/` 下的分钟行情和竞价快照。
 
 Tushare 的日线/复权行情单位按官方接口口径配置为 `vol=手 -> volume=股`
 （乘以 100）、`amount=千元 -> amount=人民币元`（乘以 1000）。XtQuant 的单位
@@ -154,8 +158,8 @@ uv run python -m pytest -q tests/datahub_test.py
 通过 `DataRequest`（单日、`frequency="tick"`、`adjust="none"`）和
 `DataKind.TICK` 查询。默认来源为 `auction_tick_csv`，返回的元信息包含源路径、
 CSV SHA-256 和按解析规则生成的 `data_version`。证券代码、盘口字段和原始单位沿用供应商口径。
-该仓库不注册默认路由。历史 Parquet 分区可通过 `storage="parquet"` 和指定历史目录读取，
-继续使用原归档来源和分区版本。
+该仓库不注册默认路由。仓库内整理后的竞价归档通过 `storage="duckdb"` 读取，并保留原归档来源和分区版本。
+外部 Parquet 归档可显式指定 `storage="parquet"` 读取。
 
 读取竞价分区时仅折叠**所有字段完全相同**的重复行，避免将同一快照重复计作
 两次有效观察；同一证券、日期、时间戳有不同字段值则报错。结果记录
@@ -165,17 +169,17 @@ CSV SHA-256 和按解析规则生成的 `data_version`。证券代码、盘口�
 
 ## 本地研究日数据缓存
 
-`ResearchDailyRepository` 只读已有的 Tushare 研究 Parquet 缓存，支持证券基础信息、
+`ResearchDailyRepository` 读取 Tushare 研究 DuckDB 缓存，支持证券基础信息、
 单日全市场日线及历史 ST 数据。通过配置了该仓库的 `MarketDataService.get_cached()`
 查询，缓存不存在返回 `None`，未配置仓库时报错。日文件必须非空且交易日期一致；
 按证券过滤后为空是合法结果。返回数据的 `attrs` 含来源、文件 SHA-256 版本、
 频率及复权口径。此接口直接读取仓库结果，不经过 Normalizer 自动转换为标准 bar；
 字段和单位保持原缓存口径，调用方须确认其 schema。该仓库不注册默认路由。
 
-`MinuteBatchRepository` 为 XtQuant 和 Tushare 分钟研究提供按完整请求精确匹配的 Parquet 批次缓存，
+`MinuteBatchRepository` 为 XtQuant 和 Tushare 分钟研究提供按完整请求精确匹配的 DuckDB 批次缓存，
 通过构造参数 `source` 显式绑定来源（默认 XtQuant）。
 `MarketDataService.get_cached(DataKind.MINUTE, request, source=...)` 按相同证券顺序、
-时间范围和选项读取；缓存元信息记录请求、数据版本及文件 SHA-256，损坏时拒绝读取。
+时间范围和选项读取。每个批次的请求、数据版本、行数和数据使用同一个数据库原子发布，读取时校验请求键及行数。
 空批次也是一次观测结果，不表示证券停牌或数据永久不可用；重新拉取时使用构建脚本的
 `--refresh`。更改批量、证券顺序、日期或选项会生成不同缓存键。
 

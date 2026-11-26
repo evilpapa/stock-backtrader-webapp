@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import duckdb
 import pandas as pd
 import pyarrow as pa
 import pyarrow.csv as csv
 import pyarrow.parquet as pq
+from .duckdb_frames import connection_metadata, frame_exists, promote_frame
 from .models import DataKind, DataRequest, DataResult
 
 DEFAULT_AUCTION_DIR = Path('/data3/stock_data/stk_open_auction')
@@ -30,8 +32,8 @@ def normalize_auction_duplicates(frame: pd.DataFrame) -> tuple[pd.DataFrame, int
 
 class AuctionTickRepository:
     def __init__(self, root: str | Path = DEFAULT_AUCTION_DIR, *, storage: str = 'csv'):
-        if storage not in {'csv', 'parquet'}:
-            raise ValueError('仅支持 csv 或 parquet 竞价分区')
+        if storage not in {'csv', 'duckdb', 'parquet'}:
+            raise ValueError('仅支持 csv、duckdb 或 parquet 竞价分区')
         self.root = Path(root)
         self.storage = storage
         self.source = f'auction_tick_{storage}'
@@ -72,6 +74,29 @@ class AuctionTickRepository:
             raise ValueError(f'集合竞价分区与来源记录不一致: {path}')
         filters = [('security_id', 'in', list(symbols))] if symbols else None
         frame = pq.read_table(path, filters=filters).to_pandas()
+        return self._archive_result(day, frame, manifest)
+
+    def _read_duckdb(self, day: str, symbols: tuple[str, ...]):
+        path = self.root / day[:4] / day[4:6] / f'{day}.duckdb'
+        info = path.with_suffix('.json')
+        if not frame_exists(path) or not info.is_file():
+            return None
+        path = promote_frame(path)
+        if path.suffix == '.parquet':
+            return self._read_parquet(day, symbols)
+        manifest = json.loads(info.read_text(encoding='utf-8'))
+        with duckdb.connect(str(path), read_only=True, config={"threads": 1}) as db:
+            rows = db.execute('SELECT count(*) FROM data').fetchall()[0][0]
+            metadata = connection_metadata(db)
+            if (manifest.get('date') != day or manifest.get('rows') != rows
+                    or metadata.get('archive_sha256') != manifest.get('archive_sha256')):
+                raise ValueError(f'集合竞价分区与来源记录不一致: {path}')
+            frame = (db.execute('SELECT * FROM data WHERE security_id IN (SELECT unnest(?)) ORDER BY rowid', [list(symbols)])
+                     if symbols else db.execute('SELECT * FROM data')).df()
+        return self._archive_result(day, frame, manifest)
+
+    @staticmethod
+    def _archive_result(day, frame, manifest):
         version = hashlib.sha256((manifest['archive_sha256'] + ':' + day + ':' + str(manifest['version'])).encode()).hexdigest()[:20]
         return frame, version, {'source_archive': manifest['archive'], 'source_member': manifest['member'],
                                 'archive_sha256': manifest['archive_sha256']}
@@ -85,7 +110,8 @@ class AuctionTickRepository:
         if start.normalize() != end.normalize() or start != start.normalize() or end != end.normalize():
             raise ValueError('每次请求必须为单个自然日，且不能包含日内时间')
         day = start.strftime('%Y%m%d')
-        raw = (self._read_csv if self.storage == 'csv' else self._read_parquet)(day, request.symbols)
+        reader = {'csv': self._read_csv, 'duckdb': self._read_duckdb, 'parquet': self._read_parquet}
+        raw = reader[self.storage](day, request.symbols)
         if raw is None:
             return None
         frame, version, provenance = raw

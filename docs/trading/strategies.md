@@ -216,7 +216,7 @@ Python调用方也可直接 `weight_targets("free_cash_flow", 原逐期权重字
   --ledger data/trading/portfolios.sqlite --account YOUR_ACCOUNT
 ```
 
-`--reference-dir` 与原回放Repository格式一致：`raw/daily/YYYYMMDD.parquet`，包含
+`--reference-dir` 使用研究日线仓库格式 `raw/daily/YYYYMMDD.duckdb`，其中 `data` 表包含
 `ts_code,trade_date,open,close,pre_close,vol`。各证券代码及调仓日必须有相应价格数据。
 全策略入口要求显式传此路径，避免误用46因子缓存。信号计算可以使用复权数据，执行日线
 必须使用未复权价格；DataHub回放保留来源和数据版本。

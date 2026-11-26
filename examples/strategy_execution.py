@@ -18,6 +18,7 @@ import pandas as pd
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.datahub.duckdb_frames import read_frame
 from src.trading.strategies import (
     STRATEGIES, dual_rotation_latest_target, dual_rotation_targets, run_backtrader_signals, strategy_spec,
     timing_targets, trading_calendar, weight_targets,
@@ -75,17 +76,17 @@ def generate(args):
         manifest = json.loads(args.input.read_text(encoding="utf-8"))
         root = args.input.resolve().parent
 
-        def read_frame(name):
+        def read_input(name):
             path = root / manifest[name]
-            if path.suffix == ".parquet":
-                return pd.read_parquet(path)
+            if path.suffix in {".duckdb", ".parquet"}:
+                return read_frame(path)
             return pd.read_csv(path)
 
         if spec.kind == "backtrader":
             prices = {}
             for name, relative_path in manifest["prices"].items():
                 path = root / relative_path
-                prices[name] = pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
+                prices[name] = read_frame(path) if path.suffix in {".duckdb", ".parquet"} else pd.read_csv(path)
             params = dict(manifest.get("params", {}))
             if args.strategy == "small_cap":
                 from src.utils.datahub_universe import StockUniverseSnapshot
@@ -96,7 +97,7 @@ def generate(args):
                         as_of=pd.Timestamp(day), stocks=stocks)
                 params["universe_snapshots"] = snapshots
                 if "market_factors" in manifest:
-                    factors = read_frame("market_factors")
+                    factors = read_input("market_factors")
                     params["market_factors"] = factors.set_index(pd.to_datetime(factors.pop("date")))
             signals = run_backtrader_signals(args.strategy, prices, days, params=params,
                 initial_cash=args.capital, stake=args.stake, symbol_map=manifest.get("symbol_map"))
@@ -104,8 +105,8 @@ def generate(args):
             from src.strategy.micro_cap_timing_plus import (
                 MicroCapTimingParams, build_positions, compute_signals,
             )
-            index, factors = read_frame("index"), read_frame("factors")
-            gap = read_frame("style_gap")
+            index, factors = read_input("index"), read_input("factors")
+            gap = read_input("style_gap")
             for frame in (index, factors, gap):
                 frame.index = pd.to_datetime(frame.pop("date"))
             if not index.index.equals(factors.index) or not index.index.equals(gap.index):
@@ -119,11 +120,11 @@ def generate(args):
             from src.strategy.sector_rotation_dual.data import SectorRotationData
 
             def panel(name):
-                frame = read_frame(name)
+                frame = read_input(name)
                 frame.index = pd.to_datetime(frame.pop("date"))
                 return frame
 
-            industry_frame = read_frame("industry")
+            industry_frame = read_input("industry")
             industry = industry_frame.set_index("symbol")["industry"]
             data = SectorRotationData(open=panel("open"), close=panel("close"), shares=panel("shares"),
                 industry=industry, index_heat=panel("index_heat") if "index_heat" in manifest else None)

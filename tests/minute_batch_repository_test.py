@@ -1,5 +1,4 @@
 """分钟批次缓存使用模拟数据，不依赖行情账号。"""
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,10 +35,8 @@ class MinuteBatchRepositoryTest(unittest.TestCase):
             pd.testing.assert_frame_equal(actual.data, frame, check_flags=False)
             self.assertEqual(actual.metadata['data_version'], 'v1')
             self.assertEqual(actual.metadata['options']['fill_data'], False)
-            metadata_path = next(Path(root).rglob('*.json'))
-            metadata = json.loads(metadata_path.read_text())
-            metadata['parquet_sha256'] = 'bad'
-            metadata_path.write_text(json.dumps(metadata))
+            database = next(Path(root).rglob('*.duckdb'))
+            database.write_bytes(b'invalid database')
             with self.assertRaisesRegex(ValueError, '校验失败'):
                 repo.query(DataKind.MINUTE, req)
 

@@ -14,6 +14,7 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
+from src.datahub.duckdb_frames import read_frame
 
 from src.strategy.micro_cap_timing_plus import (
     MicroCapTimingParams,
@@ -34,7 +35,7 @@ OUTPUT_DIR = Path("examples") / "micro_cap_timing_plus"
 
 
 def load_index_close(code: str, data_dir: Path = DATA_DIR) -> pd.Series:
-    frame = pd.read_parquet(data_dir / "reference" / f"index_{code}.parquet")
+    frame = read_frame(data_dir / "reference" / f"index_{code}.duckdb")
     frame["trade_date"] = pd.to_datetime(frame["trade_date"])
     return frame.set_index("trade_date")["close"].sort_index()
 

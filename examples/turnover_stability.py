@@ -5,7 +5,7 @@
     .venv/bin/python -m examples.turnover_stability
 
 数据说明：
-- 全 A 日频行情、日频估值/换手、ST 列表与行业/基础信息复用本地已缓存的 DataHub Parquet 数据；
+- 全 A 日频行情、日频估值/换手、ST 列表与行业/基础信息复用本地已缓存的 DataHub DuckDB 数据；
 - 沪深 300（000300.SH）与中证 500（000905.SH）历史成分股权重通过 DataHub 按半年分片拉取并缓存到
   ``data/turnover_stability/cache/``，后续运行直接读取本地缓存。
 - 复现结果保存在 ``examples/turnover_stability/``。本脚本仅执行离线研究与回测，不会下单。
@@ -21,6 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.datahub.duckdb_frames import frame_exists, frame_paths, read_frame, write_frame
 from src.strategy_evaluation import summarize_research_returns
 from src.strategy.turnover_stability import (
     ALL_FACTOR_NAMES,
@@ -65,10 +66,10 @@ PARAM_X_GRID = (20, 30, 40, 50, 60)
 
 def _load_daily_table(api: str, columns: list[str], start: str) -> pd.DataFrame:
     start_key = start.replace("-", "")
-    files = sorted(p for p in (DAILY_DIR / api).glob("*.parquet") if p.stem >= start_key)
+    files = [path for path in frame_paths(DAILY_DIR / api) if path.stem >= start_key]
     if not files:
         raise FileNotFoundError(f"未找到本地日频缓存: {DAILY_DIR / api}")
-    frames = [pd.read_parquet(p, columns=columns) for p in files]
+    frames = [read_frame(path, columns=columns) for path in files]
     frame = pd.concat([f for f in frames if not f.empty], ignore_index=True)
     frame["trade_date"] = pd.to_datetime(frame["trade_date"])
     return frame
@@ -102,9 +103,9 @@ def load_market_panels(data_start: str) -> dict[str, pd.DataFrame]:
 
 
 def load_reference() -> tuple[pd.Series, pd.DataFrame]:
-    basic = pd.read_parquet(REF_DIR / "stock_basic.parquet").drop_duplicates("ts_code").set_index("ts_code")
+    basic = read_frame(REF_DIR / "stock_basic.duckdb").drop_duplicates("ts_code").set_index("ts_code")
     list_date = pd.to_datetime(basic["list_date"], errors="coerce")
-    members = pd.read_parquet(REF_DIR / "citic_member.parquet").copy()
+    members = read_frame(REF_DIR / "citic_member.duckdb")
     members["in_date"] = pd.to_datetime(members["in_date"], errors="coerce").fillna(pd.Timestamp("1990-01-01"))
     members["out_date"] = pd.to_datetime(members["out_date"], errors="coerce").fillna(pd.Timestamp("2099-12-31"))
     return list_date, members
@@ -123,7 +124,7 @@ def industry_asof(members: pd.DataFrame, date: pd.Timestamp) -> pd.Series:
 def load_benchmark_returns(trading_days: pd.DatetimeIndex) -> pd.DataFrame:
     series = {}
     for name, code in BENCHMARKS.items():
-        frame = pd.read_parquet(REF_DIR / f"index_{code}.parquet")
+        frame = read_frame(REF_DIR / f"index_{code}.duckdb")
         frame["trade_date"] = pd.to_datetime(frame["trade_date"])
         close = frame.set_index("trade_date")["close"].sort_index()
         series[name] = close.reindex(trading_days).pct_change(fill_method=None)
@@ -133,9 +134,9 @@ def load_benchmark_returns(trading_days: pd.DatetimeIndex) -> pd.DataFrame:
 def load_index_weights(index_code: str, start_year: int = 2012, end_year: int = 2026) -> pd.DataFrame:
     """读取/拉取指数历史成分权重（严格经 DataHub，按半年分片避免单次行数截断）。"""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    path = CACHE_DIR / f"index_weight_{index_code}.parquet"
-    if path.exists():
-        df = pd.read_parquet(path)
+    path = CACHE_DIR / f"index_weight_{index_code}.duckdb"
+    if frame_exists(path):
+        df = read_frame(path)
         df["trade_date"] = pd.to_datetime(df["trade_date"])
         return df
 
@@ -156,7 +157,7 @@ def load_index_weights(index_code: str, start_year: int = 2012, end_year: int = 
     if not chunks:
         raise RuntimeError(f"DataHub 未返回 {index_code} 历史成分权重")
     df = pd.concat(chunks, ignore_index=True).drop_duplicates(["con_code", "trade_date"])
-    df.to_parquet(path, index=False)
+    write_frame(path, df)
     df["trade_date"] = pd.to_datetime(df["trade_date"])
     return df
 
