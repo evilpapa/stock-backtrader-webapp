@@ -1,0 +1,28 @@
+{
+  "checked_at": "2026-11-25T09:56:39.584540+08:00",
+  "account": "***1736",
+  "server_allow_order_methods": true,
+  "bridge_version": "0.5.3",
+  "cash": 9996864.97,
+  "frozen_cash": 0.0,
+  "broker_positions": [
+    {
+      "symbol": "600900.SH",
+      "quantity": 100,
+      "sellable": 100
+    }
+  ],
+  "broker_orders": 0,
+  "reconciliation": {
+    "ok": true,
+    "position_shortages": {},
+    "unallocated_positions": {
+      "600900.SH": 100
+    },
+    "sellable_shortages": {},
+    "allocated_cash": 1000000.0,
+    "broker_cash_and_frozen": 9996864.97,
+    "unmanaged_open_orders": 0
+  },
+  "resume": false
+}

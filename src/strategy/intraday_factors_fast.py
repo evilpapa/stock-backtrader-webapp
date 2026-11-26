@@ -40,18 +40,18 @@ def daily_factors_fast(bars: pd.DataFrame) -> pd.DataFrame:
     """公式与 daily_factors 相同；成交量平局仍按时间先后，收益不跨日。"""
     if bars.empty:
         return pd.DataFrame()
-    frame = bars.sort_values(["symbol", "datetime"]).copy()
+    frame = bars.sort_values(["symbol", "datetime"])
     frame["date"] = pd.to_datetime(frame.datetime).dt.normalize()
     if frame.duplicated(["symbol", "datetime"]).any():
         raise ValueError("重复分钟")
-    groups = frame.groupby(["symbol", "date"], sort=True)
-    if not groups.size().eq(240).all():
+    group_sizes = frame.groupby(["symbol", "date"], sort=True).size()
+    if not group_sizes.eq(240).all():
         raise ValueError("矩阵实现只接受完整240分钟")
     minute = frame.datetime.dt.hour * 60 + frame.datetime.dt.minute
     expected = np.r_[np.arange(571, 691), np.arange(781, 901)]
     if not np.equal(minute.to_numpy().reshape(-1, 240), expected).all():
         raise ValueError("分钟标签不匹配")
-    keys = groups.size().index.to_frame(index=False)
+    keys = group_sizes.index.to_frame(index=False)
     p = frame.close.to_numpy(dtype=float).reshape(-1, 240)
     v = frame.volume.to_numpy(dtype=float).reshape(-1, 240)
     op = frame.open.to_numpy(dtype=float).reshape(-1, 240)[:, 0]
@@ -66,8 +66,11 @@ def daily_factors_fast(bars: pd.DataFrame) -> pd.DataFrame:
         lag = np.c_[np.full(len(p), np.nan), r[:, :-1]]
         lead = np.c_[r[:, 1:], np.full(len(p), np.nan)]
         var, skew, kurt = _moments(r)
-        upvar = _moments(np.where(r > 0, r, np.nan))[0]
-        downvar = _moments(np.where(r < 0, r, np.nan))[0]
+        # 上下行只需要样本方差；不计算最终不会使用的偏度和峰度。
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            upvar = np.nanvar(np.where(r > 0, r, np.nan), axis=1, ddof=1)
+            downvar = np.nanvar(np.where(r < 0, r, np.nan), axis=1, ddof=1)
         large = np.argsort(-v, axis=1, kind="stable")[:, :80]
         take = lambda a: np.take_along_axis(a, large, axis=1)
         vl, pl, rl = take(v), take(p), take(r)
@@ -75,19 +78,23 @@ def daily_factors_fast(bars: pd.DataFrame) -> pd.DataFrame:
         varh, skewh, kurth = _moments(r[:, -30:])
         total = v.sum(axis=1)
         path = np.abs(np.diff(p, axis=1)).sum(axis=1)
-        illiq = np.abs(r) / np.where(p * v == 0, np.nan, p * v)
+        illiq = p * v
+        illiq[illiq == 0] = np.nan
+        np.divide(np.abs(r), illiq, out=illiq)
         illiq[~np.isfinite(illiq)] = np.nan
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             illiq = np.nanmean(illiq, axis=1)
         ratio = lambda a, b: np.divide(a, b, out=np.full_like(a, np.nan), where=b > 0)
+        volume_blocks = v.reshape(-1, 8, 30).sum(axis=2)
+        volume_ratios = ratio(volume_blocks, total[:, None])
         row = dict(real_var=var, real_skew=skew, real_kurtosis=kurt,
                    real_upvar=upvar, real_downvar=downvar,
                    ratio_realupvar=ratio(upvar, var), ratio_realdownvar=ratio(downvar, var),
                    trendratio=ratio(p[:, -1] - p[:, 0], path),
                    intraday_maxdrawdown=(p / np.maximum.accumulate(p, axis=1) - 1).min(axis=1),
                    ret_intraday=p[:, -1] / op - 1,
-                   ratio_volumeH8=ratio(v[:, -30:].sum(axis=1), total),
+                   ratio_volumeH8=volume_ratios[:, -1],
                    corr_VP=_corr(v, p), corr_VR=_corr(v, r),
                    corr_VRlag=_corr(v, lag), corr_VRlead=_corr(v, lead),
                    Amihud_illiq=illiq, ret_H8=p[:, -1] / p[:, -31] - 1,
@@ -101,6 +108,6 @@ def daily_factors_fast(bars: pd.DataFrame) -> pd.DataFrame:
                    corr_VPlarge=_corr(vl, pl), corr_VRlarge=_corr(vl, rl),
                    corr_VRleadlarge=_corr(vl, take(lead)),
                    corr_VRlaglarge=_corr(vl, take(lag)))
-        for i in range(8):
-            row[f"ratio_volumeH{i + 1}"] = ratio(v[:, i * 30:(i + 1) * 30].sum(axis=1), total)
+        # 保持 H8 在原有列位置，仅追加 H1–H7。
+        row.update({f"ratio_volumeH{i}": values for i, values in enumerate(volume_ratios[:, :-1].T, start=1)})
     return pd.concat([keys, pd.DataFrame(row)], axis=1)

@@ -14,6 +14,7 @@ from src.strategy import CustomAnalyzer
 from src.strategy import EqualWeightStrategy
 from src.strategy import JustBuyHoldStrategy
 from src.strategy import PerformanceCalculator
+from src.strategy_evaluation import SCORE_COLUMNS, evaluate_returns
 from src.risk.report import build_risk_event_frame, build_risk_summary_frame, format_risk_summary
 from src.utils.datahub_client import DataHubClient, to_upper_ohlcv
 from src.utils.commission import ChinaStockCommission
@@ -282,15 +283,11 @@ def build_metrics(
 		(equal_weight_name, equal_returns),
 	]:
 		rows.append(
-			{
-				"策略": name,
-				"年化收益率": calc.annualized_return(returns),
-				"年化波动率": calc.annualized_volatility(returns),
-				"夏普比率": calc.sharpe_ratio(returns),
-				"最大回撤": calc.max_drawdown(returns),
-				"卡尔马比率": calc.calmar_ratio(returns),
+			{"策略": name}
+			| build_return_metrics(returns)
+			| {
 				"索提诺比率": calc.sortino_ratio(returns),
-				"胜率": calc.win_rate(returns),
+				"胜率": calc.win_rate(returns) if len(returns) else None,
 				"正收益天数": int((returns > 0).sum()),
 				"总交易天数": int(len(returns)),
 			}
@@ -299,14 +296,51 @@ def build_metrics(
 	return pd.DataFrame(rows)
 
 
+def build_return_metrics(returns: pd.Series) -> dict:
+	"""将统一日频评价转换为示例和页面使用的字段。"""
+	evaluation = evaluate_returns(returns)
+	metrics = evaluation.metrics
+	return {
+		"累计收益率": metrics["total_return"],
+		"年化收益率": metrics["annual_return"],
+		"年化波动率": metrics["annual_volatility"],
+		"夏普比率": metrics["sharpe"],
+		"最大回撤": metrics["max_drawdown"],
+		"卡尔马比率": metrics["calmar"],
+	} | evaluation.scoring
+
+
+def restore_metric_scores(metrics: pd.DataFrame, returns: pd.DataFrame) -> pd.DataFrame:
+	"""读取旧结果时用原有日收益补算评分与对应指标。"""
+	if metrics.empty or set(SCORE_COLUMNS).issubset(metrics.columns):
+		return metrics
+	rows = []
+	for row in metrics.to_dict("records"):
+		name = row.get("策略")
+		if name in returns:
+			row.update(build_return_metrics(returns[name]))
+		else:
+			row.update(evaluate_returns([]).scoring)
+		rows.append(row)
+	return pd.DataFrame(rows)
+
+
+def read_result_detail(path: Path) -> pd.DataFrame:
+	"""读取权重或交易明细，兼容没有记录时生成的空 CSV。"""
+	try:
+		return pd.read_csv(path, encoding="utf-8-sig")
+	except pd.errors.EmptyDataError:
+		return pd.DataFrame()
+
+
 def format_metrics_for_console(metrics_df: pd.DataFrame) -> pd.DataFrame:
 	"""将绩效指标表格式化为控制台友好的展示文本。"""
 	# 控制台展示时将比例和倍数指标格式化为更易读的字符串。
 	formatted = metrics_df.copy()
 	for column in ["年化收益率", "年化波动率", "最大回撤", "胜率"]:
-		formatted[column] = formatted[column].map(lambda value: f"{value * 100:.2f}%")
+		formatted[column] = formatted[column].map(lambda value: f"{value:.2%}" if pd.notna(value) else "N/A")
 	for column in ["夏普比率", "卡尔马比率", "索提诺比率"]:
-		formatted[column] = formatted[column].map(lambda value: f"{value:.3f}")
+		formatted[column] = formatted[column].map(lambda value: f"{value:.3f}" if pd.notna(value) else "N/A")
 	return formatted
 
 
@@ -423,13 +457,12 @@ def build_drawdown_frame(
 ) -> pd.DataFrame:
 	"""构建各策略的回撤曲线数据表。"""
 	# 计算各策略回撤序列，用于绘制净值下方的风险区间。
-	calc = PerformanceCalculator()
 	return pd.DataFrame(
 		{
 			"Date": strategy_returns.index,
-			strategy_name: calc.calc_drawdown(strategy_returns).values,
-			benchmark_name: calc.calc_drawdown(benchmark_returns).values,
-			equal_weight_name: calc.calc_drawdown(equal_returns).values,
+			strategy_name: PerformanceCalculator.calc_drawdown(strategy_returns).values,
+			benchmark_name: PerformanceCalculator.calc_drawdown(benchmark_returns).values,
+			equal_weight_name: PerformanceCalculator.calc_drawdown(equal_returns).values,
 		}
 	)
 

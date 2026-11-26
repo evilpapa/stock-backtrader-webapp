@@ -11,6 +11,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from src.strategy_evaluation import summarize_research_returns
+
 
 @dataclass(frozen=True)
 class MicroCapTimingParams:
@@ -171,17 +173,7 @@ def backtest(index: pd.DataFrame, position: pd.Series, cost: float = 0.001) -> p
     return ret.iloc[1:].rename("strategy_return")
 
 
-def performance(returns: pd.Series, periods: int = 252) -> dict[str, float]:
-    nav = (1 + returns).cumprod()
-    years = len(returns) / periods
-    annual = nav.iloc[-1] ** (1 / years) - 1
-    vol = returns.std() * np.sqrt(periods)
-    drawdown = (nav / nav.cummax() - 1).min()
-    return {
-        "年化收益": annual,
-        "年化波动": vol,
-        "夏普比率": annual / vol if vol else np.nan,
-        "最大回撤": -drawdown,
-        "卡玛比率": annual / -drawdown if drawdown else np.nan,
-        "累计净值": nav.iloc[-1],
-    }
+def performance(returns: pd.Series, periods: int = 252) -> dict:
+    metrics = summarize_research_returns(returns, periods)
+    metrics.pop("累计收益")
+    return metrics

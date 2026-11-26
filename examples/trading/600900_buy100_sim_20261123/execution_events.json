@@ -1,0 +1,25 @@
+{
+  "checked_at": "2026-11-23T10:49:39.772705+08:00",
+  "account": "***1736",
+  "recent_execution_events": [
+    {
+      "type": "order_error",
+      "stream_id": "1795402099039-0",
+      "event": {
+        "event_type": "order_error",
+        "account_id": "***1736",
+        "stock_code": "600900.SH",
+        "order_sys_id": "",
+        "error_id": -1,
+        "status": 57,
+        "order_remark": "sim60090010020261123",
+        "user_order_id": "sim60090010020261123",
+        "strategy_name": "manual_sim_600900_buy100",
+        "error_msg": "passorder submitted but order not found in system (stock=600900.SH action=BUY price=31.62 volume=100, 313 lookup(s) including an extended watch). FIRST check the strategy's run mode: in QMT's 模型交易 list the 运行模式 column defaults to 模拟, where passorder matches internally and never reaches the broker -- switch it to 实盘 (a simulated account stays simulated; the editor window and backtest/signal modes place no real order either). Second: the terminal refused the order BEFORE creating a record -- insufficient funds/position, price range, permissions: it shows a dialog on the QMT screen and fires no callback (#345). Third: the ORDER row / order_callback was simply late -- observed >4s on a live terminal during market hours (#360). Check the 委托 list before resubmitting.",
+        "source": "settlement",
+        "created_at": "2026-11-23 10:48:19",
+        "created_at_ts": 1795402099.1026394
+      }
+    }
+  ]
+}

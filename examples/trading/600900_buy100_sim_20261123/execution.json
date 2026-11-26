@@ -1,0 +1,113 @@
+{
+  "account": "***1736",
+  "strategy": "manual_sim_600900_buy100",
+  "remark": "sim60090010020261123",
+  "symbol": "600900.SH",
+  "quantity": 100,
+  "dispatch_count": 1,
+  "state": "returned",
+  "started_at": "2026-11-23T10:44:53.646673+08:00",
+  "tick": {
+    "ok": true,
+    "data": {
+      "600900.SH": {
+        "code": "600900.SH",
+        "lastPrice": 31.6,
+        "open": 31.400000000000002,
+        "high": 31.63,
+        "low": 31.060000000000002,
+        "lastClose": 31.62,
+        "volume": 666537,
+        "amount": 2089697900.0,
+        "bidPrice": [
+          31.59,
+          31.580000000000002,
+          31.57,
+          31.560000000000002,
+          31.55
+        ],
+        "bidVol": [
+          73,
+          162,
+          175,
+          272,
+          333
+        ],
+        "askPrice": [
+          31.6,
+          31.61,
+          31.62,
+          31.63,
+          31.64
+        ],
+        "askVol": [
+          411,
+          321,
+          357,
+          3774,
+          3614
+        ],
+        "time": 1795401894000,
+        "stime": null,
+        "change_pct": -0.06
+      }
+    },
+    "ts": "2026-11-23T10:44:54"
+  },
+  "limit_price": 31.6,
+  "notional_cap": 3160.0,
+  "health": {
+    "ok": true,
+    "data": {
+      "result": {
+        "pong": true,
+        "account_id": "***1736",
+        "allow_order_methods": true,
+        "rpc_revision": "20260715-execution-snapshot-v1",
+        "version": "0.5.0",
+        "account_type": "STOCK",
+        "account_types": [
+          "STOCK"
+        ],
+        "server_time": "2026-11-23 10:44:54"
+      },
+      "latency_ms": 505.1
+    },
+    "ts": "2026-11-23T10:44:54"
+  },
+  "preview": {
+    "ok": true,
+    "data": {
+      "dry_run": true,
+      "action": "BUY",
+      "stock_code": "600900.SH",
+      "volume": 100,
+      "price": 31.6,
+      "price_type": "LIMIT",
+      "strategy_name": "manual_sim_600900_buy100",
+      "order_remark": "sim60090010020261123"
+    },
+    "ts": "2026-11-23T10:44:54"
+  },
+  "submitted_at": "2026-11-23T10:44:54.952136+08:00",
+  "command": [
+    "buy",
+    "600900.SH",
+    "100",
+    "--price",
+    "31.60",
+    "--strategy",
+    "manual_sim_600900_buy100",
+    "--remark",
+    "sim60090010020261123"
+  ],
+  "returncode": 1,
+  "result": {
+    "ok": false,
+    "error": "下单失败",
+    "ts": "2026-11-23T10:44:55",
+    "detail": "Serial order requires a fresh Valkey RPC client timestamp; check client version and clock",
+    "code": "ORDER_FAIL"
+  },
+  "returned_at": "2026-11-23T10:44:55.075799+08:00"
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "date": "2026-11-23",
+    "source": "tushare_research_parquet",
+    "frequency": "1d",
+    "adjust": "none",
+    "data_version": "4f0c7e194522a33748c9ce683de70153ffd58507af1494f4d456238181f3518e"
+  }
+]

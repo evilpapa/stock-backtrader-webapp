@@ -17,6 +17,8 @@ from examples.backtest_common import (
 	build_returns_frame,
 	build_risk_frames,
 	prepare_price_data,
+	read_result_detail,
+	restore_metric_scores,
 	run_benchmark_backtest,
 	run_equal_weight_backtest,
 	run_strategy_backtest,
@@ -69,12 +71,14 @@ def load_etf_momentum_results(output_dir: Path = DEFAULT_OUTPUT_DIR) -> EtfMomen
 		return None
 	risk_events_path = output_dir / "risk_events.csv"
 	risk_summary_path = output_dir / "risk_summary.csv"
+	returns = pd.read_csv(output_dir / RESULT_FILES["returns"], encoding="utf-8-sig")
+	metrics = pd.read_csv(output_dir / RESULT_FILES["metrics"], encoding="utf-8-sig")
 	return EtfMomentumFrames(
-		metrics=pd.read_csv(output_dir / RESULT_FILES["metrics"], encoding="utf-8-sig"),
-		returns=pd.read_csv(output_dir / RESULT_FILES["returns"], encoding="utf-8-sig"),
+		metrics=restore_metric_scores(metrics, returns),
+		returns=returns,
 		cumulative=pd.read_csv(output_dir / RESULT_FILES["cumulative"], encoding="utf-8-sig"),
 		drawdown=pd.read_csv(output_dir / RESULT_FILES["drawdown"], encoding="utf-8-sig"),
-		weights=pd.read_csv(output_dir / RESULT_FILES["weights"], encoding="utf-8-sig"),
+		weights=read_result_detail(output_dir / RESULT_FILES["weights"]),
 		risk_events=(
 			pd.read_csv(risk_events_path, encoding="utf-8-sig") if risk_events_path.exists() else None
 		),
@@ -96,7 +100,7 @@ def build_etf_momentum_weight_frame(rebalance_history: list[dict], names: list[s
 			row[name] = float(weights[index]) if index < len(weights) else 0.0
 		row["权重合计"] = sum(row[name] for name in names)
 		rows.append(row)
-	return pd.DataFrame(rows)
+	return pd.DataFrame(rows, columns=["Date", *names, "权重合计"])
 
 
 def run_etf_momentum_backtest(

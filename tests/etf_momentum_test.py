@@ -129,6 +129,23 @@ class EtfMomentumTest(unittest.TestCase):
 			len(slow_result.rebalance_history),
 		)
 
+	def test_weights_normalize_only_positive_scores_in_feed_order(self):
+		cerebro = bt.Cerebro()
+		swing = np.array([100., 102., 101., 105., 106., 110.])
+		up = self.data1.iloc[:6]
+		second_up = up.assign(Open=swing, High=swing + 1, Low=swing - 1, Close=swing)
+		for frame in (self.data2.iloc[:6], up, self.data3.iloc[:6], second_up):
+			cerebro.adddata(bt.feeds.PandasData(dataname=frame))
+		cerebro.addstrategy(EtfMomentumStrategy, momentum_window=5)
+
+		strategy, = cerebro.run()
+		prices = np.vstack([up.Close.to_numpy(), swing])
+		returns = prices[:, 1:] / prices[:, :-1] - 1
+		scores = returns.mean(axis=1) / returns.std(axis=1)
+		expected = np.zeros(4)
+		expected[[1, 3]] = scores / scores.sum()
+		np.testing.assert_allclose(strategy.rebalance_history[0]['weights'], expected, rtol=1e-7)
+
 	def test_momentum_calculation(self):
 		"""测试动量计算逻辑"""
 		# 这是一个简化的测试，验证动量指标的计算

@@ -1,0 +1,142 @@
+{
+  "checked_at": "2026-11-23T13:02:24.203356+08:00",
+  "account": "***1736",
+  "symbol": "600900.SH",
+  "broker_id": "5040",
+  "limit_price": 31.3,
+  "requested_quantity": 100,
+  "confirmed_trade_quantity": 100,
+  "confirmed_trade_amount": 3130.0,
+  "average_fill_price": 31.3,
+  "success": true,
+  "supplemental_dispatch_count": 1,
+  "results": [
+    {
+      "command": [
+        "orders",
+        "--strategy",
+        ""
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "orders": [
+            {
+              "account_id": "***1736",
+              "stock_code": "600900.SH",
+              "order_type": 23,
+              "order_status": 56,
+              "order_volume": 100,
+              "traded_volume": 100,
+              "price": 31.3,
+              "order_sysid": "5040",
+              "order_id": 5040,
+              "strategy_name": "manual_sim_600900_buy100",
+              "order_remark": "sim60090010020261123",
+              "order_time": 1795410119,
+              "trade_amount": 3130.0,
+              "order_type_name": "BUY",
+              "order_status_name": "SUCCEEDED",
+              "cancelable": false
+            }
+          ],
+          "count": 1
+        },
+        "ts": "2026-11-23T13:02:24"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "trades",
+        "--strategy",
+        ""
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "trades": [
+            {
+              "account_id": "***1736",
+              "stock_code": "600900.SH",
+              "order_type": 23,
+              "order_sysid": "5040",
+              "order_id": 5040,
+              "trade_id": "50009774",
+              "traded_volume": 100,
+              "traded_price": 31.3,
+              "traded_at": "130159",
+              "order_remark": "sim60090010020261123",
+              "strategy_name": "manual_sim_600900_buy100",
+              "order_type_name": "BUY"
+            }
+          ],
+          "count": 1
+        },
+        "ts": "2026-11-23T13:02:24"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "positions",
+        "600900.SH"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "positions": [
+            {
+              "account_id": "***1736",
+              "stock_code": "600900.SH",
+              "stock_name": "长江电力",
+              "volume": 100,
+              "can_use_volume": 0,
+              "available_amount": 0,
+              "enable_amount": 0,
+              "avg_price": 31.3,
+              "price": 31.28,
+              "open_price": 31.3,
+              "cost_price": 31.3,
+              "market_value": 3128.0,
+              "frozen_volume": 0,
+              "yesterday_volume": 0,
+              "direction": 48,
+              "profit": -2.0,
+              "profit_pct": -0.06
+            }
+          ],
+          "summary": {
+            "count": 1,
+            "total_market_value": 3128.0,
+            "total_profit": -2.0
+          }
+        },
+        "ts": "2026-11-23T13:02:24"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "account"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "account_id": "***1736",
+          "cash": 9996870.0,
+          "available_cash": 9996870.0,
+          "frozen_cash": 0.0,
+          "total_asset": 9999998.0,
+          "market_value": 3128.0
+        },
+        "ts": "2026-11-23T13:02:24"
+      },
+      "stderr": ""
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import backtrader as bt
 import pandas as pd
 
 from src.strategy.small_cap import SmallCapPandasData, SmallCapStrategy
+from src.strategy_evaluation import evaluate_returns
 
 from .datahub_universe import DatahubUniverseClient, StockUniverseSnapshot
 
@@ -77,4 +78,10 @@ def run_small_cap_backtest(
         "backtest_start_date": backtest_start_date,
     })
     cerebro.addstrategy(SmallCapStrategy, **params)
-    return cerebro.run()[0]
+    cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="daily_returns", timeframe=bt.TimeFrame.Days)
+    result = cerebro.run()[0]
+    returns = pd.Series(result.analyzers.daily_returns.get_analysis(), dtype=float)
+    if backtest_start_date is not None and not returns.empty:
+        returns = returns.loc[pd.Timestamp(backtest_start_date).normalize():]
+    result.evaluation = evaluate_returns(returns)
+    return result

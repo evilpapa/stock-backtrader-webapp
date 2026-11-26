@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.utils.rotation_backtest import ROTATION_SPECS, run_rotation_backtest
+from src.utils.rotation_backtest import ROTATION_SPECS, load_rotation_results, run_rotation_backtest
 from src.utils.turtle_backtest import run_turtle_backtest
 
 
@@ -57,6 +57,14 @@ class RotationAndTurtleBacktestServiceTest(unittest.TestCase):
 		)
 
 		self.assertEqual(frames.metrics["策略"].tolist(), [spec.strategy_name, "基准ETF", spec.equal_weight_name])
+		self.assertTrue(frames.metrics["score"].between(0, 100).all())
+		saved = pd.read_csv(spec.output_dir / "performance_metrics.csv")
+		self.assertEqual(saved["score"].tolist(), frames.metrics["score"].tolist())
+		pd.DataFrame().to_csv(spec.output_dir / "daily_weights.csv", index=False)
+		reloaded = load_rotation_results(spec)
+		self.assertIsNotNone(reloaded)
+		self.assertTrue(reloaded.weights.empty)
+		self.assertEqual(reloaded.metrics["score"].tolist(), frames.metrics["score"].tolist())
 		self.assertFalse(frames.weights.empty)
 		self.assertIsNotNone(frames.selection_frequency)
 		self.assertIsNotNone(frames.rebalance_details)
@@ -127,6 +135,7 @@ class RotationAndTurtleBacktestServiceTest(unittest.TestCase):
 			self.assertEqual(frames.metrics["策略"].tolist(), ["海龟交易策略"])
 			self.assertIn("累计收益率", frames.metrics.columns)
 			self.assertIn("卡玛比率", frames.metrics.columns)
+			self.assertTrue(frames.metrics["score"].between(0, 100).all())
 			self.assertTrue((output_dir / "equity_curve.csv").exists())
 			self.assertTrue((output_dir / "trade_log.csv").exists())
 			self.assertTrue((output_dir / "performance_metrics.csv").exists())

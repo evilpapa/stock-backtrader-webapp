@@ -17,6 +17,8 @@ from examples.backtest_common import (
 	build_selection_frequency_frame,
 	build_weight_frame,
 	prepare_price_data,
+	read_result_detail,
+	restore_metric_scores,
 	run_benchmark_backtest,
 	run_equal_weight_backtest,
 	run_rotation_strategy_backtest,
@@ -166,17 +168,19 @@ def load_rotation_results(spec: RotationSpec) -> RotationFrames | None:
 		return None
 	selection_path = spec.output_dir / RESULT_FILES["selection_frequency"]
 	rebalance_path = spec.output_dir / RESULT_FILES["rebalance_details"]
+	returns = pd.read_csv(spec.output_dir / RESULT_FILES["returns"], encoding="utf-8-sig")
+	metrics = pd.read_csv(spec.output_dir / RESULT_FILES["metrics"], encoding="utf-8-sig")
 	return RotationFrames(
-		metrics=pd.read_csv(spec.output_dir / RESULT_FILES["metrics"], encoding="utf-8-sig"),
-		returns=pd.read_csv(spec.output_dir / RESULT_FILES["returns"], encoding="utf-8-sig"),
+		metrics=restore_metric_scores(metrics, returns),
+		returns=returns,
 		cumulative=pd.read_csv(spec.output_dir / RESULT_FILES["cumulative"], encoding="utf-8-sig"),
 		drawdown=pd.read_csv(spec.output_dir / RESULT_FILES["drawdown"], encoding="utf-8-sig"),
-		weights=pd.read_csv(spec.output_dir / RESULT_FILES["weights"], encoding="utf-8-sig"),
+		weights=read_result_detail(spec.output_dir / RESULT_FILES["weights"]),
 		selection_frequency=(
-			pd.read_csv(selection_path, encoding="utf-8-sig") if selection_path.exists() else None
+			read_result_detail(selection_path) if selection_path.exists() else None
 		),
 		rebalance_details=(
-			pd.read_csv(rebalance_path, encoding="utf-8-sig") if rebalance_path.exists() else None
+			read_result_detail(rebalance_path) if rebalance_path.exists() else None
 		),
 		risk_events=(
 			pd.read_csv(spec.output_dir / "risk_events.csv", encoding="utf-8-sig")

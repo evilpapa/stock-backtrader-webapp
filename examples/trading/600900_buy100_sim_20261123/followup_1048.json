@@ -1,0 +1,78 @@
+{
+  "queried_at": "2026-11-23T10:48:24.570312+08:00",
+  "results": [
+    {
+      "command": [
+        "orders",
+        "--strategy",
+        ""
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "orders": [],
+          "count": 0
+        },
+        "ts": "2026-11-23T10:48:24"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "trades",
+        "--strategy",
+        ""
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "trades": [],
+          "count": 0
+        },
+        "ts": "2026-11-23T10:48:24"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "positions",
+        "600900.SH"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "positions": [],
+          "summary": {
+            "count": 0,
+            "total_market_value": 0,
+            "total_profit": 0
+          }
+        },
+        "ts": "2026-11-23T10:48:24"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "account"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "account_id": "***1736",
+          "cash": 10000000.0,
+          "available_cash": 10000000.0,
+          "frozen_cash": 0.0,
+          "total_asset": 10000000.0,
+          "market_value": 0.0
+        },
+        "ts": "2026-11-23T10:48:24"
+      },
+      "stderr": ""
+    }
+  ]
+}

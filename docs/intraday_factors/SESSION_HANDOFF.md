@@ -4,9 +4,13 @@
 本文件依据可访问对话、当前源码、产物及审计记录整理；11月15日整理交接时未改业务代码或续拉行情。
 11月16日新增公共持仓与订单执行，见文末补充和执行验证报告。
 
-2026 年 11 月 24 日更新。日常竞价源已迁至 `/data3/stock_data/stk_open_auction/YYYYMM/YYYYMMDD.csv`。
-当前结果见 [2026-11-23 数据刷新](refresh_20261123.md)。最新完整周信号为 11 月 20 日，
-11 月 23 日执行，共 47 只。下文记录上一版研究及执行交接。
+当前保留的数据版本截至 2026 年 11 月 24 日。日常竞价源为
+`/data3/stock_data/stk_open_auction/YYYYMM/YYYYMMDD.csv`。最新完整周信号为 11 月 20 日，
+原定 11 月 23 日执行，共 47 只。11 月 25 日另用券商模拟账户执行该篮子。
+见[回测指标](../../examples/intraday_factors/refresh_20261124/backtest/metrics.json)、
+[选股名单](../../examples/intraday_factors/refresh_20261124/backtest/latest_selection.csv)和
+[券商模拟执行记录](../../examples/intraday_factors/refresh_20261124/qmt_simulation_20261125/execution.json)。
+下文为历史研究记录。归档的旧刷新目录需要恢复后才能打开对应明细或执行旧命令。
 
 ## 1. 最终目标与完成状态
 

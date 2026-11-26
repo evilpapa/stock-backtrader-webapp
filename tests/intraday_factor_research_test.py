@@ -40,6 +40,22 @@ class WeeklyResearchTest(unittest.TestCase):
         self.assertEqual(row.group_1_n, 1)
         self.assertAlmostEqual(row.group_1, (100 + 10*2)/(100+5*2)-1)
 
+    def test_empty_decile_keeps_its_column_and_does_not_shift_ties(self):
+        calendar = pd.bdate_range('2026-01-05', periods=15)
+        data = pd.DataFrame([
+            {'symbol': f'{i:02d}', 'date': day, 'open_proxy': 100.,
+             'alpha': i // 4, 'forward_return': np.nan if i < 2 else i / 100}
+            for i in range(20) for day in calendar
+        ]).sample(frac=1, random_state=4)
+        row = weekly_research(data, calendar, returns_column='forward_return').iloc[0]
+        self.assertEqual(row.signal_n, 20)
+        self.assertEqual(row.n, 18)
+        self.assertTrue(np.isnan(row.group_1))
+        self.assertEqual(row.group_1_n, 0)
+        self.assertEqual(row.group_2_n, 2)
+        self.assertAlmostEqual(row.group_2, 0.025)
+        self.assertAlmostEqual(row.group_3, 0.045)
+
     def test_missing_entry_price_excludes_symbol(self):
         calendar = pd.bdate_range('2026-01-05', periods=15)
         rows = [{'symbol':str(i), 'date':day, 'open_proxy':(np.nan if i == 0 and j == 5 else 10+j), 'alpha':i}

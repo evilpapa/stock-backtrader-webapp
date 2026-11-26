@@ -1,0 +1,14 @@
+{
+  "account": "***1736",
+  "client_version": "0.5.1",
+  "client_source": "/data1/xtquant-big-convert/src",
+  "strategy": "manual_sim_600900_buy100",
+  "remark": "sim60090010020261123",
+  "symbol": "600900.SH",
+  "quantity": 100,
+  "dispatch_count": 0,
+  "state": "preflight_failed",
+  "started_at": "2026-11-23T10:47:24.219764+08:00",
+  "previous_attempt": "refused by serial bridge timestamp validation before QMT forwarding",
+  "error": "'600900.SH'"
+}

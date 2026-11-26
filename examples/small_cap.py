@@ -124,6 +124,8 @@ def main(argv: Sequence[str] | None = None) -> SmallCapStrategy:
     )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    metrics = pd.DataFrame([strategy.evaluation.metrics | strategy.evaluation.scoring])
+    metrics.to_csv(args.output_dir / "performance_metrics.csv", index=False, encoding="utf-8-sig")
     snapshot.stocks.to_csv(args.output_dir / "universe_snapshot.csv", index=False, encoding="utf-8-sig")
     pd.DataFrame(strategy.rebalance_history).to_json(
         args.output_dir / "rebalance_history.json",
@@ -136,6 +138,7 @@ def main(argv: Sequence[str] | None = None) -> SmallCapStrategy:
     if strategy.rebalance_history:
         print(f"最后一次调仓: {strategy.rebalance_history[-1]}")
     print(f"期末资产: {strategy.broker.getvalue():,.2f}")
+    print(metrics.to_string(index=False))
     print(f"结果已保存到: {args.output_dir}")
     return strategy
 

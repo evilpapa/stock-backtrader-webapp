@@ -1,0 +1,61 @@
+[
+  {
+    "at": "2026-11-25T09:57:34.382109+08:00",
+    "cycle": 1,
+    "status": "refresh_before_next_dispatch",
+    "order_count": 14,
+    "orders": {
+      "submitted": 14
+    }
+  },
+  {
+    "at": "2026-11-25T09:58:02.286978+08:00",
+    "cycle": 2,
+    "status": "refresh_before_next_dispatch",
+    "order_count": 26,
+    "orders": {
+      "submitted": 19,
+      "filled": 7
+    }
+  },
+  {
+    "at": "2026-11-25T09:58:30.237147+08:00",
+    "cycle": 3,
+    "status": "refresh_before_next_dispatch",
+    "order_count": 38,
+    "orders": {
+      "submitted": 24,
+      "filled": 14
+    }
+  },
+  {
+    "at": "2026-11-25T09:58:51.948775+08:00",
+    "cycle": 4,
+    "status": "pending",
+    "order_count": 47,
+    "orders": {
+      "submitted": 21,
+      "filled": 26
+    }
+  },
+  {
+    "at": "2026-11-25T09:58:52.892138+08:00",
+    "status": "listening",
+    "order_count": 47,
+    "orders": {
+      "submitted": 21,
+      "filled": 26
+    },
+    "unresolved": 21
+  },
+  {
+    "at": "2026-11-25T09:59:43.436924+08:00",
+    "status": "listening",
+    "order_count": 47,
+    "orders": {
+      "submitted": 20,
+      "filled": 27
+    },
+    "unresolved": 20
+  }
+]

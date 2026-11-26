@@ -1,0 +1,119 @@
+{
+  "account": "***1736",
+  "client_version": "0.5.1",
+  "strategy": "manual_sim_600900_buy100",
+  "remark": "sim60090010020261123",
+  "symbol": "600900.SH",
+  "quantity": 100,
+  "dispatch_count": 1,
+  "state": "returned",
+  "started_at": "2026-11-23T10:48:02.253378+08:00",
+  "raw_tick": {
+    "ok": true,
+    "data": {
+      "method": "get_full_tick",
+      "result": {
+        "600900.SH": {
+          "time": 1795402080000,
+          "timetag": "20261123 10:48:00",
+          "lastPrice": 31.61,
+          "open": 31.400000000000002,
+          "high": 31.63,
+          "low": 31.060000000000002,
+          "lastClose": 31.62,
+          "amount": 2144001000.0,
+          "volume": 683725,
+          "pvolume": 68372531,
+          "stockStatus": 3,
+          "openInt": 13,
+          "settlementPrice": 0.0,
+          "lastSettlementPrice": 31.62,
+          "askPrice": [
+            31.62,
+            31.63,
+            31.64,
+            31.650000000000002,
+            31.66
+          ],
+          "bidPrice": [
+            31.61,
+            31.6,
+            31.59,
+            31.580000000000002,
+            31.57
+          ],
+          "askVol": [
+            280,
+            3868,
+            3618,
+            562,
+            873
+          ],
+          "bidVol": [
+            157,
+            316,
+            832,
+            841,
+            205
+          ]
+        }
+      }
+    },
+    "ts": "2026-11-23T10:48:03"
+  },
+  "limit_price": 31.62,
+  "notional_cap": 3162.0,
+  "health": {
+    "ok": true,
+    "data": {
+      "result": {
+        "pong": true,
+        "account_id": "***1736",
+        "allow_order_methods": true,
+        "rpc_revision": "20260715-execution-snapshot-v1",
+        "version": "0.5.0",
+        "account_type": "STOCK",
+        "account_types": [
+          "STOCK"
+        ],
+        "server_time": "2026-11-23 10:48:03"
+      },
+      "latency_ms": 725.0
+    },
+    "ts": "2026-11-23T10:48:03"
+  },
+  "preview": {
+    "ok": true,
+    "data": {
+      "dry_run": true,
+      "action": "BUY",
+      "stock_code": "600900.SH",
+      "volume": 100,
+      "price": 31.62,
+      "price_type": "LIMIT",
+      "strategy_name": "manual_sim_600900_buy100",
+      "order_remark": "sim60090010020261123"
+    },
+    "ts": "2026-11-23T10:48:03"
+  },
+  "submitted_at": "2026-11-23T10:48:03.631204+08:00",
+  "command": [
+    "buy",
+    "600900.SH",
+    "100",
+    "--price",
+    "31.62",
+    "--strategy",
+    "manual_sim_600900_buy100",
+    "--remark",
+    "sim60090010020261123"
+  ],
+  "returncode": 1,
+  "result": {
+    "ok": false,
+    "error": "下单返回 -1（失败），请检查：1) 账户权限 2) 价格范围 3) QMT 风控",
+    "ts": "2026-11-23T10:48:07",
+    "code": "ORDER_REJECTED"
+  },
+  "returned_at": "2026-11-23T10:48:07.161210+08:00"
+}

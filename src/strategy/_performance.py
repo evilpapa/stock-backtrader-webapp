@@ -51,10 +51,7 @@ class PerformanceCalculator:
 		if HAS_EMPYRICAL:
 			return ep.max_drawdown(returns)
 		else:
-			cum_returns = (1 + returns).cumprod()
-			running_max = cum_returns.expanding().max()
-			drawdown = (cum_returns - running_max) / running_max
-			return drawdown.min()
+			return PerformanceCalculator.calc_drawdown(returns).min()
 
 	@staticmethod
 	def calmar_ratio(returns):
@@ -84,6 +81,6 @@ class PerformanceCalculator:
 	def calc_drawdown(returns):
 		"""返回每个时间点相对历史高点的回撤序列。"""
 		cum = (1 + returns).cumprod()
-		running_max = cum.expanding().max()
+		running_max = cum.cummax().clip(lower=1.0)
 		drawdown = (cum - running_max) / running_max
 		return drawdown

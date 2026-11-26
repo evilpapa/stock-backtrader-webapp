@@ -1,10 +1,12 @@
 import logging
+from importlib import import_module
 
 import backtrader as bt
 import backtrader.analyzers as btanalyzers
-import numpy as np
 import pandas as pd
 import streamlit as st
+
+from src.strategy_evaluation import SCORE_COLUMNS, SCORE_VERSION, evaluate_returns
 
 from .logs import logger
 from .datahub_client import DataHubClient, to_chinese_ohlcv
@@ -15,6 +17,12 @@ logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR
 
 # 为 Streamlit 缓存提供 Pydantic 模型的稳定哈希输入。
 model_hash_func = lambda x: x.model_dump()
+BACKTRADER_METRIC_COLUMNS = ("return", "total_return", "dd", "sharpe", "calmar", "annual_volatility")
+BACKTRADER_PERIODS = {
+    "1d": (bt.TimeFrame.Days, 252),
+    "1w": (bt.TimeFrame.Weeks, 52),
+    "1mon": (bt.TimeFrame.Months, 12),
+}
 
 
 @st.cache_data(hash_funcs={MarketDataParams: model_hash_func})
@@ -42,23 +50,25 @@ def gen_stock_df(market_data_params: MarketDataParams) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+def run_backtrader(
+    stock_df: pd.DataFrame, strategy: StrategyBase, bt_params: BacktraderParams, *, period: str = "1d"
+) -> pd.DataFrame:
+    """运行参数寻优并为每组回测参数生成评分。"""
+    return _run_backtrader(stock_df, strategy, bt_params, period, SCORE_VERSION)
+
+
 @st.cache_data(hash_funcs={StrategyBase: model_hash_func, BacktraderParams: model_hash_func})
-def run_backtrader(stock_df: pd.DataFrame, strategy: StrategyBase, bt_params: BacktraderParams) -> pd.DataFrame:
-    """运行 Backtrader 参数寻优回测并汇总关键绩效指标。
-
-    Args:
-        stock_df (pd.DataFrame): 股票数据
-        strategy (StrategyBase): 策略名称和参数
-        bt_params (BacktraderParams): 回测参数
-
-    Returns:
-        pd.DataFrame: 回测结果
-    """
+def _run_backtrader(
+    stock_df: pd.DataFrame, strategy: StrategyBase, bt_params: BacktraderParams, period: str, score_version: str
+) -> pd.DataFrame:
+    timeframe, periods_per_year = BACKTRADER_PERIODS[period]
     # Backtrader 需要以日期作为数据源索引。
-    stock_df.index = pd.to_datetime(stock_df["date"])
+    stock_df = stock_df.set_index(pd.to_datetime(stock_df["date"]))
 
     # 将页面上传入的行情 DataFrame 包装为 Backtrader 数据源。
-    data = bt.feeds.PandasData(dataname=stock_df, fromdate=bt_params.start_date, todate=bt_params.end_date)
+    data = bt.feeds.PandasData(
+        dataname=stock_df, fromdate=bt_params.start_date, todate=bt_params.end_date, timeframe=timeframe
+    )
 
     # 初始化回测引擎并设置资金、佣金与固定手数。
     cerebro = bt.Cerebro()
@@ -67,14 +77,11 @@ def run_backtrader(stock_df: pd.DataFrame, strategy: StrategyBase, bt_params: Ba
     cerebro.broker.setcommission(commission=bt_params.commission_fee)
     cerebro.addsizer(bt.sizers.FixedSize, stake=bt_params.stake)
 
-    # 分析器负责输出收益、回撤、夏普等后续展示指标。
-    cerebro.addanalyzer(btanalyzers.SharpeRatio, _name="sharpe", riskfreerate=0.0)
-    cerebro.addanalyzer(btanalyzers.DrawDown, _name="drawdown")
-    cerebro.addanalyzer(btanalyzers.Returns, _name="returns")
+    cerebro.addanalyzer(btanalyzers.TimeReturn, _name="period_returns", timeframe=timeframe)
 
     # 策略名称来自配置和表单，需要在运行时解析到具体策略类。
     try:
-        strategy_cli = getattr(__import__("strategy"), f"{strategy.name}Strategy")
+        strategy_cli = getattr(import_module("src.strategy"), f"{strategy.name}Strategy")
         cerebro.optstrategy(strategy_cli, **strategy.params)
     except (ImportError, AttributeError) as e:
         logger.error(f"策略导入失败: {e}")
@@ -83,38 +90,23 @@ def run_backtrader(stock_df: pd.DataFrame, strategy: StrategyBase, bt_params: Ba
     # 固定单进程执行，避免 Streamlit 缓存环境下的多进程序列化问题。
     back = cerebro.run(maxcpus=1)
 
-    # 汇总每组优化参数对应的分析器输出。
-    par_list = []
-    for x in back:
-        # 保留参数值，便于页面表格对比不同参数组合。
-        par = []
-        for param in strategy.params.keys():
-            par.append(x[0].params._getkwargs()[param])
-
-        returns_analysis = x[0].analyzers.returns.get_analysis()
-        annual_return_pct = returns_analysis["rnorm100"]
-        max_drawdown_pct = x[0].analyzers.drawdown.get_analysis()["max"]["drawdown"]
-        total_return = np.expm1(returns_analysis.get("rtot", np.nan))
-        calmar = (
-            (annual_return_pct / 100.0) / (max_drawdown_pct / 100.0)
-            if max_drawdown_pct
-            else np.nan
+    rows = []
+    for result, in back:
+        returns = list(result.analyzers.period_returns.get_analysis().values())
+        evaluation = evaluate_returns(returns, periods_per_year)
+        metrics = evaluation.metrics
+        annual, drawdown = metrics["annual_return"], metrics["max_drawdown"]
+        rows.append(
+            {name: result.params._getkwargs()[name] for name in strategy.params}
+            | {
+                "return": annual * 100 if annual is not None else None,
+                "total_return": metrics["total_return"],
+                "dd": abs(drawdown) * 100 if drawdown is not None else None,
+                "sharpe": metrics["sharpe"],
+                "calmar": metrics["calmar"],
+                "annual_volatility": metrics["annual_volatility"],
+            }
+            | evaluation.scoring
+            | {"score_version": score_version}
         )
-
-        # 统一附加绩效指标列，供图表和表格直接消费。
-        par.extend(
-            [
-                annual_return_pct,
-                total_return,
-                max_drawdown_pct,
-                x[0].analyzers.sharpe.get_analysis()["sharperatio"],
-                calmar,
-            ]
-        )
-        par_list.append(par)
-
-    # 结果列顺序保持为策略参数在前、绩效指标在后。
-    columns = list(strategy.params.keys())
-    columns.extend(["return", "total_return", "dd", "sharpe", "calmar"])
-    par_df = pd.DataFrame(par_list, columns=columns)
-    return par_df
+    return pd.DataFrame(rows, columns=[*strategy.params, *BACKTRADER_METRIC_COLUMNS, *SCORE_COLUMNS])

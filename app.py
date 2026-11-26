@@ -8,6 +8,8 @@ from streamlit_echarts import st_pyecharts
 
 from src.charts import draw_multi_line, draw_pro_kline, draw_result_bar, draw_weight_area
 from src.frames import backtrader_selector_ui, market_data_selector_ui, market_data_source_ui, params_selector_ui, risk_control_ui
+from src.frames.asset_management import render_asset_management
+from src.strategy_evaluation import GRADE_THRESHOLDS
 from src.utils.etf_momentum_backtest import (
 	BENCHMARK_NAME as ETF_BENCHMARK_NAME,
 	DEFAULT_ASSETS as ETF_DEFAULT_ASSETS,
@@ -18,7 +20,7 @@ from src.utils.etf_momentum_backtest import (
 )
 from src.utils.load import load_strategy
 from src.utils.logs import logger
-from src.utils.processing import gen_stock_df, run_backtrader
+from src.utils.processing import BACKTRADER_METRIC_COLUMNS, gen_stock_df, run_backtrader
 from src.utils.rotation_backtest import (
 	ROTATION_SPECS,
 	RotationFrames,
@@ -157,10 +159,14 @@ def render_performance_summary(
     max_drawdown: float | None,
     sharpe_ratio: float | None,
     calmar_ratio: float | None,
+    scoring: pd.Series | dict,
 ) -> None:
     """渲染顶部绩效摘要卡片。"""
     st.markdown(SUMMARY_CARD_CSS, unsafe_allow_html=True)
-    left, dd_col, sharpe_col, calmar_col = st.columns([2.2, 1, 1, 1])
+    score_col, left, dd_col, sharpe_col, calmar_col = st.columns([1.4, 2.2, 1, 1, 1])
+    score = _number_or_none(scoring.get("score"))
+    grade = next((grade for _, grade in GRADE_THRESHOLDS if grade == scoring.get("score_grade")), "—")
+    score_text = f"{score:.2f} / 100 · {grade}" if score is not None else "暂无法评分"
     with left:
         st.markdown(
             f"""
@@ -173,6 +179,7 @@ def render_performance_summary(
             unsafe_allow_html=True,
         )
     for column, label, value, formatter in [
+        (score_col, "策略评分", score_text, str),
         (dd_col, "最大回撤", max_drawdown, _format_percent),
         (sharpe_col, "夏普比率", sharpe_ratio, _format_ratio),
         (calmar_col, "卡玛比率", calmar_ratio, _format_ratio),
@@ -187,6 +194,16 @@ def render_performance_summary(
                 """,
                 unsafe_allow_html=True,
             )
+    if score is not None:
+        st.caption(
+            f"评分 {scoring['score_version']} · "
+            f"收益 {scoring['return_points']:.2f} 分 · "
+            f"回撤 {scoring['drawdown_points']:.2f} 分 · "
+            f"夏普 {scoring['sharpe_points']:.2f} 分"
+        )
+    note = scoring.get("score_note")
+    if isinstance(note, str) and note:
+        st.caption(note)
 
 
 def render_summary_from_metric_row(row: pd.Series | dict, cumulative_return: float | None = None) -> None:
@@ -197,6 +214,7 @@ def render_summary_from_metric_row(row: pd.Series | dict, cumulative_return: flo
         max_drawdown=_max_drawdown_from_row(row),
         sharpe_ratio=_ratio_from_row(row, ["夏普比率", "sharpe", "sharpe_ratio"]),
         calmar_ratio=_ratio_from_row(row, ["卡玛比率", "卡尔马比率", "calmar", "calmar_ratio"]),
+        scoring=row,
     )
 
 
@@ -494,7 +512,7 @@ def render_single_symbol_strategy(name: str) -> None:
 	if not submitted:
 		return
 
-	logger.info(f"tushare market data: {market_data_params}")
+	logger.info("market data: {}", market_data_params.model_dump(exclude={"tushare_token"}))
 	logger.info(f"backtrader: {bt_params}")
 	# Backtrader 数据源使用英文 OHLCV 字段名，这里在入参前统一映射。
 	stock_df = stock_df.rename(
@@ -508,17 +526,23 @@ def render_single_symbol_strategy(name: str) -> None:
 		}
 	)
 	strategy = StrategyBase(name=name, params=params)
-	par_df = run_backtrader(stock_df, strategy, bt_params)
-	if not par_df.empty:
-		best_row = par_df.loc[par_df["return"].idxmax()]
-		render_summary_from_metric_row(best_row)
-	st.dataframe(par_df.style.highlight_max(subset=par_df.columns[-5:]))
-	bar = draw_result_bar(par_df, n_scors=5)
+	par_df = run_backtrader(stock_df, strategy, bt_params, period=market_data_params.period)
+	if par_df.empty:
+		st.info("没有可展示的回测结果")
+		return
+	ranked = par_df.sort_values(["score", "return"], ascending=False, na_position="last")
+	render_summary_from_metric_row(ranked.iloc[0])
+	st.dataframe(ranked)
+	chart_metrics = ["score", *BACKTRADER_METRIC_COLUMNS]
+	bar = draw_result_bar(ranked[[*strategy.params, *chart_metrics]], n_scors=len(chart_metrics))
 	st_pyecharts(bar, height="500px")
 
 
 def main():
-	"""根据侧边栏选择分发到对应策略页面。"""
+	"""根据侧边栏选择分发到资产管理或策略回测。"""
+	if st.sidebar.radio("页面", ("策略回测", "资产管理")) == "资产管理":
+		render_asset_management()
+		return
 	name = st.sidebar.selectbox("strategy", list(strategy_dict.keys()))
 	if name == "EtfMomentum":
 		render_etf_momentum_page()

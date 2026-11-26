@@ -1,0 +1,12 @@
+{
+  "strategy": "intraday46",
+  "environment": "broker_supplied_simulation",
+  "expected_account_suffix": "1736",
+  "source": "examples/intraday_factors/refresh_20261124/backtest/targets.csv",
+  "source_sha256": "c5b7a144ebc7728807199efd30b8c79e8cd2d1967a9ff5452d1330d85cb1d4e3",
+  "signal_date": "2026-11-20",
+  "original_execution_date": "2026-11-23",
+  "requested_execution_date": "2026-11-25",
+  "target_count": 47,
+  "strategy_budget_cny": 1000000.0
+}

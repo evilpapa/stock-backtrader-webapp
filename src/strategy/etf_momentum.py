@@ -91,45 +91,22 @@ class EtfMomentumStrategy(BaseStrategy):
 		if self.rebalance_counter < self.p.rebalance_days:
 			return
 
-		# 重置计数器
 		self.rebalance_counter = 0
 
-		# 检查是否有足够的数据
-
-		# 计算所有标的的风险调整动量
-		adj_momentum_values = []
-		for i in range(len(self.datas)):
-			if len(self.momentum[i]) > 0 and len(self.volatility[i]) > 0:
-				momentum = self.momentum[i][0]
-				volatility = self.volatility[i][0]
-
-				if np.isnan(momentum) or np.isnan(volatility):
-					adj_momentum_values.append(0.0)
-					continue
-
-				# 计算风险调整动量 = 动量 / 波动率，避免除以零
-				adj_momentum_values.append(momentum / volatility if volatility > 1e-8 else 0.0)
-			else:
-				adj_momentum_values.append(0.0)
-
-		# 筛选风险调整动量大于零的标的
-		positive_indices = [i for i, v in enumerate(adj_momentum_values) if v > 0]
-
-		# 计算目标权重
+		# 仅保留风险调整动量为正的标的，并按原数据源顺序归一化。
 		target_weights = np.zeros(len(self.datas))
+		for i, (momentum_line, volatility_line) in enumerate(zip(self.momentum, self.volatility, strict=True)):
+			if not len(momentum_line) or not len(volatility_line):
+				continue
+			momentum, volatility = momentum_line[0], volatility_line[0]
+			if momentum > 0 and volatility > 1e-8:
+				score = momentum / volatility
+				target_weights[i] = score if score > 0 else 0.0
 
-		if positive_indices:
-			# 获取正的风险调整动量值
-			positive_momentum = np.array([adj_momentum_values[i] for i in positive_indices])
-
-			# 归一化权重
-			total_momentum = np.sum(positive_momentum)
-			if total_momentum > 0:
-				normalized_weights = positive_momentum / total_momentum
-
-				# 分配权重
-				for i, weight in zip(positive_indices, normalized_weights):
-					target_weights[i] = weight
+		positive = target_weights > 0
+		positive_momentum = target_weights[positive]
+		if (total_momentum := positive_momentum.sum()) > 0:
+			target_weights[positive] = positive_momentum / total_momentum
 
 		# 执行再平衡
 		# 风控层按需缩放目标权重（波动率目标、总仓位与单标的上限）。
@@ -156,6 +133,7 @@ class EtfMomentumStrategy(BaseStrategy):
 		if not np.isfinite(total_value) or total_value <= 0:
 			return
 
+		threshold = total_value * 0.01  # 1%的阈值
 		for i, data in enumerate(self.datas):
 			target_weight = target_weights[i]
 			target_value = total_value * target_weight
@@ -169,9 +147,6 @@ class EtfMomentumStrategy(BaseStrategy):
 
 			# 计算需要调整的价值
 			diff_value = target_value - current_value
-
-			# 如果差异超过阈值，则进行调整
-			threshold = total_value * 0.01  # 1%的阈值
 
 			if abs(diff_value) > threshold:
 				# 计算需要买入或卖出的股数

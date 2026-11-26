@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-11-25T09:41:39.847389+08:00",
+  "read_only": true,
+  "dispatches": 0,
+  "account_suffix": "1736",
+  "matches_prior_test_account_suffix": true,
+  "ping_matches_account": true,
+  "server_order_switch": false,
+  "server_version": "0.5.3",
+  "account_type": "STOCK",
+  "positions_count": 1,
+  "order_statuses": {},
+  "event_counts": {}
+}

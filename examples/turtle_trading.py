@@ -15,6 +15,7 @@ import pandas as pd
 from src.charts import configure_matplotlib_chinese_font
 from src.constants import INITIAL_CASH, default_backtest_end
 from examples.backtest_common import (
+	build_return_metrics,
 	prepare_price_data,
 	run_strategy_backtest,
 )
@@ -117,12 +118,12 @@ def run_backtest(df: pd.DataFrame, config: TurtleBacktestConfig) -> TurtleTradin
 
 def build_trade_frame(strategy: TurtleTradingStrategy) -> pd.DataFrame:
 	"""将策略成交日志转换为 DataFrame。"""
-	return pd.DataFrame(strategy.trade_log)
+	return pd.DataFrame(strategy.trade_log, columns=["date", "action", "price", "size", "units", "position"])
 
 
 def build_equity_frame(strategy: TurtleTradingStrategy) -> pd.DataFrame:
 	"""根据策略净值历史构建权益、收益率和回撤数据表。"""
-	frame = pd.DataFrame(strategy.value_history)
+	frame = pd.DataFrame(strategy.value_history, columns=["date", "value", "close", "position"])
 	frame["date"] = pd.to_datetime(frame["date"])
 	frame["returns"] = frame["value"].pct_change().fillna(0.0)
 	frame["cummax"] = frame["value"].cummax()
@@ -130,15 +131,16 @@ def build_equity_frame(strategy: TurtleTradingStrategy) -> pd.DataFrame:
 	return frame
 
 
-def print_stats(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
-	"""打印海龟策略回测的核心绩效指标。"""
-	start_value = equity_df["value"].iloc[0]
-	end_value = equity_df["value"].iloc[-1]
-	total_return = end_value / start_value - 1.0
-	days = max((equity_df["date"].iloc[-1] - equity_df["date"].iloc[0]).days, 1)
-	annual_return = (1.0 + total_return) ** (365 / days) - 1.0
-	max_drawdown = equity_df["drawdown"].min()
+def build_turtle_metrics(equity: pd.DataFrame) -> pd.DataFrame:
+	"""生成海龟策略的绩效指标和统一评分。"""
+	returns = equity.get("returns", pd.Series(dtype=float))
+	row = {"策略": STRATEGY_NAME} | build_return_metrics(returns)
+	row["卡玛比率"] = row.pop("卡尔马比率")
+	return pd.DataFrame([row])
 
+
+def print_stats(metrics: pd.DataFrame, trades_df: pd.DataFrame) -> None:
+	"""打印海龟策略回测的核心绩效指标。"""
 	wins = 0
 	completed_trades = 0
 	for idx in range(len(trades_df) - 1):
@@ -154,10 +156,8 @@ def print_stats(equity_df: pd.DataFrame, trades_df: pd.DataFrame) -> None:
 				wins += 1
 
 	win_rate = wins / completed_trades if completed_trades else 0.0
-	print(f"总收益率: {total_return * 100:.2f}%")
-	print(f"年化收益率: {annual_return * 100:.2f}%")
+	print(metrics.to_string(index=False))
 	print(f"总交易次数: {len(trades_df)}")
-	print(f"最大回撤: {max_drawdown * 100:.2f}%")
 	print(f"胜率: {win_rate * 100:.2f}%")
 
 
@@ -221,8 +221,10 @@ def main(argv: list[str] | None = None) -> None:
 	strategy = run_backtest(df, config)
 	trades_df = build_trade_frame(strategy)
 	equity_df = build_equity_frame(strategy)
-	print_stats(equity_df, trades_df)
+	metrics = build_turtle_metrics(equity_df)
+	print_stats(metrics, trades_df)
 	save_outputs(equity_df, trades_df, config)
+	metrics.to_csv(config.output_dir / "performance_metrics.csv", index=False, encoding="utf-8-sig")
 	print(f"结果已保存到: {config.output_dir}")
 
 

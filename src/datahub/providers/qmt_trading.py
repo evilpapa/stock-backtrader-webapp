@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from decimal import Decimal
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
+from src.datahub.account_assets import AccountAssets, AssetPoint, Holding, holding_symbol
 from src.datahub.ticker import TickerMapper
 from src.trading.models import BrokerEvent, OrderDisabled, OrderRequest
 
@@ -196,3 +198,65 @@ class QmtTradingProvider:
     def close(self):
         self.trader.stop()
         self.started = False
+
+
+def read_test_account_assets(account_id: str, *, vk_url: str | None = None, trader=None) -> AccountAssets:
+    if not account_id:
+        raise ValueError("请指定 QMT 测试盘账户")
+    if trader is None:
+        from bigqmt_signal_trader.xtquant_compat import BigQmtXtTrader
+
+        config = {"account_cache_fallback": False}
+        if vk_url:
+            config["url"] = vk_url
+        trader = BigQmtXtTrader(account_id=account_id, timeout_seconds=6, vk_config=config)
+    try:
+        provider = QmtTradingProvider(account_id, trader=trader)
+        provider.health()
+        asset = trader.query_stock_asset(provider.account)
+        positions = trader.query_stock_positions(provider.account)
+        if (
+            field(asset, "total_asset") is None
+            or str(field(asset, "account_id")) != account_id
+            or positions is None
+        ):
+            raise RuntimeError("QMT 测试盘账户资产或持仓响应不完整")
+
+        holdings = []
+        for position in positions:
+            if str(field(position, "account_id")) != account_id:
+                raise ValueError("QMT 持仓账户与测试盘配置不一致")
+            quantity = Decimal(str(field(position, "volume")))
+            cost = field(position, "cost_price", field(position, "avg_price"))
+            value = field(position, "market_value")
+            invested = Decimal(str(cost)) * quantity if cost is not None else None
+            profit = Decimal(str(value)) - invested if invested and value is not None else None
+            holdings.append(Holding(
+                symbol=holding_symbol(field(position, "stock_code")),
+                name=field(position, "stock_name", "") or "",
+                quantity=quantity,
+                sellable=field(position, "can_use_volume"),
+                price=field(position, "price"),
+                cost_price=cost,
+                market_value=value,
+                profit=profit,
+                return_rate=profit / invested if profit is not None else None,
+            ))
+        now = datetime.now(SHANGHAI)
+        total = field(asset, "total_asset")
+        return AccountAssets(
+            source="test",
+            account_key=account_id,
+            name=f"QMT 测试账户 · {account_id[-4:]}",
+            fetched_at=now,
+            source_as_of=now,
+            total_asset=total,
+            net_asset=total,
+            cash=field(asset, "available_cash", field(asset, "cash")),
+            frozen_cash=field(asset, "frozen_cash"),
+            market_value=field(asset, "market_value"),
+            holdings=holdings,
+            history=[AssetPoint(day=now.date(), net_asset=total)],
+        )
+    finally:
+        trader.stop()

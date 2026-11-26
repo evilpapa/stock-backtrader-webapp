@@ -78,6 +78,8 @@ class TargetPortfolioTest(unittest.TestCase):
             self.assertEqual(metrics["fills"], 2)
             self.assertEqual(metrics["final_holdings"], 0)
             self.assertEqual(metrics["rebalance_count"], 2)
+            self.assertGreaterEqual(metrics["score"], 0.0)
+            self.assertAlmostEqual(metrics["max_drawdown"], metrics["total_return"])
 
 
 if __name__ == "__main__":

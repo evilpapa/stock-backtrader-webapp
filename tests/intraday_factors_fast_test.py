@@ -26,11 +26,13 @@ class FastFactorsTest(unittest.TestCase):
                 if i == 7: p[15] = 0
                 pieces.append(pd.DataFrame(dict(symbol=f"{i:06}.SZ", datetime=times, open=10., close=p, volume=v)))
         bars = pd.concat(pieces, ignore_index=True).sample(frac=1, random_state=1)
+        original_bars = bars.copy()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
             expected = daily_factors(bars)
             actual = daily_factors_fast(bars)
         pd.testing.assert_frame_equal(actual[expected.columns], expected, rtol=1e-10, atol=1e-12)
+        pd.testing.assert_frame_equal(bars, original_bars)
 
     def test_missing_minute_rejected(self):
         bars = pd.DataFrame({"symbol": ["000001.SZ"], "datetime": pd.to_datetime(["2026-01-05 09:31"]),

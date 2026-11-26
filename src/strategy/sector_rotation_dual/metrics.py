@@ -3,26 +3,30 @@
 import numpy as np
 import pandas as pd
 
+from src.strategy_evaluation import evaluate_returns
 from .strategy import DualRotationResult
 
 
 def _ret(nav: pd.Series) -> pd.Series:
-	return nav.pct_change().fillna(nav.iloc[0] - 1)
+	ret = nav.pct_change(fill_method=None)
+	if not ret.empty:
+		ret.iloc[0] = nav.iloc[0] - 1
+	return ret
 
 
-def _stats(nav: pd.Series, ppy: int, bench: pd.Series | None = None) -> dict[str, float]:
+def _stats(nav: pd.Series, ppy: int, bench: pd.Series | None = None) -> dict:
 	ret = _ret(nav)
-	years = len(ret) / ppy
-	ann = nav.iloc[-1] ** (1 / years) - 1
-	vol = ret.std() * np.sqrt(ppy)
+	evaluation = evaluate_returns(ret, ppy)
+	metrics = evaluation.metrics
 	out = {
-		"总收益": nav.iloc[-1] - 1,
-		"年化收益": ann,
-		"年化波动": vol,
-		"夏普": ann / vol if vol else np.nan,
-		"最大回撤": (nav / nav.cummax() - 1).min(),
+		"总收益": metrics["total_return"],
+		"年化收益": metrics["annual_return"],
+		"年化波动": metrics["annual_volatility"],
+		"夏普": metrics["sharpe"],
+		"最大回撤": metrics["max_drawdown"],
+		"卡玛": metrics["calmar"],
 		"周胜率": (ret > 0).mean(),
-	}
+	} | evaluation.scoring
 	if bench is not None:
 		ex = ret - _ret(bench)
 		te = ex.std() * np.sqrt(ppy)

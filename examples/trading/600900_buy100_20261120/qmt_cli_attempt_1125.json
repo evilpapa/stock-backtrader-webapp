@@ -1,0 +1,24 @@
+{
+  "started_at": "2026-11-20T11:25:37.602773+08:00",
+  "command": [
+    ".venv/bin/python",
+    "/home/lijing/.claude/skills/xtquant-big-convert/scripts/qmt.py",
+    "buy",
+    "600900.SH",
+    "100",
+    "--price",
+    "30.96",
+    "--strategy",
+    "manual_600900_buy100",
+    "--remark",
+    "cacea1517389532084e55ffb"
+  ],
+  "dispatch_count": 1,
+  "state": "returned",
+  "prior_order_outcome": "unknown",
+  "same_remark_deduplication_proven": false,
+  "returncode": 1,
+  "stdout": "{\n  \"ok\": false,\n  \"error\": \"下单返回 -1（失败），请检查：1) 账户权限 2) 价格范围 3) QMT 风控\",\n  \"ts\": \"2026-11-20T11:25:41\",\n  \"code\": \"ORDER_REJECTED\"\n}\n",
+  "stderr": "",
+  "completed_at": "2026-11-20T11:25:41.305959+08:00"
+}

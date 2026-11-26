@@ -23,10 +23,11 @@ from examples.bootstrap import project_path
 from examples.backtest_common import (
 	add_named_price_data,
 	build_cerebro,
+	build_return_metrics,
 	build_return_series,
 	prepare_price_data,
 )
-from src.strategy import MysteriousSpiralStrategy, PerformanceCalculator
+from src.strategy import MysteriousSpiralStrategy
 
 
 UNIVERSE = {
@@ -56,13 +57,9 @@ def run_backtest() -> MysteriousSpiralStrategy:
 	result = cerebro.run(cheat_on_open=True)[0]
 
 	returns = build_return_series(result)
-	calculator = PerformanceCalculator()
 	metrics = pd.DataFrame(
 		[
-			{
-				"年化收益率": calculator.annualized_return(returns),
-				"夏普比率": calculator.sharpe_ratio(returns),
-				"最大回撤": calculator.max_drawdown(returns),
+			build_return_metrics(returns) | {
 				"总交易日": len(returns),
 				"成交笔数": len(result.trade_log),
 			}

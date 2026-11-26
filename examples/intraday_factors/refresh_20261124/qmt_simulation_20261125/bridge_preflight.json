@@ -1,0 +1,30 @@
+{
+  "responsive": false,
+  "server_allow_order_methods": null,
+  "error": "QMT application-level ping timed out",
+  "account_suffix": "1736",
+  "valkey_probes": [
+    {
+      "checked_at": "2026-11-25T09:52:48.804322+08:00",
+      "valkey_ping": true,
+      "db": 5,
+      "queue_count": 24,
+      "queue_ttl_sec": 58
+    },
+    {
+      "checked_at": "2026-11-25T09:52:53.805584+08:00",
+      "valkey_ping": true,
+      "db": 5,
+      "queue_count": 24,
+      "queue_ttl_sec": 53
+    },
+    {
+      "checked_at": "2026-11-25T09:52:58.806114+08:00",
+      "valkey_ping": true,
+      "db": 5,
+      "queue_count": 24,
+      "queue_ttl_sec": 48
+    }
+  ],
+  "dispatched_orders": 0
+}

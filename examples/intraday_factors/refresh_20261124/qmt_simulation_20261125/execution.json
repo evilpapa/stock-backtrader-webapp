@@ -1,0 +1,213 @@
+{
+  "mode": "qmt_broker_simulation",
+  "account": "***1736",
+  "strategy": "intraday46",
+  "started_at": "2026-11-25T09:56:36.788625+08:00",
+  "checked_at": "2026-11-25T10:00:57.291355+08:00",
+  "signal_date": "2026-11-20",
+  "original_execution_date": "2026-11-23",
+  "execution_date": "2026-11-25",
+  "target_count": 47,
+  "order_count": 47,
+  "accepted_orders": 47,
+  "order_statuses": {
+    "submitted": 20,
+    "filled": 27
+  },
+  "fill_count": 27,
+  "holdings_count": 27,
+  "unresolved_order_count": 20,
+  "total_filled_notional": 567525.0,
+  "ledger_estimated_commission": 135.0,
+  "strategy_cash": 432340.0,
+  "strategy_available_cash": 12981.550000000003,
+  "broker_cash": 9009721.16,
+  "broker_frozen_cash": 419346.4942745,
+  "physical_holdings_match": true,
+  "broker_trades_match": true,
+  "reconciliation": {
+    "ok": true,
+    "position_shortages": {},
+    "unallocated_positions": {
+      "600900.SH": 100
+    },
+    "sellable_shortages": {},
+    "allocated_cash": 432340.0,
+    "broker_cash_and_frozen": 9429067.6542745,
+    "unmanaged_open_orders": 0
+  },
+  "target_quantity_deviations": {
+    "000598.SZ": {
+      "target": 2900,
+      "actual": 0
+    },
+    "000683.SZ": {
+      "target": 3500,
+      "actual": 0
+    },
+    "000750.SZ": {
+      "target": 6500,
+      "actual": 0
+    },
+    "000783.SZ": {
+      "target": 3200,
+      "actual": 0
+    },
+    "000825.SZ": {
+      "target": 6900,
+      "actual": 0
+    },
+    "000937.SZ": {
+      "target": 5200,
+      "actual": 0
+    },
+    "002252.SZ": {
+      "target": 4500,
+      "actual": 0
+    },
+    "002926.SZ": {
+      "target": 2900,
+      "actual": 0
+    },
+    "002939.SZ": {
+      "target": 3000,
+      "actual": 0
+    },
+    "300003.SZ": {
+      "target": 1800,
+      "actual": 0
+    },
+    "600377.SH": {
+      "target": 1400,
+      "actual": 0
+    },
+    "600390.SH": {
+      "target": 4900,
+      "actual": 0
+    },
+    "600582.SH": {
+      "target": 4300,
+      "actual": 0
+    },
+    "600816.SH": {
+      "target": 9300,
+      "actual": 0
+    },
+    "601099.SH": {
+      "target": 6700,
+      "actual": 0
+    },
+    "601128.SH": {
+      "target": 3400,
+      "actual": 0
+    },
+    "601880.SH": {
+      "target": 14600,
+      "actual": 0
+    },
+    "601990.SH": {
+      "target": 3500,
+      "actual": 0
+    },
+    "688425.SH": {
+      "target": 5613,
+      "actual": 0
+    },
+    "688538.SH": {
+      "target": 10967,
+      "actual": 0
+    }
+  },
+  "dispatch_result": {
+    "batch_id": "29eaa0b1d0fc69d56a8461a4",
+    "status": "pending",
+    "quantity_deviations": {
+      "000598.SZ": {
+        "target": 2900,
+        "actual": 0
+      },
+      "000683.SZ": {
+        "target": 3500,
+        "actual": 0
+      },
+      "000750.SZ": {
+        "target": 6500,
+        "actual": 0
+      },
+      "000783.SZ": {
+        "target": 3200,
+        "actual": 0
+      },
+      "000825.SZ": {
+        "target": 6900,
+        "actual": 0
+      },
+      "000937.SZ": {
+        "target": 5200,
+        "actual": 0
+      },
+      "002252.SZ": {
+        "target": 4500,
+        "actual": 0
+      },
+      "002926.SZ": {
+        "target": 2900,
+        "actual": 0
+      },
+      "002939.SZ": {
+        "target": 3000,
+        "actual": 0
+      },
+      "300003.SZ": {
+        "target": 1800,
+        "actual": 0
+      },
+      "600377.SH": {
+        "target": 1400,
+        "actual": 0
+      },
+      "600390.SH": {
+        "target": 4900,
+        "actual": 0
+      },
+      "600582.SH": {
+        "target": 4300,
+        "actual": 0
+      },
+      "600816.SH": {
+        "target": 9300,
+        "actual": 0
+      },
+      "601099.SH": {
+        "target": 6700,
+        "actual": 0
+      },
+      "601128.SH": {
+        "target": 3400,
+        "actual": 0
+      },
+      "601611.SH": {
+        "target": 2400,
+        "actual": 0
+      },
+      "601880.SH": {
+        "target": 14600,
+        "actual": 0
+      },
+      "601990.SH": {
+        "target": 3500,
+        "actual": 0
+      },
+      "688425.SH": {
+        "target": 5613,
+        "actual": 0
+      },
+      "688538.SH": {
+        "target": 10967,
+        "actual": 0
+      }
+    }
+  },
+  "workflow_error": null,
+  "sqlite_integrity": "ok"
+}

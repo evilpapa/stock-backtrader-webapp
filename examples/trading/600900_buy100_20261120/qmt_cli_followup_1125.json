@@ -1,0 +1,144 @@
+{
+  "queried_at": "2026-11-20T11:25:54.949397+08:00",
+  "results": [
+    {
+      "command": [
+        "orders",
+        "--strategy",
+        ""
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "orders": [
+            {
+              "account_id": "***6423",
+              "stock_code": "159915.SZ",
+              "order_type": 23,
+              "order_status": 56,
+              "order_volume": 20000,
+              "traded_volume": 20000,
+              "price": 2.243,
+              "order_sysid": "625066976",
+              "order_id": 625066976,
+              "strategy_name": "",
+              "order_remark": "",
+              "order_time": 1795140086,
+              "trade_amount": 44860.0,
+              "order_type_name": "BUY",
+              "order_status_name": "SUCCEEDED",
+              "cancelable": false
+            },
+            {
+              "account_id": "***6423",
+              "stock_code": "159915.SZ",
+              "order_type": 23,
+              "order_status": 56,
+              "order_volume": 20000,
+              "traded_volume": 20000,
+              "price": 2.246,
+              "order_sysid": "625068262",
+              "order_id": 625068262,
+              "strategy_name": "",
+              "order_remark": "",
+              "order_time": 1795140146,
+              "trade_amount": 44920.0,
+              "order_type_name": "BUY",
+              "order_status_name": "SUCCEEDED",
+              "cancelable": false
+            }
+          ],
+          "count": 2
+        },
+        "ts": "2026-11-20T11:25:54"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "trades",
+        "--strategy",
+        ""
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "trades": [
+            {
+              "account_id": "***6423",
+              "stock_code": "159915.SZ",
+              "order_type": 23,
+              "order_sysid": "625068262",
+              "order_id": 625068262,
+              "trade_id": "0103000017879134",
+              "traded_volume": 20000,
+              "traded_price": 2.246,
+              "traded_at": "100415",
+              "order_remark": "",
+              "strategy_name": "",
+              "order_type_name": "BUY"
+            },
+            {
+              "account_id": "***6423",
+              "stock_code": "159915.SZ",
+              "order_type": 23,
+              "order_sysid": "625066976",
+              "order_id": 625066976,
+              "trade_id": "0103000018010603",
+              "traded_volume": 20000,
+              "traded_price": 2.243,
+              "traded_at": "100436",
+              "order_remark": "",
+              "strategy_name": "",
+              "order_type_name": "BUY"
+            }
+          ],
+          "count": 2
+        },
+        "ts": "2026-11-20T11:25:54"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "positions",
+        "600900.SH"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "positions": [],
+          "summary": {
+            "count": 0,
+            "total_market_value": 0,
+            "total_profit": 0
+          }
+        },
+        "ts": "2026-11-20T11:25:54"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "account"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "account_id": "***6423",
+          "cash": 1475763.68,
+          "available_cash": 1475763.68,
+          "frozen_cash": 0.0,
+          "total_asset": 1947378.4,
+          "market_value": 442431.0
+        },
+        "ts": "2026-11-20T11:25:54"
+      },
+      "stderr": ""
+    }
+  ]
+}

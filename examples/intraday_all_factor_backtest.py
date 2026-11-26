@@ -14,7 +14,7 @@ from src.datahub.models import DataKind
 from src.datahub.research_daily_repository import ResearchDailyRepository
 from src.datahub.service import MarketDataService
 from src.datahub.router import DataRouter
-from src.strategy._performance import PerformanceCalculator
+from src.strategy_evaluation import evaluate_returns
 
 ROOT=Path('data/intraday_factors/local_minute_factors')
 AUCTION=Path('data/intraday_factors/auction_history/daily')
@@ -202,8 +202,9 @@ def main():
     nav['benchmark_open']=nav.date.map(bench);nav['benchmark_nav']=nav.benchmark_open/nav.benchmark_open.iloc[0]
     if nav.benchmark_nav.isna().any():raise ValueError('缺少基准指数开盘价')
     nav['nav']=nav.equity/1_000_000;nav['relative_nav']=nav.nav/nav.benchmark_nav
-    yrs=(nav.date.iloc[-1]-nav.date.iloc[0]).days/365.25
-    metrics={'first_trade_date':str(nav.date.iloc[0].date()),'end_date':str(nav.date.iloc[-1].date()),'latest_signal_date':str(max(schedules.values(),key=lambda x:x[0])[0].date()),'rebalance_count':len(schedules),'stock_pool':'中证500月度快照滞后31自然日近似，ST、上市不足一年和未成交筛除','factors':46,'train':'最近52个已结束持有期的单因子周度秩IC均值定向；历史IC按输入覆盖范围滚动更新','min_input_factors':46,'top_fraction':0.1,'window_days':5,'initial_cash':1000000,'final_equity':float(nav.equity.iloc[-1]),'total_return':float(nav.nav.iloc[-1]-1),'annual_return':float(nav.nav.iloc[-1]**(1/yrs)-1),'benchmark_total_return':float(nav.benchmark_nav.iloc[-1]-1),'relative_total_return':float(nav.relative_nav.iloc[-1]-1),'annual_relative_return':float(nav.relative_nav.iloc[-1]**(1/yrs)-1),'max_drawdown':float((nav.nav/nav.nav.cummax()-1).min()),'total_commission':float(trade.fee.sum()),'stale_position_days':int(nav.stale_positions.sum()),'input_coverage_sha256':sha(coverage),'input_ic_sha256':sha(history_path),'snapshot_sha256':snap,'limitations':'日线开盘近似成交，无涨跌停、市场冲击、滑点、印花税和过户费；连续股数无整手；手续费使用项目佣金（万0.854，每笔最低5元）；复权使用前收比值近似，公司行为等效再投资，停牌沿用上次估值；未来缺失开盘不能成交，长期缺价不自动退市清算；月度权重非精确历史成分；竞价因子快照口径和分钟时间语义未完全确认；因子方向来自历史单因子IC，非研报指定组合。'}
+    years = (nav.date.iloc[-1] - nav.date.iloc[0]).days / 365.25
+    annual_relative = float(nav.relative_nav.iloc[-1] ** (1 / years) - 1) if years > 0 else None
+    metrics={'first_trade_date':str(nav.date.iloc[0].date()),'end_date':str(nav.date.iloc[-1].date()),'latest_signal_date':str(max(schedules.values(),key=lambda x:x[0])[0].date()),'rebalance_count':len(schedules),'stock_pool':'中证500月度快照滞后31自然日近似，ST、上市不足一年和未成交筛除','factors':46,'train':'最近52个已结束持有期的单因子周度秩IC均值定向；历史IC按输入覆盖范围滚动更新','min_input_factors':46,'top_fraction':0.1,'window_days':5,'initial_cash':1000000,'final_equity':float(nav.equity.iloc[-1]),'benchmark_total_return':float(nav.benchmark_nav.iloc[-1]-1),'relative_total_return':float(nav.relative_nav.iloc[-1]-1),'annual_relative_return':annual_relative,'total_commission':float(trade.fee.sum()),'stale_position_days':int(nav.stale_positions.sum()),'input_coverage_sha256':sha(coverage),'input_ic_sha256':sha(history_path),'snapshot_sha256':snap,'limitations':'日线开盘近似成交，无涨跌停、市场冲击、滑点、印花税和过户费；连续股数无整手；手续费使用项目佣金（万0.854，每笔最低5元）；复权使用前收比值近似，公司行为等效再投资，停牌沿用上次估值；未来缺失开盘不能成交，长期缺价不自动退市清算；月度权重非精确历史成分；竞价因子快照口径和分钟时间语义未完全确认；因子方向来自历史单因子IC，非研报指定组合。'}
     out.mkdir(parents=True,exist_ok=True);nav.to_csv(out/'nav.csv',index=False);trade.to_csv(out/'trades.csv',index=False);target.to_csv(out/'targets.csv',index=False);pd.DataFrame(scores).to_parquet(out/'scores.parquet',index=False);pd.DataFrame(directions).to_csv(out/'directions.csv',index=False)
     pd.DataFrame(training_windows).to_csv(out/'training_windows.csv',index=False)
     latest=target[(target.signal_date==target.signal_date.max()) & target.selected].copy();names=pd.read_parquet(args.reference_dir/'reference/stock_basic.parquet')[['ts_code','name']].rename(columns={'ts_code':'symbol'});latest=latest.merge(names,on='symbol',how='left',validate='many_to_one');score_frame=pd.DataFrame(scores);last_scores=score_frame[score_frame.signal_date.eq(target.signal_date.max())][['symbol','rank','score']];latest=latest.merge(last_scores,on='symbol',validate='one_to_one').sort_values('rank');latest.to_csv(out/'latest_selection.csv',index=False)
@@ -218,13 +219,13 @@ def main():
     latest=latest.merge(holdings[['symbol','market_value','actual_weight']],on='symbol',how='left',validate='one_to_one')
     latest[['market_value','actual_weight']]=latest[['market_value','actual_weight']].fillna(0.)
     latest.to_csv(out/'latest_selection.csv',index=False)
-    returns=nav.nav.pct_change().dropna()
+    returns = nav.nav.pct_change(fill_method=None)
+    returns.iloc[0] = nav.nav.iloc[0] - 1
+    evaluation = evaluate_returns(returns)
+    metrics.update(evaluation.metrics | evaluation.scoring)
     metrics.update(benchmark_sha256=sha(bench_path), daily_source_versions=quote_versions,
                    factor_end=str(factor_end.date()), calendar_data_version=calendar_version,
                    latest_trade_date=str(latest.trade_date.iloc[0].date()),
-                   annual_volatility=float(PerformanceCalculator.annualized_volatility(returns)) if len(returns)>1 else None,
-                   sharpe=float(PerformanceCalculator.sharpe_ratio(returns)) if len(returns)>1 and returns.std()>0 else None,
-                   calmar=metrics['annual_return']/abs(metrics['max_drawdown']) if metrics['max_drawdown']<0 else None,
                    latest_target_count=len(latest), latest_priced_targets=int(latest.can_price.sum()),
                    latest_holdings=len(holdings), final_cash=float(cash),
                    cash_weight=float(cash/nav.equity.iloc[-1]),history_max_exit=str(ic.exit_date.max().date()),

@@ -1,0 +1,223 @@
+{
+  "account": "***1736",
+  "client_source": "/data1/xtquant-big-convert/src",
+  "strategy": "manual_sim_600900_buy100",
+  "remark": "sim60090010020261123",
+  "symbol": "600900.SH",
+  "quantity": 100,
+  "limit_price": 31.3,
+  "notional_cap": 3130.0,
+  "preflight": [
+    {
+      "ok": true,
+      "data": {
+        "result": {
+          "pong": true,
+          "account_id": "***1736",
+          "allow_order_methods": true,
+          "rpc_revision": "20260715-execution-snapshot-v1",
+          "version": "0.5.0",
+          "account_type": "STOCK",
+          "account_types": [
+            "STOCK"
+          ],
+          "server_time": "2026-11-23 13:01:57"
+        },
+        "latency_ms": 443.4
+      },
+      "ts": "2026-11-23T13:01:57"
+    },
+    {
+      "ok": true,
+      "data": {
+        "orders": [],
+        "count": 0
+      },
+      "ts": "2026-11-23T13:01:57"
+    },
+    {
+      "ok": true,
+      "data": {
+        "trades": [],
+        "count": 0
+      },
+      "ts": "2026-11-23T13:01:57"
+    },
+    {
+      "ok": true,
+      "data": {
+        "positions": [],
+        "summary": {
+          "count": 0,
+          "total_market_value": 0,
+          "total_profit": 0
+        }
+      },
+      "ts": "2026-11-23T13:01:57"
+    },
+    {
+      "ok": true,
+      "data": {
+        "account_id": "***1736",
+        "cash": 10000000.0,
+        "available_cash": 10000000.0,
+        "frozen_cash": 0.0,
+        "total_asset": 10000000.0,
+        "market_value": 0.0
+      },
+      "ts": "2026-11-23T13:01:57"
+    },
+    {
+      "ok": true,
+      "data": {
+        "ExchangeID": "SH",
+        "InstrumentID": "600900",
+        "InstrumentName": "长江电力",
+        "ProductID": "",
+        "ProductName": "",
+        "ExchangeCode": "600900",
+        "RzrkCode": "",
+        "UniCode": "600900",
+        "CreateDate": 0,
+        "OpenDate": 0,
+        "ExpireDate": 99999999,
+        "TradingDay": 20261123,
+        "PreClose": 31.62,
+        "SettlementPrice": 1.7976931348623157e+308,
+        "UpStopPrice": 34.78,
+        "DownStopPrice": 28.46,
+        "FloatVolumn": 11505941480,
+        "TotalVolumn": 22000000000,
+        "FloatVolume": 11505941480,
+        "TotalVolume": 22000000000,
+        "LongMarginRatio": 1.7976931348623157e+308,
+        "ShortMarginRatio": 1.7976931348623157e+308,
+        "PriceTick": 0.01,
+        "VolumeMultiple": 1,
+        "MainContract": 0,
+        "LastVolume": 2147483647,
+        "InstrumentStatus": 0,
+        "IsTrading": false,
+        "IsRecent": false,
+        "HSGTFlag": 2147483647
+      },
+      "ts": "2026-11-23T13:01:57"
+    }
+  ],
+  "raw_tick": {
+    "ok": true,
+    "data": {
+      "method": "get_full_tick",
+      "result": {
+        "600900.SH": {
+          "time": 1795410117000,
+          "timetag": "20261123 13:01:57",
+          "lastPrice": 31.28,
+          "open": 31.400000000000002,
+          "high": 31.63,
+          "low": 31.060000000000002,
+          "lastClose": 31.62,
+          "amount": 2822823100.0,
+          "volume": 899673,
+          "pvolume": 89967331,
+          "stockStatus": 3,
+          "openInt": 13,
+          "settlementPrice": 0.0,
+          "lastSettlementPrice": 31.62,
+          "askPrice": [
+            31.3,
+            31.310000000000002,
+            31.32,
+            31.330000000000002,
+            31.34
+          ],
+          "bidPrice": [
+            31.28,
+            31.27,
+            31.26,
+            31.25,
+            31.240000000000002
+          ],
+          "askVol": [
+            247,
+            21,
+            123,
+            34,
+            22
+          ],
+          "bidVol": [
+            109,
+            87,
+            694,
+            715,
+            775
+          ]
+        }
+      }
+    },
+    "ts": "2026-11-23T13:01:58"
+  },
+  "preview": {
+    "ok": true,
+    "data": {
+      "dry_run": true,
+      "action": "BUY",
+      "stock_code": "600900.SH",
+      "volume": 100,
+      "price": 31.3,
+      "price_type": "LIMIT",
+      "strategy_name": "manual_sim_600900_buy100",
+      "order_remark": "sim60090010020261123"
+    },
+    "ts": "2026-11-23T13:01:58"
+  },
+  "submitted_at": "2026-11-23T13:01:58.817384+08:00",
+  "dispatch_count": 1,
+  "state": "returned",
+  "command": [
+    "buy",
+    "600900.SH",
+    "100",
+    "--price",
+    "31.30",
+    "--strategy",
+    "manual_sim_600900_buy100",
+    "--remark",
+    "sim60090010020261123"
+  ],
+  "trigger": "user confirmed QMT live run mode; single authorized supplemental test",
+  "returncode": 0,
+  "result": {
+    "ok": true,
+    "data": {
+      "order_sys_id": "5040",
+      "action": "BUY",
+      "stock_code": "600900.SH",
+      "volume": 100,
+      "price": 31.3,
+      "strategy_name": "manual_sim_600900_buy100",
+      "order_remark": "sim60090010020261123",
+      "confirmed_order": {
+        "account_id": "***1736",
+        "stock_code": "600900.SH",
+        "order_type": 23,
+        "order_status": 56,
+        "order_volume": 100,
+        "traded_volume": 100,
+        "price": 31.3,
+        "order_sysid": "5040",
+        "order_id": 5040,
+        "strategy_name": "manual_sim_600900_buy100",
+        "order_remark": "sim60090010020261123",
+        "order_time": 1795410119,
+        "trade_amount": 3130.0,
+        "order_type_name": "BUY",
+        "order_status_name": "SUCCEEDED",
+        "cancelable": false
+      }
+    },
+    "ts": "2026-11-23T13:02:00"
+  },
+  "stderr": "",
+  "returned_at": "2026-11-23T13:02:00.640017+08:00"
+}

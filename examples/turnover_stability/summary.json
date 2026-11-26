@@ -1,0 +1,17 @@
+{
+  "data_range": {
+    "start": "2012-10-08",
+    "end": "2026-11-02"
+  },
+  "rebalance_months": 167,
+  "commission": 8.54e-05,
+  "in_sample": [
+    "2013-01-01",
+    "2021-10-31"
+  ],
+  "post_publication": [
+    "2021-11-01",
+    "2026-10-30"
+  ],
+  "latest_signal_date": "2026-10-30"
+}

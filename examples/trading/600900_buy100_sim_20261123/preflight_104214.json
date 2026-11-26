@@ -1,0 +1,72 @@
+{
+  "checked_at": "2026-11-23T10:42:14.224760+08:00",
+  "account": "***1736",
+  "account_kind": "broker_supplied_simulation_confirmed_by_user",
+  "available_cash": 10000000.0,
+  "server_allow_order_methods": false,
+  "symbol": "600900.SH",
+  "quantity": 100,
+  "tick": {
+    "ok": true,
+    "data": {
+      "600900.SH": {
+        "code": "600900.SH",
+        "lastPrice": 31.59,
+        "open": 31.400000000000002,
+        "high": 31.63,
+        "low": 31.060000000000002,
+        "lastClose": 31.62,
+        "volume": 653605,
+        "amount": 2048818100.0,
+        "bidPrice": [
+          31.59,
+          31.580000000000002,
+          31.57,
+          31.560000000000002,
+          31.55
+        ],
+        "bidVol": [
+          9,
+          90,
+          71,
+          60,
+          426
+        ],
+        "askPrice": [
+          31.61,
+          31.62,
+          31.63,
+          31.64,
+          31.650000000000002
+        ],
+        "askVol": [
+          1,
+          256,
+          5576,
+          3632,
+          504
+        ],
+        "time": 1795401732000,
+        "stime": null,
+        "change_pct": -0.09
+      }
+    },
+    "ts": "2026-11-23T10:42:14"
+  },
+  "preview": {
+    "ok": true,
+    "data": {
+      "dry_run": true,
+      "action": "BUY",
+      "stock_code": "600900.SH",
+      "volume": 100,
+      "price": 31.61,
+      "price_type": "LIMIT",
+      "strategy_name": "manual_sim_600900_buy100",
+      "order_remark": "sim60090010020261123"
+    },
+    "ts": "2026-11-23T10:42:14"
+  },
+  "actual_order_submissions": 0,
+  "blocked_reason": "QMT server allow_order_methods=false; manual server enablement required"
+}

@@ -93,18 +93,18 @@ finally:
 
 ## 当前策略的运行命令
 
-在项目根目录执行。原46因子因子生成和研究回测入口保持原样，详见
-[刷新报告](../intraday_factors/refresh_20261030.md)。这里只读取其`targets.csv`，
+在项目根目录执行。46 因子生成和研究回测入口见
+[策略说明](../intraday_factors/README.md)。交易入口读取已生成的 `targets.csv`，
 不重新拟合或改变历史选股规则，也不把旧`adjusted_shares`当作真实券商股数。
 
 ### 1. 完整历史回放
 
 ```bash
 .venv/bin/python examples/intraday_execution.py backtest \
-  --targets examples/intraday_factors/refresh_20261030/backtest/targets.csv \
-  --reference-dir data/intraday_factors/refresh_20261030/reference_data \
+  --targets examples/intraday_factors/refresh_20261124/backtest/targets.csv \
+  --reference-dir data/intraday_factors/refresh_20261124/reference_data \
   --capital 1000000 \
-  --output-dir examples/intraday_factors/execution_verified_20261116
+  --output-dir examples/intraday_factors/execution/backtest
 ```
 
 输出：`portfolio.sqlite`、`nav.csv`、`orders.csv`、`fills.csv`、`latest_holdings.csv`、
@@ -116,7 +116,7 @@ finally:
 ```bash
 .venv/bin/python examples/intraday_execution.py paper \
   --capital 1000000 \
-  --output-dir examples/intraday_factors/execution_paper_20261116
+  --output-dir examples/intraday_factors/execution/paper
 ```
 
 只回放输入中最新执行日，从独立模拟现金账户开始，通过PaperBroker产生订单和成交，
@@ -127,7 +127,7 @@ finally:
 
 ```bash
 .venv/bin/python examples/intraday_execution.py plan \
-  --targets examples/intraday_factors/refresh_20261030/backtest/latest_selection.csv \
+  --targets examples/intraday_factors/refresh_20261124/backtest/targets.csv \
   --ledger data/trading/portfolios.sqlite --strategy intraday46 --capital 1000000 \
   --output-dir examples/intraday_factors/qmt_plan
 ```

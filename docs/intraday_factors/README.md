@@ -1,9 +1,10 @@
 # 广发《高频价量数据的因子化方法》复现进度
 
-2026-11-13更新：已将月度成分快照、39个分钟因子和7个竞价因子统一补至
-2026-10-30，按原组合规则重新回测至2026-11-02开盘。新增结果独立保存；
-完整48只调仓名单、净值、数据清洗审计和复现命令见
-[本次刷新报告](refresh_20261030.md)。
+当前回测使用截至 2026 年 11 月 24 日的分钟与竞价因子。最新完整周信号为
+11 月 20 日，原定 11 月 23 日执行，目标 47 只。见[回测指标](../../examples/intraday_factors/refresh_20261124/backtest/metrics.json)、
+[选股名单](../../examples/intraday_factors/refresh_20261124/backtest/latest_selection.csv)和
+[审计结果](../../examples/intraday_factors/refresh_20261124/audit.json)。
+历史刷新报告中已归档的产物路径需恢复后方可使用。
 
 研报：广发多因子系列41，2021-07-12，本地研报库 `6.广发多因子系列/广发多因子系列41：高频价量数据的因子化方法.pdf`。本工作已对 46 个因子建立计算流程，但包括数据口径假设，尚不是完整复现。
 
@@ -94,8 +95,7 @@ QMT 超时会中止运行，不会静默切换 Tushare。较长覆盖抽样：60
 ## 集合竞价原始行情
 
 新增集合竞价 Tick 默认从 `/data3/stock_data/stk_open_auction/YYYYMM/YYYYMMDD.csv` 读取。
-数据口径见[集合竞价 Tick 日分区](auction_tick_data.md)。最新完整回测和目标名单见
-[2026-11-23 数据刷新](refresh_20261123.md)。
+数据口径见[集合竞价 Tick 日分区](auction_tick_data.md)。
 
 ## 竞价因子与周度模拟
 

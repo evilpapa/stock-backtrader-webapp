@@ -22,7 +22,7 @@ from src.trading.replay import read_targets, run_replay
 from src.trading.targets import target_weights
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
-BASE = Path("examples/intraday_factors/refresh_20261030/backtest")
+BASE = Path("examples/intraday_factors/refresh_20261124/backtest")
 
 
 def dump(value):
@@ -45,7 +45,7 @@ def main(argv=None, *, default_strategy="intraday46", default_targets=BASE / "ta
     parser.add_argument("command", choices=["backtest", "paper", "plan", "execute", "watch", "status", "cancel"])
     parser.add_argument("--targets", type=Path, default=default_targets)
     parser.add_argument("--reference-dir", type=Path,
-                        default=Path("data/intraday_factors/refresh_20261030/reference_data") if default_strategy else None)
+                        default=Path("data/intraday_factors/refresh_20261124/reference_data") if default_strategy else None)
     parser.add_argument("--output-dir", type=Path, help="defaults to a separate directory for each command")
     parser.add_argument("--ledger", type=Path, default=Path("data/trading/portfolios.sqlite"))
     parser.add_argument("--strategy", default=default_strategy, required=default_strategy is None)

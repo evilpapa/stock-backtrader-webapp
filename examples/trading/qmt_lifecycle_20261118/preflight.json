@@ -1,0 +1,48 @@
+{
+  "mode": "preflight",
+  "symbol": "510300.SH",
+  "side": "buy",
+  "quantity": 100,
+  "strategy_id": "qmt_lifecycle_demo",
+  "observations": [],
+  "health": {
+    "pong": true,
+    "account_id": "***6423",
+    "allow_order_methods": true,
+    "rpc_revision": "20260715-execution-snapshot-v1",
+    "version": "0.3.78",
+    "account_type": "STOCK",
+    "account_types": [
+      "STOCK"
+    ],
+    "server_time": "2026-11-18 11:24:11"
+  },
+  "preflight_event_count": 0,
+  "prepared_at": "2026-11-18T11:24:12.450113+08:00",
+  "quote": {
+    "symbol": "510300.SH",
+    "price": 4.037,
+    "timestamp": "2026-11-18 11:24:12+08:00",
+    "source": "xtquant",
+    "buy_min": 100,
+    "buy_step": 100,
+    "price_tick": 0.001,
+    "upper_limit": 4.446,
+    "lower_limit": 3.638,
+    "tradable": true
+  },
+  "limit_price": 4.017,
+  "notional_cap": 401.7,
+  "before": {
+    "cash": 1565449.71,
+    "frozen_cash": 0.0,
+    "positions": [
+      {
+        "symbol": "510300.SH",
+        "quantity": 10000,
+        "sellable": 10000
+      }
+    ],
+    "order_count": 0
+  }
+}

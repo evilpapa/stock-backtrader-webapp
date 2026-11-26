@@ -1,0 +1,33 @@
+{
+  "mode": "local_paper_broker_qmt_readonly_quotes",
+  "qmt_submissions": 0,
+  "strategy_id": "intraday46",
+  "signal_date": "2026-11-20",
+  "scheduled_trade_date": "2026-11-23",
+  "simulation_date": "2026-11-25",
+  "quoted_at": "2026-11-25T09:45:55.767698+08:00",
+  "maximum_quote_age_seconds": 28.767698,
+  "target_count": 47,
+  "order_count": 47,
+  "fill_count": 47,
+  "holdings_count": 47,
+  "order_statuses": {
+    "filled": 47
+  },
+  "unresolved_order_count": 0,
+  "initial_cash": 1000000.0,
+  "notional": 985916.09,
+  "fees": 235.0,
+  "cash": 13848.91,
+  "equity": 999765.0,
+  "unheld_targets": {},
+  "sqlite_integrity": "ok",
+  "cash_and_positions_reconciled": true,
+  "idempotent_rebalance_verified": true,
+  "fill_and_event_deduplication_verified": true,
+  "rebalance": {
+    "batch_id": "a4658c1165e7b9cc83f2628b",
+    "status": "completed",
+    "quantity_deviations": {}
+  }
+}

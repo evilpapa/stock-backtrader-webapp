@@ -1,0 +1,148 @@
+{
+  "checked_at": "2026-11-23T13:01:21.659895+08:00",
+  "results": [
+    {
+      "command": [
+        "ping"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "result": {
+            "pong": true,
+            "account_id": "***1736",
+            "allow_order_methods": true,
+            "rpc_revision": "20260715-execution-snapshot-v1",
+            "version": "0.5.0",
+            "account_type": "STOCK",
+            "account_types": [
+              "STOCK"
+            ],
+            "server_time": "2026-11-23 13:01:22"
+          },
+          "latency_ms": 670.1
+        },
+        "ts": "2026-11-23T13:01:22"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "orders",
+        "--strategy",
+        ""
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "orders": [],
+          "count": 0
+        },
+        "ts": "2026-11-23T13:01:22"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "trades",
+        "--strategy",
+        ""
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "trades": [],
+          "count": 0
+        },
+        "ts": "2026-11-23T13:01:22"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "positions",
+        "600900.SH"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "positions": [],
+          "summary": {
+            "count": 0,
+            "total_market_value": 0,
+            "total_profit": 0
+          }
+        },
+        "ts": "2026-11-23T13:01:22"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "account"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "account_id": "***1736",
+          "cash": 10000000.0,
+          "available_cash": 10000000.0,
+          "frozen_cash": 0.0,
+          "total_asset": 10000000.0,
+          "market_value": 0.0
+        },
+        "ts": "2026-11-23T13:01:22"
+      },
+      "stderr": ""
+    },
+    {
+      "command": [
+        "instrument",
+        "600900.SH"
+      ],
+      "returncode": 0,
+      "response": {
+        "ok": true,
+        "data": {
+          "ExchangeID": "SH",
+          "InstrumentID": "600900",
+          "InstrumentName": "长江电力",
+          "ProductID": "",
+          "ProductName": "",
+          "ExchangeCode": "600900",
+          "RzrkCode": "",
+          "UniCode": "600900",
+          "CreateDate": 0,
+          "OpenDate": 0,
+          "ExpireDate": 99999999,
+          "TradingDay": 20261123,
+          "PreClose": 31.62,
+          "SettlementPrice": 1.7976931348623157e+308,
+          "UpStopPrice": 34.78,
+          "DownStopPrice": 28.46,
+          "FloatVolumn": 11505941480,
+          "TotalVolumn": 22000000000,
+          "FloatVolume": 11505941480,
+          "TotalVolume": 22000000000,
+          "LongMarginRatio": 1.7976931348623157e+308,
+          "ShortMarginRatio": 1.7976931348623157e+308,
+          "PriceTick": 0.01,
+          "VolumeMultiple": 1,
+          "MainContract": 0,
+          "LastVolume": 2147483647,
+          "InstrumentStatus": 0,
+          "IsTrading": false,
+          "IsRecent": false,
+          "HSGTFlag": 2147483647
+        },
+        "ts": "2026-11-23T13:01:22"
+      },
+      "stderr": ""
+    }
+  ]
+}

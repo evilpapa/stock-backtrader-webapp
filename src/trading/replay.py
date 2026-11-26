@@ -16,6 +16,7 @@ from src.datahub.research_daily_repository import ResearchDailyRepository
 from src.datahub.router import DataRouter
 from src.datahub.service import MarketDataService
 from src.datahub.ticker import TickerMapper
+from src.strategy_evaluation import evaluate_returns
 from .execution import ExecutionEngine
 from .market import stock_lot
 from .models import Quote
@@ -127,16 +128,15 @@ def run_replay(target_path, reference_dir, output_dir, *, initial_cash=1_000_000
                 print(f"replayed {i + 1}/{len(days)} days, equity={state['equity']:.2f}", flush=True)
         frame = pd.DataFrame(nav)
         frame["nav"] = frame.equity / initial_cash
-        years = (pd.Timestamp(frame.date.iloc[-1]) - pd.Timestamp(frame.date.iloc[0])).days / 365.25
+        returns = frame.nav.pct_change(fill_method=None)
+        returns.iloc[0] = frame.nav.iloc[0] - 1
+        evaluation = evaluate_returns(returns)
         final = engine.snapshot(last_quotes)
         orders = ledger.orders("backtest", strategy_id)
         metrics = {
             "mode": "historical_paper_execution", "strategy": strategy_id,
             "first_trade_date": frame.date.iloc[0], "end_date": frame.date.iloc[-1],
             "rebalance_count": len(batches), "initial_cash": initial_cash, "final_equity": final["equity"],
-            "total_return": final["equity"] / initial_cash - 1,
-            "annual_return": (final["equity"] / initial_cash) ** (1 / years) - 1 if years > 0 else None,
-            "max_drawdown": float((frame.nav / frame.nav.cummax() - 1).min()),
             "total_commission": sum(r["fee"] for r in orders), "orders": len(orders),
             "fills": ledger.db.execute("SELECT COUNT(*) FROM fills").fetchone()[0],
             "final_holdings": len(final["positions"]), "final_cash": final["cash"],
@@ -151,7 +151,8 @@ def run_replay(target_path, reference_dir, output_dir, *, initial_cash=1_000_000
             "not official historical limits; no slippage, stamp duty or transfer fees. "
             "Company actions use a value-preserving pre-close proxy, not actual dividends. "
             "Fees use ChinaStockCommission, minimum once per order across partial fills. "
-            "Missing target marks omitted without renormalizing remaining weights."}
+            "Missing target marks omitted without renormalizing remaining weights."
+        } | evaluation.metrics | evaluation.scoring
         pd.DataFrame(orders).to_csv(output / "orders.csv", index=False)
         pd.read_sql_query("SELECT * FROM fills", ledger.db).to_csv(output / "fills.csv", index=False)
         pd.read_sql_query("SELECT * FROM adjustments", ledger.db).to_csv(output / "corporate_action_proxies.csv", index=False)

@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 from examples.turtle_trading import (
@@ -11,10 +10,11 @@ from examples.turtle_trading import (
 	TurtleBacktestConfig,
 	build_equity_frame,
 	build_trade_frame,
+	build_turtle_metrics,
 	save_outputs,
 )
-from examples.backtest_common import prepare_price_data, run_strategy_backtest
-from src.strategy import PerformanceCalculator
+from examples.backtest_common import prepare_price_data, read_result_detail, run_strategy_backtest
+from src.strategy_evaluation import SCORE_COLUMNS
 from src.strategy import TurtleTradingStrategy
 from src.utils.schemas import DataSourceParams
 
@@ -30,33 +30,6 @@ DEFAULT_RISK_PCT = 0.01
 DEFAULT_LOT_SIZE = 1
 DEFAULT_INITIAL_CASH = 100000.0
 DEFAULT_ALLOW_SHORT = True
-
-def build_turtle_metrics(equity: pd.DataFrame) -> pd.DataFrame:
-	"""根据海龟策略权益曲线计算页面展示用绩效指标。"""
-	if equity.empty:
-		return pd.DataFrame(
-			columns=["策略", "累计收益率", "年化收益率", "最大回撤", "夏普比率", "卡玛比率"]
-		)
-
-	returns = pd.to_numeric(equity["returns"], errors="coerce").replace([np.inf, -np.inf], np.nan).dropna()
-	calc = PerformanceCalculator()
-	start_value = float(equity["value"].iloc[0])
-	end_value = float(equity["value"].iloc[-1])
-	total_return = end_value / start_value - 1.0 if start_value else float("nan")
-	max_drawdown = float(pd.to_numeric(equity["drawdown"], errors="coerce").min())
-	return pd.DataFrame(
-		[
-			{
-				"策略": STRATEGY_NAME,
-				"累计收益率": total_return,
-				"年化收益率": calc.annualized_return(returns),
-				"最大回撤": max_drawdown,
-				"夏普比率": calc.sharpe_ratio(returns),
-				"卡玛比率": calc.calmar_ratio(returns),
-			}
-		]
-	)
-
 
 @dataclass(frozen=True)
 class TurtleFrames:
@@ -75,14 +48,12 @@ def load_turtle_results(output_dir: Path = DEFAULT_OUTPUT_DIR) -> TurtleFrames |
 	if not equity_path.exists() or not trades_path.exists():
 		return None
 	equity = pd.read_csv(equity_path, encoding="utf-8-sig")
-	metrics = (
-		pd.read_csv(metrics_path, encoding="utf-8-sig")
-		if metrics_path.exists()
-		else build_turtle_metrics(equity)
-	)
+	metrics = pd.read_csv(metrics_path, encoding="utf-8-sig") if metrics_path.exists() else pd.DataFrame()
+	if not set(SCORE_COLUMNS).issubset(metrics.columns):
+		metrics = build_turtle_metrics(equity)
 	return TurtleFrames(
 		equity=equity,
-		trades=pd.read_csv(trades_path, encoding="utf-8-sig"),
+		trades=read_result_detail(trades_path),
 		metrics=metrics,
 	)
 

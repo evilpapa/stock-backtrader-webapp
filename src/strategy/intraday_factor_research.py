@@ -31,6 +31,7 @@ def weekly_research(daily: pd.DataFrame, calendar: pd.DatetimeIndex, window: int
     opens = opens.where(np.isfinite(opens) & (opens > 0))
     week_end = pd.Series(calendar, index=calendar).groupby(calendar.to_period('W-FRI')).last()
     # 末周可能被截断；日历末日不足以确认末周收盘，但它也没有未来持有期。
+    deciles = range(1, 11)
     result = []
     for day in week_end:
         pos = calendar.get_loc(day)
@@ -56,7 +57,8 @@ def weekly_research(daily: pd.DataFrame, calendar: pd.DatetimeIndex, window: int
             row = {'signal_date': day, 'entry_date': entry, 'exit_date': exit_day, 'factor': factor,
                    'signal_n': len(sample), 'n': len(valid),
                    'rank_ic': valid['factor'].corr(valid['return'], method='spearman')}
-            row.update({f'group_{i}': valid.loc[valid.group.eq(i), 'return'].mean() for i in range(1, 11)})
-            row.update({f'group_{i}_n': int(valid.group.eq(i).sum()) for i in range(1, 11)})
+            stats = valid.groupby('group', sort=False)['return'].agg(['mean', 'size']).reindex(deciles)
+            row.update({f'group_{i}': mean for i, mean in stats['mean'].items()})
+            row.update({f'group_{i}_n': int(size) for i, size in stats['size'].fillna(0).items()})
             result.append(row)
     return pd.DataFrame(result)

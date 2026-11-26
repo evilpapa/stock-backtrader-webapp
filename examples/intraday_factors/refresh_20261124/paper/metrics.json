@@ -1,0 +1,27 @@
+{
+  "mode": "historical_paper_execution",
+  "strategy": "intraday46",
+  "first_trade_date": "2026-11-23",
+  "end_date": "2026-11-23",
+  "rebalance_count": 1,
+  "initial_cash": 1000000.0,
+  "final_equity": 999765.0,
+  "total_return": -0.00023499999999998522,
+  "annual_return": null,
+  "max_drawdown": 0.0,
+  "total_commission": 235.0,
+  "orders": 47,
+  "fills": 47,
+  "final_holdings": 47,
+  "final_cash": 10995.0,
+  "unresolved_orders": 0,
+  "targets_sha256": "c5b7a144ebc7728807199efd30b8c79e8cd2d1967a9ff5452d1330d85cb1d4e3",
+  "execution_code_sha256": {
+    "src/trading/models.py": "07e554f18b803203469d9d74c3a9a7e0c418d19f144e95a4e1821eccd4872795",
+    "src/trading/portfolio.py": "dcf1145f5ae7f05057b40d95ac80a9fa274418a1980071cbfdab3c792f2c6dc6",
+    "src/trading/execution.py": "a9fc98ac9965ef13b89e99d09567849d43052c626f618f550afe87c571ed4278",
+    "src/trading/paper.py": "00e46b5c7cbdfcd5252d0d740a273ca0f1d06cea41f54c203e8a406a223670c5",
+    "src/trading/replay.py": "6bb6d9069f4013e1fd393f368056d5430979d3408e8a7e76fa01fc0553681a3a"
+  },
+  "limitations": "Replays saved point-in-time targets, not a new factor fit. Raw open valuation; cash A-share lots/T+1; immediate full limit fills assumed; board price bands approximate, not official historical limits; no slippage, stamp duty or transfer fees. Company actions use a value-preserving pre-close proxy, not actual dividends. Fees use ChinaStockCommission, minimum once per order across partial fills. Missing target marks omitted without renormalizing remaining weights."
+}
